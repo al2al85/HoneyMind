@@ -353,12 +353,12 @@ class PostgresHoneypot(BaseHoneypot):
         return self._send_message(client, MSG_NO_DATA, b"")
 
     def handle_client(self, client, addr):
-        session = {
+        session = HoneypotSession({
             "user": None,
             "database": "postgres",
             "statements": {},
             "portals": {},
-        }
+        })
         try:
             logging.info(f"Connection from {addr}")
 
