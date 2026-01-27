@@ -334,6 +334,11 @@ class PostgresHoneypot(BaseHoneypot):
         """Send BindComplete message"""
         return self._send_message(client, MSG_BIND_COMPLETE, b"")
 
+    def _send_authentication_cleartext_password(self, client: socket.socket) -> bool:
+        """Send AuthenticationCleartextPassword message"""
+        body = struct.pack("!I", 3)  # Auth type 3 = Cleartext Password
+        return self._send_message(client, MSG_AUTH_OK, body)
+
     def _send_parameter_description(
         self, client: socket.socket, param_types: List[int] = None
     ) -> bool:
@@ -353,12 +358,14 @@ class PostgresHoneypot(BaseHoneypot):
         return self._send_message(client, MSG_NO_DATA, b"")
 
     def handle_client(self, client, addr):
-        session = HoneypotSession({
-            "user": None,
-            "database": "postgres",
-            "statements": {},
-            "portals": {},
-        })
+        session = HoneypotSession(
+            {
+                "user": None,
+                "database": "postgres",
+                "statements": {},
+                "portals": {},
+            }
+        )
         try:
             logging.info(f"Connection from {addr}")
 
@@ -419,6 +426,31 @@ class PostgresHoneypot(BaseHoneypot):
 
             logging.info(
                 f"Postgresql connection: user={session.get('user')}, database={session.get('database')}"
+            )
+
+            if not self._send_authentication_cleartext_password(client):
+                return
+
+            # Wait for password message
+            message_type, body = self._read_message(client)
+            if message_type != MSG_PASSWORD:
+                logging.warning(
+                    f"Expected password message (p), got {message_type!r}. Aborting."
+                )
+                self._send_error(client, message="Expected password")
+                return
+
+            # Extract password
+            password = body[:-1].decode("utf-8", errors="ignore") if body else ""
+
+            # Log login
+            self.log_login(
+                session,
+                {
+                    "username": session.get("user"),
+                    "password": password,
+                    "client_ip": addr[0],
+                },
             )
 
             if not self._send_authentication_ok(client):
