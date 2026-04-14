@@ -1,154 +1,209 @@
 # DataTrap - Data Driven AI-based Honeypot
 
-DataTrap is an innovative and extensible honeypot system that emulates realistic behavior across TCP, HTTP, SSH, and various database protocols. Designed to simulate web applications, IoT devices, and databases, DataTrap goes beyond traditional honeypots by combining recorded payloads, metadata, and a large language model (LLM) to dynamically generate responses that closely mimic real application behavior.
+DataTrap is an extensible honeypot system that emulates realistic behavior across SSH, HTTP/HTTPS, MySQL, PostgreSQL, Redis, Telnet, and generic TCP protocols. Designed to simulate web applications, IoT devices, and databases, DataTrap combines recorded payloads with LLM-based response generation to closely mimic real application behavior.
 
-This unique approach not only effectively deceives attackers but also delivers actionable insights—all while maintaining high performance, low cost of ownership, and operational efficiency. The system supports multiple applications and their different versions, and allows selective emulation of specific components. Its modular architecture enables easy extension of the protocol layer to support new services over time.
+When an attacker’s request matches the dataset, the recorded response is returned directly. When no match is found, an LLM generates a realistic response that is logged for review and future inclusion in the dataset. This continuous enrichment process keeps the system effective against emerging threats.
 
-At the heart of DataTrap is a continuously evolving dataset that powers LLM-based response generation. This dataset is actively maintained as part of the framework. When no exact match is found in the dataset, LLM-generated responses are used and logged for later review or integration. This ensures the system stays effective against emerging threats and continues to improve over time.
+DataTrap is open-source and welcomes community contributions. Deployment is simplified through a Docker container, enabling users to run the honeypot system in any environment with minimal setup.
 
-DataTrap is open-source and welcomes community contributions to enrich both the dataset and the system’s capabilities. Deployment is simplified through a Docker container, enabling users to run the honeypot system in any environment with minimal setup.
+---
+
+## Supported Protocols
+
+| Protocol   | Example Targets           | Key Capabilities                                                  |
+|------------|---------------------------|-------------------------------------------------------------------|
+| SSH        | Alpine Linux, Busybox     | Shell emulation, fake filesystem, file download simulation        |
+| HTTP/HTTPS | Boa Server, phpMyAdmin    | All HTTP methods, session cookies, dispatcher routing             |
+| MySQL      | MySQL 5.7 / 8.0           | Handshake, authentication, SQL query processing                   |
+| PostgreSQL | PostgreSQL                | Startup messages, authentication, queries, prepared statements    |
+| Redis      | Redis                     | RESP protocol, multi-database (SELECT), SET/GET/DEL/KEYS/AUTH     |
+| Telnet     | D-Link routers            | Banner, login prompts, session timeout                            |
+| TCP        | Generic services          | Action-based query/response on any TCP port                       |
 
 ---
 
 ## Features
 
-* Simulates real behavior for HTTP, HTTPS, SSH, and database protocols (e.g., MySQL)
-* Uses recorded payloads, metadata, and large language models (LLMs) to generate responses
-* Dynamically returns responses indistinguishable from real applications
-* Captures valuable attacker insights for analysis
-* High performance and cost-effective design
-* Easy container-based installation, supports multiple applications and versions
-* Modular design makes it easy to add or customize honeypots
-* Dataset grows over time using LLM fallback + logging
-* Configuration and extension guided via `.md` docs in the repository
+* Emulates 7 protocols with realistic request/response behavior
+* LLM fallback (via AWS Bedrock) for unknown requests, with rate limiting per visitor
+* Dataset-first design: JSONL files with dynamic placeholders (`${user}`, `${host}`, etc.)
+* Dispatcher mode: routes connections to multiple backend honeypots on a single port ([docs](docs/dispatcher.md))
+* Fake filesystem: compressed JSONL definitions loaded into SQLite for shell commands (ls, cd, mkdir, wget)
+* Chained data handlers: file downloads → fake filesystem → dataset lookup → LLM fallback
+* Session tracking with UUIDs, client IP logging, and per-session state
+* JSON-formatted logging with honeypot metadata, compatible with fluent-bit and CloudWatch
+* Docker-based deployment with multi-architecture support (amd64, arm64)
 
 ---
 
 ## Architecture
 
-The honeypot system is built using a modular architecture with the following components:
+```
+┌─────────────────────────────────────────────────────┐
+│                   Dispatcher                        │
+│         (optional single-port routing)              │
+└──────────┬──────────┬──────────┬────────────────────┘
+           │          │          │
+     ┌─────▼───┐ ┌───▼────┐ ┌──▼──────┐
+     │   SSH   │ │  HTTP  │ │  MySQL  │  ...
+     │ Handler │ │ Handler│ │ Handler │
+     └────┬────┘ └───┬────┘ └────┬────┘
+          │          │           │
+     ┌────▼──────────▼───────────▼────┐
+     │      Data Handler Chain        │
+     │  FileDownload → FakeFS →       │
+     │  Dataset Lookup → LLM Fallback │
+     └────────────┬───────────────────┘
+                  │
+     ┌────────────▼───────────────────┐
+     │   Dataset (JSONL / SQLite)     │
+     │   + LLM Engine (AWS Bedrock)   │
+     └────────────────────────────────┘
+```
 
-* **Network Layer**: Handles raw connections for supported protocols (HTTP, SSH, MySQL, etc.)
-* **Protocol Handler**: Implements protocol-specific logic (e.g., MySQL handshake)
-* **Dataset & Lookup Engine**: Maps incoming requests to known payloads and responses
-* **LLM Engine**: Fallback for unknown requests using LLM with system prompts and RAG (Retrieval-Augmented Generation)
-* **Logging and Storage**: Tracks interactions and stores LLM-generated responses separately for later dataset integration
-* **Dispatcher**: routes connections to different honeypots based on initial traffic inspection ([see dispatcher documentation](docs/dispatcher.md))
+* **Protocol Handlers**: Implement protocol-specific logic (SSH via Paramiko, HTTP via Flask, MySQL via mysql-mimic, PostgreSQL native protocol, Redis RESP, Telnet via telnetlib3)
+* **Data Handler Chain**: Processes requests through a configurable pipeline — file downloads, fake filesystem, dataset lookup, and LLM fallback
+* **Dataset & Lookup Engine**: Maps incoming requests to recorded payloads in JSONL files backed by SQLite
+* **LLM Engine**: Generates realistic responses for unknown requests using AWS Bedrock with configurable system prompts and per-visitor rate limiting
+* **Dispatcher**: Routes connections to different honeypots based on traffic inspection or LLM-assisted classification, with sticky session support
+* **Logging**: Tracks all interactions with session IDs, client IPs, and honeypot metadata in structured JSON format
 
 ---
 
 ## Dataset
 
-The dataset is the most critical component in the system. It evolves with usage and is designed for active maintenance and contribution. Each dataset file contains payloads for a specific application and version, where each payload includes:
+The dataset powers DataTrap’s response generation. Each JSONL file contains request-response pairs for a specific application and version:
 
-* A **request**: the attacker’s input
-* A **response**: the emulated reply
+* **request**: the attacker’s input
+* **response**: the emulated reply
 * Optional placeholders like `${user}` or `${host}` for dynamic substitution
-* Context-aware fields (e.g., current working directory in a shell, or inserted rows in a database)
+* Context-aware fields (e.g., current working directory, database state)
 
-The dataset is a set of JSONL files, each containing one or more request-response pairs. These payloads can simulate different behaviors of a particular version of an application or device.
+Datasets can be layered — for example, a general MySQL dataset combined with a version-specific dataset for MySQL 5.7 behavior.
 
-Datasets may also be layered or linked. For example, a honeypot can combine a general dataset for common MySQL queries with a version-specific dataset to reflect the exact behavior of MySQL 5.7 or 8.0. This modular structure enables reuse and fine-grained emulation.
+**Known requests** are matched and returned directly. **Unknown requests** are handled by the LLM and logged separately for review and future inclusion.
 
-The dataset is central to how DataTrap handles both known and unknown interactions:
+### Example
 
-* **Known requests** → matched and returned directly from the dataset
-* **Unknown requests** → handled by the LLM and logged for future inclusion in the dataset
+```json
+{"request": "SELECT version()", "response": "5.7.33-0ubuntu0.16.04.1"}
+{"request": "DROP TABLE users;", "response": "Error: DROP command denied to user ‘${user}’@’${host}’ for table ‘users’"}
+```
 
-This continuous enrichment process ensures that DataTrap evolves with attacker behavior, and remains relevant over time.
+For more details on dataset formats, see [data usage](docs/data_usage.md) and [SQLite data handling](docs/sqlite_data_handling.md).
 
-### Example dataset file:
+---
+
+## Configuration
+
+Each honeypot is defined by a `config.json` in its own directory. The main fields are:
+
+| Field              | Description                                           |
+|--------------------|-------------------------------------------------------|
+| `type`             | Protocol type: `ssh`, `http`, `mysql`, `postgresql`, `redis`, `telnet`, `tcp` |
+| `port`             | Port to listen on                                     |
+| `data_file`        | Path to JSONL dataset (e.g., `data.jsonl`)            |
+| `model_id`         | LLM model ID for Bedrock (e.g., `anthropic.claude-3-5-sonnet-20240620-v1:0`) |
+| `system_prompt`    | Instructions guiding LLM responses                    |
+| `name`             | Display name for logging                              |
+| `prompt_template`  | Shell prompt format with `${{username}}`, `${{cwd}}` placeholders (SSH/Telnet) |
+| `fs_file`          | Path to compressed fake filesystem (e.g., `fs_alpine.jsonl.gz`) |
+| `is_dispatcher`    | Enable dispatcher mode (HTTP)                         |
+
+### Example: SSH honeypot
 
 ```json
 {
-  "request": "DROP TABLE users;",
-  "response": "Error: DROP command denied to user '${user}'@'${host}' for table 'users'"
+  "type": "ssh",
+  "name": "Alpine Linux",
+  "port": 2222,
+  "data_file": "data.jsonl",
+  "fs_file": "fs_alpine.jsonl.gz",
+  "prompt_template": "${{username}}@alpine:${{cwd}}$ ",
+  "model_id": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+  "system_prompt": "You are a terminal on Alpine Linux. Respond only with terminal output."
 }
 ```
----
 
-## LLM Interaction and Dataset Update
-
-If a request does not match an existing entry in the dataset, the system uses a large language model (LLM) to generate a realistic response. These responses are:
-
-* Generated using the `system_prompt` configured per honeypot
-* Logged in a separate file for review
-* Optionally merged into the dataset for future reuse
-
-This incremental learning model allows the honeypot to grow smarter over time while preserving a high degree of realism.
-
-LLM access is handled via API using supported providers (e.g., OpenAI, Anthropic).
-System prompts and fallback behavior can be configured per honeypot instance.
+For the full configuration schema, see [honeypot configuration](docs/honeypot_configuration.md).
 
 ---
 
-## Configuration Folder
-
-Each honeypot has its own `config.json` file, which includes:
-
-- A unique honeypot type (e.g., `mysql`, `ssh`, `http`)
-- Port and runtime settings
-- Dataset path:
-  - `.jsonl` for query-response logs (e.g., `data.jsonl`)
-  - `.db` for structured datasets (e.g., `data_store.db`)
-  - `.gz` for filesystem emulation (e.g., `fs_busybox.jsonl.gz`)
-  - LLM model ID and system prompt
-This modular structure allows each honeypot to operate independently with its own configuration, making it easy to manage and scale.
-
----
 ## Installation
 
 DataTrap is packaged as a Docker image for quick and reproducible deployment.
 
-### Using Docker
-
-#### Pull the Docker image
+### Pull and run
 
 ```sh
 docker pull ghcr.io/thalesgroup/dd-honeypot
 ```
 
-#### Run the Docker container (default setup)
-
 ```sh
-docker run -d -p 80:80 -p 2222:2222 --volume /your/honeypot/folder:/data/honeypot ghcr.io/thalesgroup/dd-honeypot
+docker run -d \
+  -p 80:80 -p 2222:2222 -p 3306:3306 \
+  -v /your/honeypot/folder:/data/honeypot \
+  ghcr.io/thalesgroup/dd-honeypot
 ```
-The container will start the honeypot services based on the configurations found in `/data/honeypot`. You have to map your local honeypot folder to `/data/honeypot` in the container. The folder should contain one or more sub-folder. Each sub-folder should have a honeypot application configuration.
 
----
+The container starts honeypot services based on the configurations found in `/data/honeypot`. Each subdirectory should contain a `config.json` defining one honeypot instance.
 
-### Quick Installation on AWS EC2
+### AWS EC2 deployment
 
-1. Create an instance role with permissions to write to CloudWatch logs
-2. Create a security group with open ports (e.g., 22, 80, 443, 13306, etc.)
-3. Launch an EC2 instance with the role and group
-4. Install Docker and run the container:
+1. Create an instance role with permissions for CloudWatch Logs and Bedrock
+2. Create a security group with the ports your honeypots will use
+3. Launch an EC2 instance with the role and security group
+4. Install Docker and run:
 
 ```sh
-docker run -it \
+docker run -d \
   --log-driver=awslogs \
   --log-opt awslogs-region=us-east-1 \
   --log-opt awslogs-group=yourLogGroup \
   --log-opt awslogs-create-group=true \
+  -v /your/honeypot/folder:/data/honeypot \
   ghcr.io/thalesgroup/dd-honeypot
 ```
+
+### LLM configuration
+
+DataTrap uses AWS Bedrock for LLM-based response generation. Provide AWS credentials via environment variables or the `config/aws.env.list` file:
+
+```
+AWS_ACCESS_KEY_ID=YOUR_ACCESS_KEY
+AWS_SECRET_ACCESS_KEY=YOUR_SECRET_KEY
+AWS_REGION=us-east-1
+```
+
+---
+
+## Documentation
+
+| Topic | Link |
+|-------|------|
+| Honeypot configuration schema | [docs/honeypot_configuration.md](docs/honeypot_configuration.md) |
+| Dispatcher (multi-honeypot routing) | [docs/dispatcher.md](docs/dispatcher.md) |
+| Fake filesystem guide | [docs/fakefs_json_guide.md](docs/fakefs_json_guide.md) |
+| Dataset usage | [docs/data_usage.md](docs/data_usage.md) |
+| SQLite data handling | [docs/sqlite_data_handling.md](docs/sqlite_data_handling.md) |
+| Redis honeypot | [docs/redis_honeypot.md](docs/redis_honeypot.md) |
+| Logging & fluent-bit | [docs/logging-readme.md](docs/logging-readme.md) |
+| Multi-IP networking | [docs/networking-readme.md](docs/networking-readme.md) |
 
 ---
 
 ## Contributing
 
-We welcome community contributions!
+We welcome community contributions — new honeypot types, protocol handlers, datasets, system prompts, and test cases.
 
-* To add new honeypot types, protocol handlers, or datasets, see [CONTRIBUTING.md](./CONTRIBUTING.md)
-* You can also contribute new system prompts, dataset payloads, or test cases
-* Bug reports and feature suggestions are encouraged
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup instructions, testing guidelines, and the PR checklist.
 
 ---
 
 ## Licensing
 
-dd-honeypot is distributed under the [Apache 2.0 License](LICENSE.md).
-It depends on modules that are licensed under their own open-source licenses (see the [third-party file](THIRD_PARTY.txt)).
+DataTrap is distributed under the [Apache 2.0 License](LICENSE.md).
+It depends on modules licensed under their own open-source licenses (see [THIRD_PARTY.txt](THIRD_PARTY.txt)).
 
 ---
 
