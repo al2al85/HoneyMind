@@ -8,8 +8,13 @@ import pytest
 from paramiko import SSHClient, AutoAddPolicy
 
 from conftest import get_config, get_resource, get_honeypot_folder
-from honeypot_utils import allocate_port
+from honeypot_utils import allocate_port, init_env_from_file
 from infra.honeypot_wrapper import create_honeypot
+
+
+@pytest.fixture(autouse=True, scope="module")
+def set_aws_api_key():
+    init_env_from_file()
 
 
 def wait_for_port(port: int, retries: int = 10):

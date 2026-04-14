@@ -31,4 +31,7 @@ host.key.pub
 
 # macOS
 .DS_Store
+honeypots/*/data_store.db
 test/honeypots/*/data_store.db
+test/honeypots/*/fs_*.db
+
