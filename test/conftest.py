@@ -19,6 +19,10 @@ def _free_port() -> int:
     return p
 
 
+def get_resource(name: str) -> str:
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+
+
 def get_honeypots_folder() -> str:
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "honeypots")
 

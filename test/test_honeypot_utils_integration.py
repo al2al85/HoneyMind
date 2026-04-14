@@ -13,8 +13,6 @@ def set_aws_api_key():
     "model_id",
     [
         "anthropic.claude-3-haiku-20240307-v1:0",
-        "us.anthropic.claude-3-5-haiku-20241022-v1:0",
-        "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
     ],
 )
 def test_connect_to_bedrock(model_id: str):

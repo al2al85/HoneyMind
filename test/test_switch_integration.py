@@ -7,6 +7,7 @@ import time
 import pytest
 from paramiko import SSHClient, AutoAddPolicy
 
+from conftest import get_config, get_resource, get_honeypot_folder
 from honeypot_utils import allocate_port
 from infra.honeypot_wrapper import create_honeypot
 
@@ -62,9 +63,8 @@ def connect_and_run_ssh_commands(
 def ssh_honeypot():
     port = allocate_port()
 
-    ssh_dir = os.path.abspath("test/honeypots/alpine/")
-    base_conf = json.load(open(os.path.join(ssh_dir, "config.json")))
-
+    base_conf = get_config("alpine")
+    ssh_dir = get_honeypot_folder("alpine")
     base_conf.update(
         {
             "port": port,
@@ -91,7 +91,7 @@ def test_fakefs_json_based(ssh_honeypot):
     ssh_port = ssh_honeypot.config["port"]
     assert wait_for_port(ssh_port), "SSH port not ready"
 
-    test_cases = load_jsonl("test/test_fakefs_cases.jsonl")
+    test_cases = load_jsonl(get_resource("test_fakefs_cases.jsonl"))
     for i, case in enumerate(test_cases):
         response = connect_and_run_ssh_commands(
             port=ssh_port,
@@ -113,7 +113,7 @@ def test_fallback_json_based(ssh_honeypot):
 
     assert wait_for_port(ssh_port), "SSH port not ready"
 
-    test_cases = load_jsonl("test/test_fallback_cases.jsonl")
+    test_cases = load_jsonl(get_resource("test_fallback_cases.jsonl"))
     for i, case in enumerate(test_cases):
         response = connect_and_run_ssh_commands(
             port=ssh_port,
