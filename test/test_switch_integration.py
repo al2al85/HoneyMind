@@ -1,30 +1,12 @@
 import json
-import os
 import re
-import socket
 import time
+from typing import List
 
 import pytest
 from paramiko import SSHClient, AutoAddPolicy
 
-from conftest import get_config, get_resource, get_honeypot_folder
-from honeypot_utils import allocate_port, init_env_from_file
-from infra.honeypot_wrapper import create_honeypot
-
-
-@pytest.fixture(autouse=True, scope="module")
-def set_aws_api_key():
-    init_env_from_file()
-
-
-def wait_for_port(port: int, retries: int = 10):
-    for i in range(retries):
-        try:
-            with socket.create_connection(("127.0.0.1", port), timeout=1):
-                return True
-        except (ConnectionRefusedError, socket.timeout, OSError):
-            time.sleep(0.5)
-    return False
+from conftest import get_honeypot_main
 
 
 def connect_and_run_ssh_commands(
@@ -64,69 +46,71 @@ def connect_and_run_ssh_commands(
     return results
 
 
-@pytest.fixture
-def ssh_honeypot():
-    port = allocate_port()
-
-    base_conf = get_config("alpine")
-    ssh_dir = get_honeypot_folder("alpine")
-    base_conf.update(
-        {
-            "port": port,
-            "data_file": os.path.join(ssh_dir, "data.jsonl"),
-            "fs_file": os.path.join(ssh_dir, "fs_alpine.jsonl.gz"),
-        }
-    )
-
-    honeypot = create_honeypot(base_conf)
-    honeypot.start()
-    assert wait_for_port(port), f"SSH honeypot did not start on {port}"
-
-    yield honeypot
-
-    honeypot.stop()
-
-
 def load_jsonl(filepath):
     with open(filepath, "r") as f:
         return [json.loads(line.strip()) for line in f if line.strip()]
 
 
-def test_fakefs_json_based(ssh_honeypot):
-    ssh_port = ssh_honeypot.config["port"]
-    assert wait_for_port(ssh_port), "SSH port not ready"
+@pytest.fixture()
+def fake_fs_data() -> List[dict]:
+    return [
+        {
+            "path": "/",
+            "parent_path": None,
+            "name": "/",
+            "is_dir": True,
+        },
+        {
+            "path": "/etc",
+            "parent_path": "/",
+            "name": "etc",
+            "is_dir": True,
+        },
+        {
+            "path": "/bin",
+            "parent_path": "/",
+            "name": "bin",
+            "is_dir": True,
+        },
+    ]
 
-    test_cases = load_jsonl(get_resource("test_fakefs_cases.jsonl"))
-    for i, case in enumerate(test_cases):
-        response = connect_and_run_ssh_commands(
-            port=ssh_port,
-            username="user",
-            password="pass",
-            commands=[case["command"]],
-        )[0]
-        print(f"Response {i}: {repr(response)}")
-        assert (
-            case["expect"] in response
-        ), f"Failed case {i}: {case['command']}\nExpected: {case['expect']}\nActual: {response}"
 
-    print("Test complete. Main thread sleeping briefly before exiting.")
-    time.sleep(2)
-
-
-def test_fallback_json_based(ssh_honeypot):
-    ssh_port = ssh_honeypot.config["port"]
-
-    assert wait_for_port(ssh_port), "SSH port not ready"
-
-    test_cases = load_jsonl(get_resource("test_fallback_cases.jsonl"))
-    for i, case in enumerate(test_cases):
-        response = connect_and_run_ssh_commands(
-            port=ssh_port,
-            username="user",
-            password="pass",
-            commands=[case["command"]],
-        )[0]
-        print(f"Response {i}: {repr(response)}")
-        assert (
-            case["expect"] in response
-        ), f"Failed case {i}: {case['command']}\nExpected: {case['expect']}\nActual: {response}"
+@pytest.mark.parametrize(
+    "test_cases",
+    [
+        [
+            {"command": "ls", "expect": "bin"},
+            {"command": "cd /etc", "expect": "/etc"},
+            {"command": "mkdir testdir", "expect": "$user@alpine:$/"},
+            {"command": "ls /", "expect": "testdir"},
+        ],
+        [
+            {"command": "whoami", "expect": "root"},
+            {"command": "mysql -u root -p", "expect": "Enter password"},
+            {"command": "select 1", "expect": "Command not handled"},
+        ],
+    ],
+)
+def test_switch_json_based(monkeypatch, test_cases, fake_fs_data):
+    conf = {
+        "type": "ssh",
+        "prompt_template": "${{username}}@alpine:${{cwd}}$ ",
+        "data_file": "data.jsonl",
+        "fs_file": "test_fs_data.jsonl.gz",
+    }
+    data = [
+        {"command": "whoami", "response": "root"},
+        {"command": "mysql -u root -p", "response": "Enter password"},
+    ]
+    with get_honeypot_main(monkeypatch, [conf], data, fake_fs_data) as ssh_port:
+        for i, case in enumerate(test_cases):
+            response = connect_and_run_ssh_commands(
+                port=ssh_port,
+                username="user",
+                password="pass",
+                commands=[case["command"]],
+            )[0]
+            print(f"Response {i}: {repr(response)}")
+            assert (
+                case["expect"] in response
+            ), f"Failed case {i}: {case['command']}\nExpected: {case['expect']}\nActual: {response}"

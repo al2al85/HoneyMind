@@ -1,3 +1,0 @@
-{"command": "whoami", "expect": "root"}
-{"command": "mysql -u root -p", "expect": "Enter password"}
-{"command": "select 1", "expect": "not found"}
