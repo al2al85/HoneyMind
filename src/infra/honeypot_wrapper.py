@@ -22,8 +22,7 @@ def build_data_handler(config: dict, log_callback=None):
     system_prompt = config["system_prompt"]
     fs_file = config.get("fs_file")
 
-    ssh_types = {"ssh", "alpine", "busybox"}
-    if fs_file and config.get("type") in ssh_types:
+    if fs_file and config.get("type") == "ssh":
         fakefs_handler = FakeFSDataHandler(
             data_file=data_file,
             fs_file=fs_file,
@@ -71,7 +70,7 @@ def create_honeypot(config: dict) -> BaseHoneypot:
 
     action = build_data_handler(config, log_callback=None)
 
-    if honeypot_type in ("ssh", "alpine", "busybox"):
+    if honeypot_type == "ssh":
         from ssh_honeypot import SSHHoneypot
 
         hp = SSHHoneypot(port=port, action=action, config=config)
@@ -103,6 +102,7 @@ def create_honeypot(config: dict) -> BaseHoneypot:
         return hp
     elif honeypot_type == "redis":
         from redis_honeypot import RedisHoneypot
+
         hp = RedisHoneypot(port=port, action=action, config=config)
         return hp
     else:
