@@ -398,8 +398,8 @@ def test_dispatcher_session_consistency_and_logging(monkeypatch, capsys):
             out, _ = capsys.readouterr()
             assert '"dd-honeypot": true' in out, "Missing dd-honeypot flag in logs"
             assert (
-                '"name": "TestHTTPDispatcher"' in out
-            ), "Missing dispatcher name in logs"
+                '"name": "App_A"' in out
+            ), "Missing target honeypot name in logs"
 
         finally:
             honeypot.stop()
