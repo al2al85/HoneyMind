@@ -160,7 +160,7 @@ class BaseHoneypot(ABC):
                     {
                         "routing_key": routing_key,
                         "meta": meta,
-                        "honeypots": [],
+                        "honeypots": self.config.get("honeypots", []),
                     },
                     HoneypotSession(session_id=session_id),
                 )

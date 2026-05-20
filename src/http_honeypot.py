@@ -64,7 +64,8 @@ class HTTPHoneypot(BaseHoneypot):
                 h_session = self._action.connect({"client_ip": request.remote_addr})
                 session["h_session"] = h_session
                 logger.info(f"New session detected: {h_session}")
-                self.log_login(h_session, {"client_ip": request.remote_addr})
+                if not getattr(self, "is_dispatcher", False):
+                    self.log_login(h_session, {"client_ip": request.remote_addr})
 
         def get_resource_type(r: Request):
             xrw = r.headers.get("X-Requested-With", "").lower()
@@ -130,6 +131,18 @@ class HTTPHoneypot(BaseHoneypot):
 
                     if not target_honeypot_name:
                         target_honeypot_name = "UNKNOWN"
+                        
+                    if not session.get("dispatcher_logged_login"):
+                        self.log_data(
+                            HoneypotSession({"session_id": sid}),
+                            {
+                                "type": self.honeypot_type(),
+                                "name": target_honeypot_name,
+                                "login": {"client_ip": ctx.get("client_ip")},
+                            },
+                        )
+                        session["dispatcher_logged_login"] = True
+
                     # Log dispatcher
                     self.log_data(
                         HoneypotSession({"session_id": sid}),
