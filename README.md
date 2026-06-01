@@ -128,6 +128,8 @@ Each honeypot is defined by a `config.json` in its own directory. The main field
 | `llm_temperature`  | Optional generation temperature                       |
 | `llm_max_tokens`   | Optional maximum generated tokens                     |
 | `llm_timeout`      | Optional LLM request timeout in seconds               |
+| `llm_usage_db_path` | Optional SQLite DB path for token usage and pricing  |
+| `llm_model_prices` | Optional inline model price table seeded into the usage DB |
 | `input_normalization_enabled` | Normalize lookup/cache keys, defaults to `true` |
 | `log_normalized_input` | Add normalized input fields to structured logs, defaults to `true` |
 | `local_logging_enabled` | Enable local JSONL logs, defaults to `true`      |
@@ -206,6 +208,8 @@ docker run -d \
 
 HoneyMind uses a dataset-first flow, then falls back to an LLM for unknown requests. AWS is optional. HoneyMind can run locally with local JSONL logs and a local or remote LLM endpoint. If `llm_provider` is omitted, Bedrock model IDs still use Bedrock for backward compatibility; otherwise configure a local or hosted provider explicitly.
 
+Every LLM call can also be recorded in a SQLite usage database. The app stores prompt tokens, completion tokens, total tokens, and an estimated cost when a matching model price row exists. By default the DB is created next to the honeypot data folder as `llm_usage.db`.
+
 Supported providers:
 
 | Provider | Use case |
@@ -217,6 +221,16 @@ Supported providers:
 | `bedrock` | Optional AWS Bedrock Claude and Jamba models |
 
 `llm_api_key_env` takes priority over `llm_api_key` when the environment variable exists and is not empty. Localhost, `127.0.0.1`, `::1`, `host.docker.internal`, and private LAN OpenAI-compatible endpoints can run without a token by default. Public remote OpenAI-compatible endpoints require a token unless `llm_allow_no_api_key` is explicitly set to `true`.
+
+If you want cost tracking, provide `llm_model_prices` inline or seed the `llm_model_prices` table in `llm_usage.db`. Each row uses prices per million tokens (`*_usd_per_mtok`) for prompt/input and completion/output. If a model has no matching price row, usage is still logged but the cost columns stay `NULL`.
+
+You can inspect usage with:
+
+```sh
+python scripts/llm_usage_report.py /data/honeypot/logs/llm_usage.db
+python scripts/llm_usage_report.py /data/honeypot/logs/llm_usage.db --daily
+python scripts/llm_usage_report.py /data/honeypot/logs/llm_usage.db --json
+```
 
 Native local Ollama:
 

@@ -28,6 +28,8 @@ class DataHandler(HoneypotAction):
         llm_timeout: int = None,
         llm_temperature: float = None,
         llm_max_tokens: int = None,
+        llm_usage_db_path: str = None,
+        llm_model_prices: list[dict] = None,
         input_normalization_enabled: bool = None,
         log_normalized_input: bool = None,
     ):
@@ -49,7 +51,11 @@ class DataHandler(HoneypotAction):
             "llm_timeout": llm_timeout,
             "llm_temperature": llm_temperature,
             "llm_max_tokens": llm_max_tokens,
+            "llm_usage_db_path": llm_usage_db_path,
+            "llm_model_prices": llm_model_prices,
         }
+        if llm_usage_db_path is None:
+            llm_config["llm_usage_db_path"] = os.path.join(data_folder, "llm_usage.db")
         self._llm_config = {
             key: value for key, value in llm_config.items() if value is not None
         }

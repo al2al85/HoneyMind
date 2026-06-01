@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from llm_usage import record_llm_usage
+
 SUPPORTED_LLM_PROVIDERS = (
     "bedrock",
     "openai",
@@ -43,6 +45,8 @@ def invoke_llm(
     llm_timeout: Optional[int] = None,
     llm_temperature: Optional[float] = None,
     llm_max_tokens: Optional[int] = None,
+    llm_usage_db_path: Optional[str] = None,
+    llm_model_prices: Optional[list[dict]] = None,
 ) -> str:
     provider, base_url = _resolve_provider(llm_provider, llm_base_url, model_id)
     timeout = llm_timeout or DEFAULT_LLM_TIMEOUT
@@ -60,7 +64,7 @@ def invoke_llm(
         response_json = _invoke_bedrock_model(prompt, model_id, timeout)
         response_text = _get_bedrock_response_content(response_json, model_id)
     elif provider == "openai":
-        response_text = _invoke_openai_chat(
+        response_text, response_json = _invoke_openai_chat(
             "openai",
             system_prompt,
             user_prompt,
@@ -73,7 +77,7 @@ def invoke_llm(
             require_api_key=True,
         )
     elif provider == "openai_compatible":
-        response_text = _invoke_openai_chat(
+        response_text, response_json = _invoke_openai_chat(
             "openai_compatible",
             system_prompt,
             user_prompt,
@@ -88,7 +92,7 @@ def invoke_llm(
             ),
         )
     elif provider == "anthropic":
-        response_text = _invoke_anthropic(
+        response_text, response_json = _invoke_anthropic(
             system_prompt,
             user_prompt,
             model_id,
@@ -99,7 +103,7 @@ def invoke_llm(
             max_tokens,
         )
     elif provider == "ollama":
-        response_text = _invoke_ollama(
+        response_text, response_json = _invoke_ollama(
             system_prompt,
             user_prompt,
             model_id,
@@ -113,6 +117,16 @@ def invoke_llm(
             f"Unknown LLM provider: {provider}. Supported providers: "
             f"{', '.join(SUPPORTED_LLM_PROVIDERS)}"
         )
+    record_llm_usage(
+        llm_usage_db_path,
+        provider=provider,
+        model_id=model_id,
+        response_json=response_json,
+        model_prices=llm_model_prices,
+        response_chars=len(response_text),
+        user_prompt_chars=len(user_prompt or ""),
+        system_prompt_chars=len(system_prompt or ""),
+    )
     logging.info(f"Got response from LLM. Response length: {len(response_text)}")
     return response_text
 
@@ -299,7 +313,7 @@ def _invoke_openai_chat(
     temperature: float,
     max_tokens: int,
     require_api_key: bool,
-) -> str:
+) -> tuple[str, dict]:
     if require_api_key and not api_key:
         raise RuntimeError(
             f"{provider} provider requires llm_api_key or llm_api_key_env for "
@@ -320,7 +334,7 @@ def _invoke_openai_chat(
 
     response_json = _post_json(provider, url, headers, body, timeout)
     try:
-        return response_json["choices"][0]["message"]["content"]
+        return response_json["choices"][0]["message"]["content"], response_json
     except (KeyError, IndexError, TypeError) as ex:
         raise RuntimeError(
             f"{provider} provider returned an unexpected response format."
@@ -336,7 +350,7 @@ def _invoke_anthropic(
     timeout: int,
     temperature: float,
     max_tokens: int,
-) -> str:
+) -> tuple[str, dict]:
     if not api_key:
         raise RuntimeError("anthropic provider requires llm_api_key or llm_api_key_env.")
 
@@ -358,7 +372,7 @@ def _invoke_anthropic(
 
     response_json = _post_json("anthropic", url, headers, body, timeout)
     try:
-        return response_json["content"][0]["text"]
+        return response_json["content"][0]["text"], response_json
     except (KeyError, IndexError, TypeError) as ex:
         raise RuntimeError(
             "anthropic provider returned an unexpected response format."
@@ -373,7 +387,7 @@ def _invoke_ollama(
     timeout: int,
     temperature: float,
     max_tokens: int,
-) -> str:
+) -> tuple[str, dict]:
     base_url = base_url or DEFAULT_OLLAMA_BASE_URL
     url = f"{base_url.rstrip('/')}/api/chat"
     headers = {"content-type": "application/json"}
@@ -389,7 +403,7 @@ def _invoke_ollama(
 
     response_json = _post_json("ollama", url, headers, body, timeout)
     try:
-        return response_json["message"]["content"]
+        return response_json["message"]["content"], response_json
     except (KeyError, TypeError) as ex:
         raise RuntimeError("ollama provider returned an unexpected response format.") from ex
 

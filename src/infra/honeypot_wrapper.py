@@ -24,6 +24,8 @@ LLM_CONFIG_KEYS = (
     "llm_timeout",
     "llm_temperature",
     "llm_max_tokens",
+    "llm_usage_db_path",
+    "llm_model_prices",
     "input_normalization_enabled",
     "log_normalized_input",
 )
