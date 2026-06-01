@@ -148,17 +148,17 @@ class TestPasswordManagerAcceptance:
         assert pm.attempt(s2, "u", "pass", ip) is False  # attempt 2
         assert pm.attempt(s3, "u", "pass", ip) is True   # attempt 3 = threshold
 
-    def test_resets_after_success(self):
-        """After a successful attempt, the counter resets so next attempt starts fresh."""
+    def test_always_succeeds_after_first_success(self):
+        """Once a password succeeds it is added to the allowed set and always works immediately."""
         pm = PasswordManager({"password_min_attempts": 2, "password_max_attempts": 2})
         ip = "6.6.6.6"
         s = make_session()
         pm.attempt(s, "u", "pass", ip)
-        pm.attempt(s, "u", "pass", ip)  # success, resets
+        pm.attempt(s, "u", "pass", ip)  # success → added to _allowed
 
-        # Counter reset — next attempt should fail again
+        # Now always succeeds immediately, regardless of IP or session
         s2 = make_session()
-        assert pm.attempt(s2, "u", "pass", ip) is False
+        assert pm.attempt(s2, "u", "pass", "9.9.9.9") is True
 
 
 class TestPasswordManagerSaveSuccessful:

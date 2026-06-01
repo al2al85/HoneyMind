@@ -62,6 +62,8 @@ class PasswordManager:
             self._allowed |= _load_passwords_file(passwords_file)
         # {tracking_key: {"threshold": int, "count": int}}
         self._tracking: dict[str, dict] = {}
+        # passwords definitively rejected (too long) — never accepted
+        self._blacklist: set[str] = set()
 
     def _state(self, key: str) -> dict:
         if key not in self._tracking:
