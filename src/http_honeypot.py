@@ -178,17 +178,19 @@ class HTTPHoneypot(BaseHoneypot):
                     "headers": dict(request.headers),
                     "resource_type": resource_type,
                 }
-                self.log_data(
-                    session["h_session"],
-                    {
-                        "http-request": data,
-                    },
-                )
                 result = self._action.request(
                     data,
                     session.get("h_session"),
                 )
-                return text_to_response(result["output"])
+                output = result["output"] if isinstance(result, dict) else str(result)
+                self.log_data(
+                    session["h_session"],
+                    {
+                        "http-request": {**data, "client_ip": request.remote_addr},
+                        "response": output,
+                    },
+                )
+                return text_to_response(output)
             except Exception as e:
                 logger.error(
                     f"Error while handling request for path: {path} - {e}",

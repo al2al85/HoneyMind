@@ -240,10 +240,6 @@ class SSHServerInterface(paramiko.ServerInterface):
             return True
 
         try:
-            self.honeypot.log_data(
-                self.session, {"method": "exec", "command": command_str}
-            )
-
             # Check if action is available
             if self.action is None:
                 logging.error("No action available for command processing")
@@ -254,6 +250,10 @@ class SSHServerInterface(paramiko.ServerInterface):
 
             result = self.action.query(command_str, self.session)
             output = result["output"] if isinstance(result, dict) else str(result)
+
+            self.honeypot.log_data(
+                self.session, {"method": "exec", "command": command_str, "response": output}
+            )
 
             channel.sendall((output.strip()).encode())
             channel.send_exit_status(0)
@@ -347,9 +347,6 @@ class SSHServerInterface(paramiko.ServerInterface):
                     continue
 
                 logging.info(f"Shell command: {command}")
-                self.honeypot.log_data(
-                    self.session, {"method": "shell", "command": command}
-                )
 
                 if command.lower() in ["exit", "quit", "logout"]:
                     channel.send("\r\nConnection closed.\r\n")
@@ -362,6 +359,9 @@ class SSHServerInterface(paramiko.ServerInterface):
                 response = self.action.query(command, self.session)
                 output = (
                     response["output"] if isinstance(response, dict) else str(response)
+                )
+                self.honeypot.log_data(
+                    self.session, {"method": "shell", "command": command, "response": output}
                 )
                 channel.send(("\r\n" + output + "\r\n").encode())
 

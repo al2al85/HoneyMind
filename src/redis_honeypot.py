@@ -93,15 +93,16 @@ class RedisHoneypot(BaseHoneypot):
 
                     if command_str:
                         logger.info(f"Redis command: {command_str}")
+                        self.log_login(session, {"client_ip": addr[0]})
+
+                        response = self._process_command(command_str, session)
                         self.log_data(
                             session,
                             {
                                 "command": command_str,
+                                "response": response.decode("utf-8", errors="replace") if isinstance(response, bytes) else response,
                             },
                         )
-                        self.log_login(session, {"client_ip": addr[0]})
-
-                        response = self._process_command(command_str, session)
                         if logging.getLogger().isEnabledFor(logging.DEBUG):
                             logger.debug(f"DEBUG: Sending response: {response!r}")
                         client_socket.sendall(response)

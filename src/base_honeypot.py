@@ -26,10 +26,24 @@ class HoneypotSession(dict):
         super().__init__(*args, **kwargs)
         if "session_id" not in self:
             self["session_id"] = str(uuid.uuid4())
+        if "_seq" not in self:
+            self["_seq"] = 0
+        if "_last_event_ts" not in self:
+            self["_last_event_ts"] = None
 
     @property
     def session_id(self):
         return self["session_id"]
+
+    def next_seq(self) -> int:
+        self["_seq"] += 1
+        return self["_seq"]
+
+    def elapsed_ms(self) -> Optional[int]:
+        now = datetime.now().timestamp() * 1000
+        last = self["_last_event_ts"]
+        self["_last_event_ts"] = now
+        return int(now - last) if last is not None else None
 
 
 class BaseHoneypot(ABC):
@@ -118,22 +132,48 @@ class BaseHoneypot(ABC):
         """
         self.log_data(session, {"login": data})
 
+    def _protocol(self) -> str:
+        return self.__class__.__name__.replace("Honeypot", "").lower()
+
+    @staticmethod
+    def _extract_client_ip(data: dict) -> Optional[str]:
+        if data.get("client_ip"):
+            return data["client_ip"]
+        login = data.get("login") or {}
+        if isinstance(login, dict) and login.get("client_ip"):
+            return login["client_ip"]
+        http = data.get("http-request") or {}
+        if isinstance(http, dict) and http.get("client_ip"):
+            return http["client_ip"]
+        return None
+
     def log_data(self, session: HoneypotSession, data: dict):
         """
         log data for the honeypot session. This can be used to log user commands, requests, and other data.
         :param session:
         :param data:
         """
+        seq = session.next_seq() if isinstance(session, HoneypotSession) else None
+        elapsed = session.elapsed_ms() if isinstance(session, HoneypotSession) else None
+
         data_to_log = {
             "dd-honeypot": True,
             "honeymind": True,
             "region": os.getenv("AWS_DEFAULT_REGION"),
             "time": datetime.now().isoformat(),
             "session-id": session.get("session_id"),
+            "protocol": self._protocol(),
             "type": self.honeypot_type(),
             "name": self.name,
+            "port": self.port,
+            "seq": seq,
+            "elapsed_ms": elapsed,
+            "username": session.get("username"),
         }
         data_to_log.update(data)
+        client_ip = self._extract_client_ip(data_to_log)
+        if client_ip:
+            data_to_log["client_ip"] = client_ip
         data_to_log.update(normalized_log_fields(data_to_log, self.config))
         write_local_event(data_to_log, self.config)
         print(event_to_json(data_to_log))

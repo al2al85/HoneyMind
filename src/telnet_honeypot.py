@@ -139,12 +139,13 @@ class TelnetHoneypot(BaseHoneypot):
         writer.write(f"\r\n{shell_prompt}")
         line = await self.read_line(reader, writer, True)
         while line is not None:
-            self.log_data(session, {"command": line})
             if line in ["exit", "quit", "logout"]:
+                self.log_data(session, {"command": line})
                 writer.write("\r\nGoodbye!\r\n")
                 break
             else:
                 response = self._action.query(line, session)
+                self.log_data(session, {"command": line, "response": response})
                 writer.write(response.replace("\n", "\r\n"))
                 writer.write(f"\r\n{shell_prompt}")
                 line = await self.read_line(reader, writer, True)
