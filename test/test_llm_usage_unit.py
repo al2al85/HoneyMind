@@ -154,12 +154,7 @@ def test_usage_summaries_and_cli(tmp_path, monkeypatch):
     with redirect_stdout(out):
         try:
             runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts" / "llm_usage_report.py"), run_name="__main__")
-<<<<<<< HEAD
-        except SystemExit:
-            pass
-=======
         except SystemExit as e:
             assert e.code == 0, f"CLI exited with non-zero code: {e.code}"
->>>>>>> dd127a8 (fix: error sur pipline)
     rendered = out.getvalue()
     assert "gpt-4o-mini" in rendered
