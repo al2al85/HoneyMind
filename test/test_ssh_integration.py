@@ -37,7 +37,9 @@ def ssh_honeypot_with_fs_download(tmp_path: Path):
         "data_file": str(data_file),
         "system_prompt": "You are a Linux emulator",
         "model_id": "test-model",
-        "fs_file": str(fs_path),  # use the converted DB here
+        "fs_file": str(fs_path),
+        "password_min_attempts": 1,
+        "password_max_attempts": 1,
     }
 
     honeypot = create_honeypot(config)

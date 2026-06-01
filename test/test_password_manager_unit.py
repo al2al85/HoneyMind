@@ -48,8 +48,10 @@ class TestPasswordManagerLogging:
             assert result is False
 
         log_files = list(tmp_path.glob("*.jsonl"))
-        lines = [json.loads(l) for l in log_files[0].read_text().splitlines() if l.strip()]
-        failed = [l for l in lines if l.get("type") == "password_attempt" and not l["success"]]
+        all_lines = []
+        for lf in log_files:
+            all_lines.extend(json.loads(l) for l in lf.read_text().splitlines() if l.strip())
+        failed = [l for l in all_lines if l.get("type") == "password_attempt" and not l["success"]]
         assert len(failed) == 2
 
     def test_successful_attempt_logged_as_success(self, tmp_path):

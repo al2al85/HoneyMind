@@ -389,8 +389,12 @@ class SSHHoneypot(BaseHoneypot):
         import os
         from paramiko import RSAKey
 
-        key_path = os.environ.get("HONEYPOT_HOST_KEY", "host.key")
-        key_path = Path(key_path)
+        key_path_env = os.environ.get("HONEYPOT_HOST_KEY")
+        if key_path_env:
+            key_path = Path(key_path_env)
+        else:
+            cfg_dir = (self.config or {}).get("config_dir")
+            key_path = Path(cfg_dir) / "host.key" if cfg_dir else Path("host.key")
 
         if not key_path.exists():
             key_path.parent.mkdir(parents=True, exist_ok=True)
@@ -439,13 +443,24 @@ class SSHHoneypot(BaseHoneypot):
 
     def _handle_client(self, client_socket, addr):
         transport = None
+        peer = f"{addr[0]}:{addr[1]}"
+        start_ts = time.time()
         try:
+            logging.info("SSH connection accepted from %s", peer)
             transport = Transport(client_socket)
             # Use configured SSH banner when available to match the fake system
             banner = (self.config or {}).get("ssh_banner") if hasattr(self, "config") else None
             transport.local_version = banner or "SSH-2.0-OpenSSH_8.9p1"
             transport.handshake_timeout = 30
             transport.banner_timeout = 30
+
+            logging.info(
+                "SSH handshake starting for %s (server_banner=%s, banner_timeout=%ss, handshake_timeout=%ss)",
+                peer,
+                transport.local_version,
+                transport.banner_timeout,
+                transport.handshake_timeout,
+            )
 
             handler = SSHServerInterface(self.action, self, self.config)
             handler.client_addr = addr[0]
@@ -454,22 +469,49 @@ class SSHHoneypot(BaseHoneypot):
             transport.add_server_key(self.host_key)
             transport.start_server(server=handler)
 
-            start_time = time.time()
-            while transport.is_active() and (time.time() - start_time < 60):
+            logging.info("SSH server banner exchanged with %s, waiting for channel requests", peer)
+
+            while transport.is_active() and (time.time() - start_ts < 60):
                 channel = transport.accept(1)
                 if channel:
+                    logging.info("SSH channel opened from %s (active=%s)", peer, transport.is_active())
                     channel.event.wait()
 
         except EOFError:
-            logging.warning(f"Client {addr[0]} disconnected unexpectedly")
+            elapsed = time.time() - start_ts
+            logging.warning("SSH client disconnected early from %s after %.2fs", peer, elapsed)
         except (SSHException, OSError) as e:
-            logging.error(f"SSH error: {e}")
+            elapsed = time.time() - start_ts
+            message = str(e)
+            if "SSH protocol banner" in message:
+                logging.warning(
+                    "SSH banner read failed from %s after %.2fs: %s",
+                    peer,
+                    elapsed,
+                    message,
+                )
+            elif "Connection reset by peer" in message:
+                logging.info(
+                    "SSH peer reset connection during handshake from %s after %.2fs: %s",
+                    peer,
+                    elapsed,
+                    message,
+                )
+            else:
+                logging.error(
+                    "SSH error from %s after %.2fs: %s",
+                    peer,
+                    elapsed,
+                    message,
+                    exc_info=True,
+                )
         finally:
             if transport:
                 try:
                     transport.close()
                 except (EOFError, OSError):
                     pass
+            logging.info("SSH connection closed for %s", peer)
 
     def stop(self):
         self.running = False

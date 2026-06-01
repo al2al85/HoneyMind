@@ -21,7 +21,11 @@ class FakeFSDataHandler(HoneypotAction):
         self.uname_sysname = self.config.get("uname_sysname", "Linux")
         self.uname_kernel = self.config.get("kernel", "5.10.0")
         self.uname_release = self.config.get("uname_release", self.uname_kernel)
+        self.uname_version = self.config.get("uname_version", "#1 SMP PREEMPT_DYNAMIC")
         self.uname_machine = self.config.get("arch", "x86_64")
+        self.uname_processor = self.config.get("uname_processor", self.config.get("arch", "x86_64"))
+        self.uname_hardware_platform = self.config.get("uname_hardware_platform", self.config.get("arch", "x86_64"))
+        self.uname_os = self.config.get("uname_os", "GNU/Linux")
         self.cpu_count = int(self.config.get("cpu_count", 1))
         self.cpu_model = self.config.get(
             "cpu_model", "Intel(R) Core(TM) i7-8650U CPU @ 1.90GHz"
@@ -124,25 +128,57 @@ class FakeFSDataHandler(HoneypotAction):
                 return "Usage: wget <url> or curl <url>"
         return self.query_from_file(query)
 
+    def _handle_uname(self, query: str) -> str:
+        parts = shlex.split(query)
+        args = parts[1:]
+
+        # Map long options to their single-char equivalents
+        long_opts = {
+            "--kernel-name": "s",
+            "--nodename": "n",
+            "--kernel-release": "r",
+            "--kernel-version": "v",
+            "--machine": "m",
+            "--processor": "p",
+            "--hardware-platform": "i",
+            "--operating-system": "o",
+            "--all": "a",
+        }
+
+        active = set()
+        for arg in args:
+            if arg in long_opts:
+                active.add(long_opts[arg])
+            elif arg.startswith("--"):
+                pass  # unknown long option → ignore
+            elif arg.startswith("-"):
+                for ch in arg[1:]:
+                    active.add(ch)
+
+        # -a → all fields; no flags → default to -s
+        if "a" in active:
+            active = {"s", "n", "r", "v", "m", "p", "i", "o"}
+        elif not active:
+            active = {"s"}
+
+        field_values = {
+            "s": self.uname_sysname,
+            "n": self.hostname,
+            "r": self.uname_release,
+            "v": self.uname_version,
+            "m": self.uname_machine,
+            "p": self.uname_processor,
+            "i": self.uname_hardware_platform,
+            "o": self.uname_os,
+        }
+
+        # Output fields in POSIX/GNU order
+        field_order = ["s", "n", "r", "v", "m", "p", "i", "o"]
+        return " ".join(field_values[f] for f in field_order if f in active) + "\n"
+
     def _handle_system_artifacts(self, query: str) -> Optional[str]:
-        if query.startswith("uname"):
-            parts = shlex.split(query)
-            flags = [p for p in parts[1:] if p.startswith("-")]
-            if "-a" in flags:
-                return (
-                    f"{self.uname_sysname} {self.hostname} {self.uname_kernel} "
-                    f"{self.uname_release} {self.uname_machine} GNU/Linux\n"
-                )
-            if "-s" in flags or len(parts) == 1:
-                return f"{self.uname_sysname}\n"
-            if "-n" in flags:
-                return f"{self.hostname}\n"
-            if "-r" in flags:
-                return f"{self.uname_release}\n"
-            if "-v" in flags:
-                return "#1 SMP PREEMPT_DYNAMIC\n"
-            if "-m" in flags or "-p" in flags:
-                return f"{self.uname_machine}\n"
+        if query == "uname" or query.startswith("uname "):
+            return self._handle_uname(query)
 
         if query in ("cat /etc/os-release", "cat /etc/*release"):
             return self.os_release_content + "\n"

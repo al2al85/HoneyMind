@@ -62,8 +62,6 @@ class PasswordManager:
             self._allowed |= _load_passwords_file(passwords_file)
         # {tracking_key: {"threshold": int, "count": int}}
         self._tracking: dict[str, dict] = {}
-        # passwords that have failed at least once — never accepted again
-        self._blacklist: set[str] = set()
 
     def _state(self, key: str) -> dict:
         if key not in self._tracking:
@@ -91,11 +89,6 @@ class PasswordManager:
             self._save_successful(session, username, password, client_ip)
             return True
 
-        if password in self._blacklist:
-            self._log_attempt(session, username, password, client_ip, 0, 0, False)
-            self._save_failed(session, username, password, client_ip)
-            return False
-
         tracking_key = client_ip or session.session_id
         state = self._state(tracking_key)
         state["count"] += 1
@@ -112,7 +105,6 @@ class PasswordManager:
             self._save_successful(session, username, password, client_ip)
             del self._tracking[tracking_key]
         else:
-            self._blacklist.add(password)
             self._save_failed(session, username, password, client_ip)
 
         return success

@@ -20,6 +20,8 @@ _HONEYPOT_CONFIG = {
     "model_id": "anthropic.claude-3-haiku-20240307-v1:0",
     "system_prompt": "You are a terminal on BusyBox Linux. Always respond like a real BusyBox server shell would. Commands like ls, cd, cat, pwd, whoami, etc., should behave normally. If the command is unknown, return 'command not found'. Don't reveal you're an AI or honeypot.",
     "fs_file": "fs.jsonl.gz",
+    "password_min_attempts": 1,
+    "password_max_attempts": 1,
 }
 
 _FS_DATA = [

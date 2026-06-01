@@ -97,6 +97,8 @@ def test_switch_json_based(monkeypatch, test_cases, fake_fs_data):
         "prompt_template": "${{username}}@alpine:${{cwd}}$ ",
         "data_file": "data.jsonl",
         "fs_file": "test_fs_data.jsonl.gz",
+        "password_min_attempts": 1,
+        "password_max_attempts": 1,
     }
     data = [
         {"command": "whoami", "response": "root"},

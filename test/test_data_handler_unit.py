@@ -3,7 +3,7 @@ import os
 import tempfile
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, ANY
 
 from infra.data_handler import DataHandler
 
@@ -136,6 +136,7 @@ def test_llm_provider_config_is_passed_to_invoke_llm(mock_llm):
         llm_timeout=12,
         llm_temperature=0.1,
         llm_max_tokens=321,
+        llm_usage_db_path=ANY,
     )
 
 
@@ -166,6 +167,7 @@ def test_llm_prompt_uses_raw_input_after_normalized_miss(mock_llm):
         "system",
         "User input: {'command': 'ls                 Doc'}",
         "model",
+        llm_usage_db_path=ANY,
     )
 
 

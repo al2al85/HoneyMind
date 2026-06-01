@@ -152,6 +152,9 @@ def test_usage_summaries_and_cli(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", argv)
     out = StringIO()
     with redirect_stdout(out):
-        runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts" / "llm_usage_report.py"), run_name="__main__")
+        try:
+            runpy.run_path(str(Path(__file__).resolve().parents[1] / "scripts" / "llm_usage_report.py"), run_name="__main__")
+        except SystemExit:
+            pass
     rendered = out.getvalue()
     assert "gpt-4o-mini" in rendered

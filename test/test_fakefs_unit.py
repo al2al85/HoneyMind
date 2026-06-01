@@ -203,9 +203,10 @@ def test_system_artifacts_are_coherent(tmp_path):
 
     session = handler.connect({})
 
-    assert handler.query("uname -a", session).startswith(
-        "Linux alpine-vm 6.1.21 6.1.21 x86_64 GNU/Linux"
-    )
+    uname_a = handler.query("uname -a", session)
+    assert uname_a.startswith("Linux alpine-vm 6.1.21 ")
+    assert "x86_64" in uname_a
+    assert uname_a.strip().endswith("GNU/Linux")
     assert "MemTotal:" in handler.query("cat /proc/meminfo", session)
     assert "processor" in handler.query("cat /proc/cpuinfo", session)
     assert "BOOT_IMAGE=/vmlinuz" in handler.query("cat /proc/cmdline", session)
