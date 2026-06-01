@@ -1,11 +1,27 @@
 {
   "type": "ssh",
   "name": "Alpine Linux Honeypot",
-  "prompt_template": "${{username}}@alpine:${{cwd}}$ ",
-  "shell-prompt": "honeypot@fakevm:~$ ",
+  "hostname": "web-01",
+  "prompt_template": "${{username}}@${{hostname}}:${{cwd}}$ ",
   "data_file": "data.jsonl",
   "fs_file": "fs_alpine.jsonl.gz",
   "model_id": "anthropic.claude-3-haiku-20240307-v1:0",
-  "system_prompt":"You are a terminal on Alpine Linux. Always respond like a real Alpine server shell would. Commands like ls, cd, cat, pwd, whoami, etc., should behave normally. If the command is unknown, return 'command not found'. Don't reveal you're an AI or honeypot.",
-  "port": 2224
+  "system_prompt": "You are a terminal on Alpine Linux. Always respond like a real Alpine server shell would. Commands like ls, cd, cat, pwd, whoami, etc., should behave normally. If the command is unknown, return 'command not found'. Don't reveal you're an AI or honeypot.",
+  "port": 2224,
+  "kernel": "6.6.49-0-lts",
+  "uname_release": "6.6.49-0-lts",
+  "uname_version": "#1-Alpine SMP PREEMPT_DYNAMIC Fri Oct 25 04:40:51 UTC 2024",
+  "uname_os": "Linux",
+  "arch": "x86_64",
+  "distro": "Alpine Linux",
+  "os_release": "NAME=\"Alpine Linux\"\nID=alpine\nVERSION_ID=3.20.3\nPRETTY_NAME=\"Alpine Linux v3.20\"\nHOME_URL=\"https://alpinelinux.org/\"\nBUG_REPORT_URL=\"https://gitlab.alpinelinux.org/alpine/aports/-/issues\"\n",
+  "dmesg_lines": [
+    "[    0.000000] Linux version 6.6.49-0-lts (buildozer@build-3-20-x86_64) (gcc (Alpine 13.2.1_git20240309) 13.2.1 20240309, GNU ld (GNU Binutils) 2.42.0) #1-Alpine SMP PREEMPT_DYNAMIC Fri Oct 25 04:40:51 UTC 2024",
+    "[    0.000000] Command line: BOOT_IMAGE=/boot/vmlinuz-lts root=/dev/sda1 ro rootfstype=ext4 quiet",
+    "[    0.000000] DMI: QEMU Standard PC (i440FX + PIIX, 1996), BIOS 1.16.2-debian-1.16.2-1 04/01/2014",
+    "[    0.000000] tsc: Detected 2400.000 MHz processor",
+    "[    1.456789] EXT4-fs (sda1): mounted filesystem with ordered data mode. Quota mode: none."
+  ],
+  "proc_cmdline": "BOOT_IMAGE=/boot/vmlinuz-lts root=/dev/sda1 ro rootfstype=ext4 quiet",
+  "ssh_banner": "SSH-2.0-OpenSSH_9.7"
 }

@@ -1,11 +1,25 @@
 {
   "type": "ssh",
   "name": "BusyBox Linux Honeypot",
-  "prompt_template": "# ",
-  "shell-prompt": "honeypot@fakevm:~$ ",
+  "hostname": "OpenWrt",
+  "prompt_template": "root@${{hostname}}:/# ",
   "data_file": "data.jsonl",
   "fs_file": "fs_busybox.jsonl.gz",
   "model_id": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-  "system_prompt":"You are a terminal on BusyBox Linux. Always respond like a real BusyBox server shell would. Commands like ls, cd, cat, pwd, whoami, etc., should behave normally. If the command is unknown, return 'command not found'. Don't reveal you're an AI or honeypot.",
-  "port": 2223
+  "system_prompt": "You are a terminal on OpenWrt (BusyBox). Always respond like a real OpenWrt router shell would. Commands like ls, cd, cat, pwd, whoami, uname, etc., should behave normally. If the command is unknown, return 'ash: <cmd>: not found'. Don't reveal you're an AI or honeypot.",
+  "port": 2223,
+  "kernel": "5.15.137",
+  "uname_release": "5.15.137",
+  "uname_version": "#0 SMP Tue Nov 14 21:34:20 2023",
+  "uname_os": "GNU/Linux",
+  "arch": "x86_64",
+  "distro": "OpenWrt",
+  "os_release": "NAME=\"OpenWrt\"\nVERSION=\"23.05.2\"\nID=\"openwrt\"\nID_LIKE=\"lede openwrt\"\nPRETTY_NAME=\"OpenWrt 23.05.2\"\nVERSION_ID=\"23.05.2\"\nHOME_URL=\"https://openwrt.org/\"\nBUG_URL=\"https://bugs.openwrt.org/\"\n",
+  "dmesg_lines": [
+    "[    0.000000] Linux version 5.15.137 (builder@buildhost) (x86_64-openwrt-linux-musl-gcc (OpenWrt GCC 12.3.0 r23497-6637af95aa) 12.3.0, GNU ld (GNU Binutils) 2.40) #0 SMP Tue Nov 14 21:34:20 2023",
+    "[    0.000000] Command line: BOOT_IMAGE=/boot/vmlinuz root=/dev/sda1 ro quiet",
+    "[    0.000000] DMI: QEMU Standard PC (i440FX + PIIX, 1996), BIOS rel-1.16.2 04/01/2014",
+    "[    0.543210] EXT4-fs (sda1): mounted filesystem with ordered data mode."
+  ],
+  "ssh_banner": "SSH-2.0-OpenSSH_8.4"
 }

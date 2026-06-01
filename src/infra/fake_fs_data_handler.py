@@ -18,7 +18,7 @@ class FakeFSDataHandler(HoneypotAction):
         self._data_file = Path(data_file)
         self.config = config or {}
 
-        self.hostname = self.config.get("hostname", "server")
+        self.hostname = self.config.get("hostname", "ubuntu")
         self.username = self.config.get(
             "simulated_user", self.config.get("username", "root")
         )
@@ -26,9 +26,11 @@ class FakeFSDataHandler(HoneypotAction):
         self.gid = int(self.config.get("gid", 0))
         self.group = self.config.get("group", self.username)
         self.uname_sysname = self.config.get("uname_sysname", "Linux")
-        self.uname_kernel = self.config.get("kernel", "5.10.0")
+        self.uname_kernel = self.config.get("kernel", "5.15.0-91-generic")
         self.uname_release = self.config.get("uname_release", self.uname_kernel)
-        self.uname_version = self.config.get("uname_version", "#1 SMP PREEMPT_DYNAMIC")
+        self.uname_version = self.config.get(
+            "uname_version", "#101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023"
+        )
         self.uname_machine = self.config.get("arch", "x86_64")
         self.uname_processor = self.config.get(
             "uname_processor", self.config.get("arch", "x86_64")
@@ -37,59 +39,66 @@ class FakeFSDataHandler(HoneypotAction):
             "uname_hardware_platform", self.config.get("arch", "x86_64")
         )
         self.uname_os = self.config.get("uname_os", "GNU/Linux")
-        self.cpu_count = int(self.config.get("cpu_count", 1))
+        self.cpu_count = int(self.config.get("cpu_count", 2))
         self.cpu_model = self.config.get(
-            "cpu_model", "Intel(R) Core(TM) i7-8650U CPU @ 1.90GHz"
+            "cpu_model", "Intel(R) Xeon(R) CPU E5-2686 v4 @ 2.30GHz"
         )
-        self.mem_total_kb = int(self.config.get("mem_total_kb", 2048 * 1024))
+        self.mem_total_kb = int(self.config.get("mem_total_kb", 2 * 1024 * 1024))
         self.interface = self.config.get("interface", "eth0")
-        self.ip_address = self.config.get("ip_address", "10.0.2.15")
+        self.ip_address = self.config.get("ip_address", "172.31.42.15")
         self.netmask = self.config.get("netmask", "255.255.255.0")
         self.cidr_prefix = int(self.config.get("cidr_prefix", 24))
-        self.mac_address = self.config.get("mac_address", "52:54:00:12:34:56")
-        self.broadcast = self.config.get("broadcast", "10.0.2.255")
+        self.mac_address = self.config.get("mac_address", "52:54:00:4a:8b:2c")
+        self.broadcast = self.config.get("broadcast", "172.31.42.255")
         self.root_device = self.config.get("root_device", "/dev/sda1")
         self.clocksource = self.config.get("clocksource", "tsc")
+        self.distro_name = self.config.get(
+            "distro", self.config.get("name", "Ubuntu 22.04.3 LTS")
+        )
         self.dmesg_lines = self.config.get(
             "dmesg_lines",
             [
-                "[    0.000000] Linux version 5.10.0 (builder@host) (gcc version 11.3.0) #1 SMP",
-                "[    0.000000] Command line: BOOT_IMAGE=/vmlinuz root=/dev/sda1 ro quiet",
-                "[    0.000000] DMI: KVM Virtual Machine/Standard PC (Q35 + ICH9, 2009), BIOS 1.0.0",
+                f"[    0.000000] Linux version {self.uname_release} (buildd@lcy02-amd64-059) (gcc (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0, GNU ld (GNU Binutils for Ubuntu) 2.38) {self.uname_version}",
+                f"[    0.000000] Command line: BOOT_IMAGE=/boot/vmlinuz-{self.uname_release} root=/dev/sda1 ro quiet splash",
+                "[    0.000000] DMI: QEMU Standard PC (i440FX + PIIX, 1996), BIOS rel-1.16.2-0-gea1b7a073390-prebuilt.qemu.org 04/01/2014",
+                "[    0.000000] tsc: Detected 2300.000 MHz processor",
+                "[    0.523871] clocksource: tsc-early: mask: 0xffffffffffffffff max_cycles: 0x213e9fdb5e8, max_idle_ns: 440795268513 ns",
+                "[    2.187634] EXT4-fs (sda1): mounted filesystem with ordered data mode. Quota mode: none.",
             ],
-        )
-        self.distro_name = self.config.get(
-            "distro", self.config.get("name", "Ubuntu 20.04")
         )
         self.os_release_content = self.config.get(
             "os_release",
             self._default_os_release(),
         )
         self.proc_cmdline = self.config.get(
-            "proc_cmdline", "BOOT_IMAGE=/vmlinuz root=/dev/sda1 ro quiet"
+            "proc_cmdline",
+            f"BOOT_IMAGE=/boot/vmlinuz-{self.uname_release} root=/dev/sda1 ro quiet splash",
         )
         self.proc_mounts = self.config.get(
             "proc_mounts",
-            "/dev/sda1 / ext4 rw,relatime,errors=remount-ro 0 0\n"
+            f"{self.root_device} / ext4 rw,relatime,errors=remount-ro 0 0\n"
             "proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0\n"
             "sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime 0 0\n"
-            "tmpfs /run tmpfs rw,nosuid,nodev,mode=755 0 0\n",
+            "tmpfs /run tmpfs rw,nosuid,nodev,mode=755 0 0\n"
+            f"tmpfs /dev/shm tmpfs rw,nosuid,nodev 0 0\n"
+            f"{self.root_device} /boot/efi vfat rw,relatime 0 0\n",
         )
         self.proc_interrupts = self.config.get(
             "proc_interrupts",
-            "           CPU0\n"
-            "  0:         20   IO-APIC   2-edge      timer\n"
-            "  1:          0   IO-APIC   1-edge      i8042\n",
+            "           CPU0       CPU1\n"
+            "  0:          9          0   IO-APIC   2-edge      timer\n"
+            "  1:          0          0   IO-APIC   1-edge      i8042\n"
+            "  8:          0          0   IO-APIC   8-edge      rtc0\n"
+            " 24:          0          0   PCI-MSI 98304-edge      virtio0-config\n"
+            " 25:       1423       1156   PCI-MSI 98305-edge      virtio0-req.0\n",
         )
         self.dmi_info = {
-            "product_name": self.config.get("dmi_product_name", "KVM Virtual Machine"),
+            "product_name": self.config.get("dmi_product_name", "Standard PC (i440FX + PIIX, 1996)"),
             "sys_vendor": self.config.get("dmi_sys_vendor", "QEMU"),
-            "product_version": self.config.get(
-                "dmi_product_version", "Standard PC (Q35 + ICH9, 2009)"
-            ),
-            "board_name": self.config.get("dmi_board_name", "pc-q35-8.2"),
+            "product_version": self.config.get("dmi_product_version", "pc-i440fx-8.1"),
+            "board_name": self.config.get("dmi_board_name", "440BX Desktop Reference Platform"),
             "bios_vendor": self.config.get("dmi_bios_vendor", "SeaBIOS"),
-            "bios_version": self.config.get("dmi_bios_version", "1.16.2"),
+            "bios_version": self.config.get("dmi_bios_version", "rel-1.16.2-0-gea1b7a073390-prebuilt.qemu.org"),
         }
 
         fs_path = Path(fs_file)
@@ -129,12 +138,18 @@ class FakeFSDataHandler(HoneypotAction):
                 'HOME_URL="https://www.debian.org/"\n'
             )
         return (
-            f'NAME="{self.distro_name}"\n'
-            f'PRETTY_NAME="{self.distro_name} LTS"\n'
+            'PRETTY_NAME="Ubuntu 22.04.3 LTS"\n'
+            'NAME="Ubuntu"\n'
+            'VERSION_ID="22.04"\n'
+            'VERSION="22.04.3 LTS (Jammy Jellyfish)"\n'
+            "VERSION_CODENAME=jammy\n"
             "ID=ubuntu\n"
-            'VERSION_ID="20.04"\n'
-            'VERSION="20.04.6 LTS (Focal Fossa)"\n'
+            "ID_LIKE=debian\n"
             'HOME_URL="https://www.ubuntu.com/"\n'
+            'SUPPORT_URL="https://help.ubuntu.com/"\n'
+            'BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"\n'
+            'PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"\n'
+            "UBUNTU_CODENAME=jammy\n"
         )
 
     def connect(self, auth_info: dict) -> HoneypotSession:
