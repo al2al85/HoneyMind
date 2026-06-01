@@ -19,6 +19,14 @@ class DataHandler(HoneypotAction):
         model_id: str,
         structure: dict = None,
         routes: list[dict] = None,
+        llm_provider: str = None,
+        llm_base_url: str = None,
+        llm_api_key: str = None,
+        llm_api_key_env: str = None,
+        llm_allow_no_api_key: bool = None,
+        llm_timeout: int = None,
+        llm_temperature: float = None,
+        llm_max_tokens: int = None,
     ):
         data_folder = str(Path(data_file).parent.absolute())
         self._data_store = self._create_data_store(data_folder, structure)
@@ -29,6 +37,19 @@ class DataHandler(HoneypotAction):
             system_prompt = "\n".join(system_prompt)
         self._system_prompt = system_prompt
         self._model_id = model_id
+        llm_config = {
+            "llm_provider": llm_provider,
+            "llm_base_url": llm_base_url,
+            "llm_api_key": llm_api_key,
+            "llm_api_key_env": llm_api_key_env,
+            "llm_allow_no_api_key": llm_allow_no_api_key,
+            "llm_timeout": llm_timeout,
+            "llm_temperature": llm_temperature,
+            "llm_max_tokens": llm_max_tokens,
+        }
+        self._llm_config = {
+            key: value for key, value in llm_config.items() if value is not None
+        }
         self._data_file = data_file
         self.entries = self._load_data_entries(data_file)
         self._hints = self._load_hints()
@@ -67,7 +88,12 @@ class DataHandler(HoneypotAction):
 
     def invoke_llm_with_limit(self, user_prompt: str) -> (bool, str):
         if self._limiter.can_invoke("visitor"):
-            response = invoke_llm(self._system_prompt, user_prompt, self._model_id)
+            response = invoke_llm(
+                self._system_prompt,
+                user_prompt,
+                self._model_id,
+                **self._llm_config,
+            )
             return True, response
         else:
             return False, "Internal error. Please try again later."

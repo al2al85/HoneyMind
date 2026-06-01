@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import random
@@ -8,6 +7,7 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
 from honeypot_utils import allocate_port
+from local_log_utils import event_to_json, write_local_event
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,8 @@ class BaseHoneypot(ABC):
             "name": self.name,
         }
         data_to_log.update(data)
-        print(json.dumps(data_to_log))
+        write_local_event(data_to_log, self.config)
+        print(event_to_json(data_to_log))
 
     def forward_to_backend(self, backend_name: str, ctx: dict):
         try:

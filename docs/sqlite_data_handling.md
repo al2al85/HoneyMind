@@ -1,8 +1,10 @@
-# Delete a Single Record from Honeypot SQLite DB (Inside Docker)
+# Delete a Single Record from a HoneyMind SQLite DB (Inside Docker)
+
+HoneyMind is based on [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot) and preserves the original attribution and license.
 
 ## 1. Exec into the container:
 ``` bash
-  docker exec -it dd-honeypot sh
+  docker exec -it honeymind sh
 ```
 
 ## 2. Install SQLite (if not installed):
@@ -38,5 +40,5 @@
 Inspect:
 
 ```bash
-  docker cp dd-honeypot:/export.json ./honeypot_dump.json
+  docker cp honeymind:/export.json ./honeypot_dump.json
 ```

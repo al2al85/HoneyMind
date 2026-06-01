@@ -104,3 +104,36 @@ def test_http_returns_file_cache(mock_llm):
 
     assert response["output"] == '{"status":"ok"}'
     mock_llm.assert_not_called()
+
+
+@patch("infra.data_handler.invoke_llm", return_value="Provider response")
+def test_llm_provider_config_is_passed_to_invoke_llm(mock_llm):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        handler = DataHandler(
+            os.path.join(temp_dir, "data.jsonl"),
+            "system",
+            "model",
+            llm_provider="openai_compatible",
+            llm_base_url="http://localhost:11434/v1",
+            llm_api_key_env="OPENAI_API_KEY",
+            llm_allow_no_api_key=True,
+            llm_timeout=12,
+            llm_temperature=0.1,
+            llm_max_tokens=321,
+        )
+
+        response = handler.query("unknown", session=handler.connect({}))
+
+    assert response["output"] == "Provider response"
+    mock_llm.assert_called_once_with(
+        "system",
+        "User input: {'command': 'unknown'}",
+        "model",
+        llm_provider="openai_compatible",
+        llm_base_url="http://localhost:11434/v1",
+        llm_api_key_env="OPENAI_API_KEY",
+        llm_allow_no_api_key=True,
+        llm_timeout=12,
+        llm_temperature=0.1,
+        llm_max_tokens=321,
+    )

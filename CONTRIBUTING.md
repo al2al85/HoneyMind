@@ -2,6 +2,8 @@
 
 We welcome contributions from everyone. To become a contributor, follow these steps:
 
+HoneyMind is based on [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot). Please keep the original attribution and license intact when contributing.
+
 1. Fork the repository.
 2. Create a new branch for your feature or bugfix.
 3. Make your changes.
@@ -43,10 +45,11 @@ PYTHONPATH=src:test python -m pytest --color=yes test/*_unit.py
 Unit tests also run automatically on every push using a dedicated workflow.
 
 #### Running integration tests
-To run integration tests locally, you first have to add API keys to your environment. You can do it by creating evn files under the config dir: 
+To run integration tests locally, add any required API keys to your environment. AWS keys are only needed for Bedrock-specific integration tests. You can do this by creating env files under the `config` directory.
 
 aws.env.list
 ```
+For hosted OpenAI-compatible or Anthropic providers, prefer `config/llm.env.list`.
 AWS_ACCESS_KEY_ID=YOUR_ACCESS_KEY
 AWS_SECRET_ACCESS_KEY=YOUR_SECRET_KEY
 AWS_REGION=YOUR_REGION
@@ -60,11 +63,11 @@ PYTHONPATH=src:test python -m pytest --color=yes test/*_integration.py
 ### Building docker image and using it
 To build the docker image, use the following command from the root of the repository:
 ```sh
-docker build -t dd-hoenypot .
+docker build -t honeymind:latest .
 ```
 To run the docker image, use the following command:
 ```sh
-docker run -it --rm --name dd-honeypot -p 5000:80 -v $(pwd)/test/honeypots:/data/honeypot dd-hoenypot
+docker run -it --rm --name honeymind -p 5000:80 -v $(pwd)/test/honeypots:/data/honeypot honeymind:latest
 ```
 explanation of the command:
 - `-p 5000:80`: Map port 5000 on the host to port 80 in the container. You add additional ports if needed.

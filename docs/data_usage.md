@@ -1,47 +1,101 @@
-## Honeypot data usage examples
+## Honeypot Data Usage Examples
 
-Here you can find documentation and examples for creating Data Lake tables, to make the data collected using dd-honeypot accessible for analysis. You can use the [logging-readme.md](logging-readme.md) to learn how to send data to S3 using fluent-bit.
+HoneyMind writes structured JSONL logs locally by default. Use these local files first for analysis; AWS S3, Glue, and Athena are optional export paths.
 
-### Create a Data Lake table from the data in S3
-You can use AWS Glue to create a Data Lake table from the data in S3. You can also use the following SQL command in Athena to create the table:
+HoneyMind is based on [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot). The legacy `"dd-honeypot": true` log marker and `dd_honeypot` Athena table examples are preserved for compatibility.
+
+## Local JSONL Analysis
+
+Local logs are usually mounted from the container at:
+
+```text
+./logs/dd-honeypot-YYYY-MM-DD.jsonl
+```
+
+Summarize local logs:
+
+```sh
+python scripts/read_local_logs.py logs
+```
+
+List session IDs:
+
+```sh
+jq -r '."session-id"' logs/*.jsonl | sort -u
+```
+
+Filter by session ID:
+
+```sh
+jq 'select(."session-id" == "SESSION_ID")' logs/*.jsonl
+```
+
+Filter by client IP:
+
+```sh
+jq 'select(.login.client_ip == "127.0.0.1" or ."http-request".client_ip == "127.0.0.1")' logs/*.jsonl
+```
+
+Extract commands, SQL queries, and HTTP paths:
+
+```sh
+jq -r '.command // .query // (."http-request".method + " /" + ."http-request".path)' logs/*.jsonl
+```
+
+Count top commands or requests:
+
+```sh
+jq -r '.command // .query // (."http-request".method + " /" + ."http-request".path)' logs/*.jsonl \
+  | sort | uniq -c | sort -nr | head
+```
+
+Remote LLM providers receive honeypot interaction data when LLM fallback is used. Review privacy, legal, and operational requirements before sending logs or attacker traffic to third-party APIs.
+
+## Optional: Create a Data Lake Table from S3 Logs
+
+If you choose to send logs to S3 using Fluent Bit, you can use AWS Glue to create a Data Lake table from the S3 data. You can also use the following SQL command in Athena:
+
 ```sql
 CREATE EXTERNAL TABLE `dd_honeypot`(
-  `region` string , 
-  `time` string , 
-  `session-id` string , 
-  `type` string , 
-  `name` string , 
-  `login` struct<client_ip:string,username:string> , 
-  `command` string , 
-  `method` string , 
-  `http-request` struct<host:string,port:smallint,args:map<string,string>,method:string,headers:map<string,string>,resource_type:string,body:string,path:string> , 
+  `region` string,
+  `time` string,
+  `session-id` string,
+  `type` string,
+  `name` string,
+  `login` struct<client_ip:string,username:string>,
+  `command` string,
+  `method` string,
+  `http-request` struct<host:string,port:smallint,args:map<string,string>,method:string,headers:map<string,string>,resource_type:string,body:string,path:string>,
   `query` string )
-COMMENT 'Honeypot logs collected using dd-honeypot and fluent-bit'
-PARTITIONED BY ( 
-  `day` string, 
+COMMENT 'HoneyMind logs collected using the dd-honeypot-compatible marker and Fluent Bit'
+PARTITIONED BY (
+  `day` string,
   `hour` tinyint)
-ROW FORMAT SERDE 
-  'org.openx.data.jsonserde.JsonSerDe' 
-WITH SERDEPROPERTIES ( 
-  'ignore.malformed.json'='true') 
+ROW FORMAT SERDE
+  'org.openx.data.jsonserde.JsonSerDe'
+WITH SERDEPROPERTIES (
+  'ignore.malformed.json'='true')
 LOCATION
   's3://your-bucket-name/logs'
 ```
-Here is an example of how to run a query on the table:
-```sql
-ALTER TABLE dd_honeypot ADD 
-PARTITION (day='2025-11-01', hour=10) -- add partition for November 1, 2025, hour 10;
 
-SELECT * 
-  FROM dd_honeypot 
- WHERE day='2025-11-01' 
-       AND hour=10 
+Example Athena query:
+
+```sql
+ALTER TABLE dd_honeypot ADD
+PARTITION (day='2025-11-01', hour=10);
+
+SELECT *
+  FROM dd_honeypot
+ WHERE day='2025-11-01'
+       AND hour=10
  LIMIT 10;
 ```
 
-Example for loading data for mysql honeypots protocol for 30d backs:
+Example query for MySQL honeypot activity:
+
 ```sql
-SELECT MIN(time) AS time, 
+SELECT MIN(time) AS time,
        ARRAY_AGG(query) AS queries
 FROM dd_honeypot
 WHERE type = 'mysql'
@@ -50,4 +104,3 @@ WHERE type = 'mysql'
 GROUP BY session_id
 ORDER BY time
 ```
-This data can be used to analyze the commands sent to the honeypot, and to identify patterns in the attacks. Data can also be sent to LLMs for further analysis. If data is too large, consider changing the filtering and aggregation criteria to reduce the amount of data sent to the LLM. The data can also be chunked before it is sent to the LLM.

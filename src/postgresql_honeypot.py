@@ -701,6 +701,13 @@ class PostgresHoneypot(BaseHoneypot):
                 "tag": "SELECT 1",
             }
 
+        if normalized_query in ["SELECT", "SELECT;"]:
+            return {
+                "columns": [("result", OID_TEXT)],
+                "rows": [["OK"]],
+                "tag": "SELECT 1",
+            }
+
         elif "PG_VERSION" in normalized_query:
             return {
                 "columns": [("version", OID_TEXT)],

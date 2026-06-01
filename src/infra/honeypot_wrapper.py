@@ -15,12 +15,28 @@ from telnet_honeypot import TelnetHoneypot
 
 logger = logging.getLogger(__name__)
 
+LLM_CONFIG_KEYS = (
+    "llm_provider",
+    "llm_base_url",
+    "llm_api_key",
+    "llm_api_key_env",
+    "llm_allow_no_api_key",
+    "llm_timeout",
+    "llm_temperature",
+    "llm_max_tokens",
+)
+
+
+def llm_config_from(config: dict) -> dict:
+    return {key: config[key] for key in LLM_CONFIG_KEYS if key in config}
+
 
 def build_data_handler(config: dict, log_callback=None):
     data_file = str(config["data_file"])
     model_id = config["model_id"]
     system_prompt = config["system_prompt"]
     fs_file = config.get("fs_file")
+    llm_config = llm_config_from(config)
 
     if fs_file and config.get("type") == "ssh":
         fakefs_handler = FakeFSDataHandler(
@@ -31,6 +47,7 @@ def build_data_handler(config: dict, log_callback=None):
             data_file=data_file,
             system_prompt=system_prompt,
             model_id=model_id,
+            **llm_config,
         )
         file_download_handler = FileDownloadHandler(
             fakefs_handler=fakefs_handler, log_callback=log_callback
@@ -47,6 +64,7 @@ def build_data_handler(config: dict, log_callback=None):
             data_file=data_file,
             system_prompt=system_prompt,
             model_id=model_id,
+            **llm_config,
         )
 
 
@@ -64,6 +82,7 @@ def create_honeypot(config: dict) -> BaseHoneypot:
             data_file=str(config["data_file"]),
             system_prompt=config["system_prompt"],
             model_id=config["model_id"],
+            **llm_config_from(config),
         )
         hp = HTTPHoneypot(port=port, action=action, config=config)
         return hp

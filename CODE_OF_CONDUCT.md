@@ -2,7 +2,9 @@
 
 ## Our Pledge
 
-We as contributors and maintainers of the **dd-honeypot repository** pledge to make participation in our project a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, nationality, personal appearance, race, religion, or sexual identity and orientation.
+We as contributors and maintainers of the **HoneyMind repository** pledge to make participation in our project a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, nationality, personal appearance, race, religion, or sexual identity and orientation.
+
+HoneyMind is based on [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot) and preserves the original attribution and license.
 
 We are committed to providing a welcoming and inspiring environment for all contributors, where constructive and respectful collaboration is prioritized.
 

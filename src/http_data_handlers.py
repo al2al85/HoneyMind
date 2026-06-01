@@ -5,12 +5,18 @@ from infra.data_handler import DataHandler
 
 class HTTPDataHandler(DataHandler):
 
-    def __init__(self, data_file: str, system_prompt: str, model_id: str):
+    def __init__(
+        self, data_file: str, system_prompt: str, model_id: str, **llm_config
+    ):
+        if isinstance(system_prompt, list):
+            system_prompt = "\n".join(system_prompt)
+        system_prompt = system_prompt + "\n" if system_prompt else ""
         super().__init__(
             data_file,
-            "\n".join(system_prompt) + "\n".join(self.base_system_prompt()),
+            system_prompt + "\n".join(self.base_system_prompt()),
             model_id,
             {"path": "TEXT", "args": "TEXT"},  # body is optional
+            **llm_config,
         )
 
     @staticmethod

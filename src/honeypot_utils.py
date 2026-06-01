@@ -12,13 +12,34 @@ def get_project_folder() -> str:
 
 
 def init_env_from_file():
-    full_file_name = os.path.join(get_project_folder(), "config", "aws.env.list")
-    if os.path.exists(full_file_name):
-        logging.info(f"Going to set env variables from file: {full_file_name}")
-        with open(full_file_name) as f:
-            for line in f:
-                key, value = line.strip().split("=")
-                os.environ[key] = value
+    config_folder = os.path.join(get_project_folder(), "config")
+    for file_name in ("aws.env.list", "llm.env.list", ".env"):
+        full_file_name = os.path.join(config_folder, file_name)
+        if os.path.exists(full_file_name):
+            logging.info(f"Going to set env variables from file: {full_file_name}")
+            _load_env_file(full_file_name)
+
+
+def _load_env_file(full_file_name: str):
+    with open(full_file_name) as f:
+        for line_number, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                logging.warning(
+                    f"Ignoring malformed env line {line_number} in {full_file_name}"
+                )
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if not key:
+                logging.warning(
+                    f"Ignoring env line {line_number} with empty key in {full_file_name}"
+                )
+                continue
+            os.environ[key] = value
 
 
 def allocate_port():

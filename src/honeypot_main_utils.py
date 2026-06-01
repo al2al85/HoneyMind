@@ -8,7 +8,7 @@ from typing import List, Tuple, Dict
 from base_honeypot import BaseHoneypot
 from honeypot_registry import get_honeypot_registry
 from infra.data_handler import DataHandler
-from infra.honeypot_wrapper import create_honeypot_by_folder
+from infra.honeypot_wrapper import create_honeypot_by_folder, llm_config_from
 
 
 def _has_only_subdirectories(folder_path: str) -> bool:
@@ -167,6 +167,7 @@ async def _start_components(root: str):
                 model_id=cfg.get("model_id", ""),
                 structure={"path": "TEXT", "name": "TEXT"},
                 routes=routes,
+                **llm_config_from(cfg),
             )
         hp.start()
 
