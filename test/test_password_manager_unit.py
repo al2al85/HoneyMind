@@ -27,8 +27,10 @@ class TestPasswordManagerLogging:
 
         log_files = list(tmp_path.glob("*.jsonl"))
         assert log_files, "No log file created"
-        lines = [json.loads(l) for l in log_files[0].read_text().splitlines() if l.strip()]
-        password_logs = [l for l in lines if l.get("type") == "password_attempt"]
+        all_lines = []
+        for lf in log_files:
+            all_lines.extend(json.loads(l) for l in lf.read_text().splitlines() if l.strip())
+        password_logs = [l for l in all_lines if l.get("type") == "password_attempt"]
         assert len(password_logs) == 3
 
     def test_failed_attempts_logged(self, tmp_path):
@@ -63,8 +65,10 @@ class TestPasswordManagerLogging:
         assert result is True
 
         log_files = list(tmp_path.glob("*.jsonl"))
-        lines = [json.loads(l) for l in log_files[0].read_text().splitlines() if l.strip()]
-        successes = [l for l in lines if l.get("type") == "password_attempt" and l["success"]]
+        all_lines = []
+        for lf in log_files:
+            all_lines.extend(json.loads(l) for l in lf.read_text().splitlines() if l.strip())
+        successes = [l for l in all_lines if l.get("type") == "password_attempt" and l["success"]]
         assert len(successes) == 1
         assert successes[0]["password"] == "admin"
 
