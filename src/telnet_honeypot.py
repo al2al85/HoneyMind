@@ -27,6 +27,8 @@ class TelnetHoneypot(BaseHoneypot):
         self._action = action
         self._thread = None
         self._sessions = {}  # {client_ip: (session, created_at)}
+        from password_manager import PasswordManager
+        self._password_manager = PasswordManager(config)
 
     def honeypot_type(self) -> str:
         return "telnet"
@@ -63,44 +65,81 @@ class TelnetHoneypot(BaseHoneypot):
                 word += char
 
     async def shell(self, reader, writer):
-        username, password = None, None
-        if "telnet" in self.config:
-            telnet_conf = self.config["telnet"]
-            if "banner" in telnet_conf:
-                writer.write(f"{telnet_conf['banner']}\r\n")
-            if "login-prompt" in telnet_conf:
-                writer.write(f"\r\n{telnet_conf['login-prompt']}")
-                username = await self.read_line(reader, writer, True)
-            if "password-prompt" in telnet_conf:
-                writer.write(f"\r\n{telnet_conf['password-prompt']}")
-                password = await self.read_line(reader, writer, False)
-            if "post-login-message" in telnet_conf:
-                writer.write(f"\r\n{telnet_conf['post-login-message']}\r\n")
+        telnet_conf = self.config.get("telnet", {}) if self.config else {}
 
         peer = writer.get_extra_info("peername")
         client_ip = peer[0] if peer else None
+
+        if "banner" in telnet_conf:
+            writer.write(f"{telnet_conf['banner']}\r\n")
+
         self._cleanup_sessions()
-        session_tuple = self._sessions.get(client_ip)
         now = time.time()
+        session_tuple = self._sessions.get(client_ip)
+
         if session_tuple and now - session_tuple[1] <= self.SESSION_TIMEOUT:
+            # Reuse existing authenticated session
             session = session_tuple[0]
         else:
-            login_data = {
-                "client_ip": client_ip,
-                "username": username.strip() if username else None,
-                "password": password.strip() if password else None,
-            }
-            session = self._action.connect(login_data)
-            self._sessions[client_ip] = (session, now)
-            self.log_login(session, login_data)
-        shell_prompt = self.config.get("telnet", {}).get("shell-prompt", "# ")
+            # Authenticate: loop until password manager accepts credentials
+            session = self._get_base_honeypot_session()
+
+            has_prompts = "login-prompt" in telnet_conf or "password-prompt" in telnet_conf
+            if has_prompts:
+                while True:
+                    username = None
+                    password = None
+                    if "login-prompt" in telnet_conf:
+                        writer.write(f"\r\n{telnet_conf['login-prompt']}")
+                        username = await self.read_line(reader, writer, True)
+                        if username is None:
+                            writer.close()
+                            return
+                    if "password-prompt" in telnet_conf:
+                        writer.write(f"\r\n{telnet_conf['password-prompt']}")
+                        password = await self.read_line(reader, writer, False)
+                        if password is None:
+                            writer.close()
+                            return
+
+                    uname = username.strip() if username else ""
+                    pwd = password.strip() if password else ""
+
+                    accepted = self._password_manager.attempt(session, uname, pwd, client_ip)
+                    if not accepted:
+                        writer.write("\r\nLogin incorrect.\r\n")
+                        await writer.drain()
+                        continue
+
+                    # Credentials accepted: create backend session
+                    login_data = {"client_ip": client_ip, "username": uname, "password": pwd}
+                    backend_sess = self._action.connect(login_data)
+                    if isinstance(backend_sess, dict):
+                        sid = session.session_id
+                        session.update(backend_sess)
+                        session["session_id"] = sid
+                    self._sessions[client_ip] = (session, now)
+                    self.log_login(session, login_data)
+                    break
+            else:
+                # No credential prompts configured — connect without password check
+                login_data = {"client_ip": client_ip, "username": None, "password": None}
+                backend_sess = self._action.connect(login_data)
+                if isinstance(backend_sess, dict):
+                    sid = session.session_id
+                    session.update(backend_sess)
+                    session["session_id"] = sid
+                self._sessions[client_ip] = (session, now)
+                self.log_login(session, login_data)
+
+        if "post-login-message" in telnet_conf:
+            writer.write(f"\r\n{telnet_conf['post-login-message']}\r\n")
+
+        shell_prompt = telnet_conf.get("shell-prompt", "# ")
         writer.write(f"\r\n{shell_prompt}")
         line = await self.read_line(reader, writer, True)
         while line is not None:
-            self.log_data(
-                session,
-                {"command": line},
-            )
+            self.log_data(session, {"command": line})
             if line in ["exit", "quit", "logout"]:
                 writer.write("\r\nGoodbye!\r\n")
                 break
@@ -110,6 +149,11 @@ class TelnetHoneypot(BaseHoneypot):
                 writer.write(f"\r\n{shell_prompt}")
                 line = await self.read_line(reader, writer, True)
         writer.close()
+
+    @staticmethod
+    def _get_base_honeypot_session():
+        from base_honeypot import HoneypotSession
+        return HoneypotSession()
 
     async def run_server(self):
         logger.info(f"Telnet Honeypot started. Port: {self.port}")

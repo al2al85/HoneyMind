@@ -17,7 +17,13 @@ def redis_honeypot() -> Generator[BaseHoneypot, None, None]:
             return {"output": "+PONG\r\n"}
 
     honeypot = RedisHoneypot(
-        action=MockRedisAction(), config={"name": "TestRedisHoneypot"}
+        action=MockRedisAction(),
+        config={
+            "name": "TestRedisHoneypot",
+            # Accept on first attempt so AUTH test is not blocked by deferred-success
+            "password_min_attempts": 1,
+            "password_max_attempts": 1,
+        },
     )
     try:
         honeypot.start()
@@ -41,8 +47,10 @@ def test_redis_ping(redis_honeypot, client_socket):
 
 
 def test_redis_auth(redis_honeypot, client_socket):
+    # Password must be <= 8 chars to satisfy the password manager length check.
+    # Threshold is set to 1 in the fixture so the first attempt is accepted.
     client_socket.connect(("0.0.0.0", redis_honeypot.port))
-    client_socket.sendall(b"AUTH supersecret\r\n")
+    client_socket.sendall(b"AUTH pass123\r\n")
     response = client_socket.recv(1024)
     assert response == b"+OK\r\n"
 

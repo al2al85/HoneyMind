@@ -63,6 +63,7 @@ class SSHServerInterface(paramiko.ServerInterface):
         self.session = None
         self.honeypot = honeypot
         self.config = config or {}
+        self._authenticated = False
 
     @property
     def action(self):
@@ -81,35 +82,48 @@ class SSHServerInterface(paramiko.ServerInterface):
         return "password"  # paramiko expects a comma-separated list
 
     def check_auth_password(self, username, password):
-        # Honeypot accepts any credentials; record them and (optionally) init a backend session
-        logging.info("Authentication: %s:%s", username, password)
-        self.username = username  # ensures prompt rendering can include the user
+        logging.info("Authentication attempt: %s", username)
+        self.username = username
         client_ip = self.client_addr
         if self.session is None:
             self.session = HoneypotSession()
-        if self.action is not None:
+
+        if client_ip is None and self.transport:
             try:
-                if client_ip is None and self.transport:
-                    try:
-                        client_ip = self.transport.getpeername()[0]
-                    except (OSError, SSHException):
-                        client_ip = "unknown"
-                creds = {
-                    "username": username,
-                    "password": password,
-                    "client_ip": client_ip,
-                }
-                sess = self.action.connect(creds)
-                # prefer backend-provided session dict if applicable
-                if isinstance(sess, dict):
-                    self.session.update(sess)
-            except (SSHException, OSError) as e:
-                logging.warning("Backend connect failed, continuing auth: %r", e)
-        # Log login
+                client_ip = self.transport.getpeername()[0]
+            except (OSError, SSHException):
+                client_ip = "unknown"
+
+        # Evaluate attempt through the password manager (logs every try)
+        accepted = self.honeypot._password_manager.attempt(
+            self.session, username, password, client_ip
+        )
+
         self.honeypot.log_login(
             self.session,
-            {"username": username, "password": password, "client_ip": client_ip},
+            {
+                "username": username,
+                "password": password,
+                "client_ip": client_ip,
+                "success": accepted,
+            },
         )
+
+        if not accepted:
+            return paramiko.AUTH_FAILED
+
+        # Accepted: wire up backend session
+        self._authenticated = True
+        if self.action is not None:
+            try:
+                creds = {"username": username, "password": password, "client_ip": client_ip}
+                sess = self.action.connect(creds)
+                if isinstance(sess, dict):
+                    sid = self.session.session_id
+                    self.session.update(sess)
+                    self.session["session_id"] = sid
+            except (SSHException, OSError) as e:
+                logging.warning("Backend connect failed, continuing auth: %r", e)
         return paramiko.AUTH_SUCCESSFUL
 
     def check_channel_request(self, kind, chanid):
@@ -368,6 +382,8 @@ class SSHHoneypot(BaseHoneypot):
         self.session = {}
         self.host_key = self._load_host_key()
         self.action = action
+        from password_manager import PasswordManager
+        self._password_manager = PasswordManager(config)
 
     def _load_host_key(self):
         import os

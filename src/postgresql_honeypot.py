@@ -80,6 +80,7 @@ class PostgresHoneypot(BaseHoneypot):
         self._sessions = {}
         self._server_pid = os.getpid()  # Use the current process ID
         self._server_key = 12345  # random number for the backend key
+        self._ready_event = threading.Event()
 
     def start(self):
         def run_server():
@@ -89,6 +90,7 @@ class PostgresHoneypot(BaseHoneypot):
             self.port = self._sock.getsockname()[1]
             self._sock.listen(5)
             self._running = True
+            self._ready_event.set()
             logging.info(f"PostgresHoneypot running on 0.0.0.0:{self.port}")
             while self._running:
                 try:
@@ -798,7 +800,4 @@ class PostgresHoneypot(BaseHoneypot):
 
     def wait_until_ready(self, timeout=5):
         """Wait until the server is ready to accept connections"""
-        start = time.time()
-        while not self._running and time.time() - start < timeout:
-            time.sleep(0.05)
-        return self._running
+        return self._ready_event.wait(timeout=timeout)

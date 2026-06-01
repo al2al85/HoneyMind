@@ -20,6 +20,8 @@ class RedisHoneypot(BaseHoneypot):
         # In-memory store: {db_index: {key: value}}
         self.data_store = defaultdict(dict)
         self.start_time = time.time()
+        from password_manager import PasswordManager
+        self._password_manager = PasswordManager(config)
 
     def start(self):
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -145,11 +147,13 @@ class RedisHoneypot(BaseHoneypot):
         current_db = session.get("current_db", 0)
 
         if cmd == "AUTH":
-            # Log the password attempt
             password = cmd_parts[1] if len(cmd_parts) > 1 else ""
-            logger.info(f"AUTH attempt with password: {password}")
-            # Always accept
-            return b"+OK\r\n"
+            accepted = self._password_manager.attempt(
+                session, "redis_user", password, session.get("client_ip")
+            )
+            if accepted:
+                return b"+OK\r\n"
+            return b"-ERR invalid password\r\n"
 
         elif cmd == "SELECT" and len(cmd_parts) >= 2:
             try:

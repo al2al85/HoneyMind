@@ -39,6 +39,9 @@ def ssh_honeypot(tmp_path: Path):
         "system_prompt": "You are a Linux emulator",
         "model_id": "test-model",
         "fs_file": fs_path,
+        # Accept on first attempt so the test is not blocked by deferred-success logic
+        "password_min_attempts": 1,
+        "password_max_attempts": 1,
     }
 
     mock_action = Mock()
