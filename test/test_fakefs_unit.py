@@ -212,10 +212,10 @@ def test_system_artifacts_are_coherent(tmp_path):
     assert "BOOT_IMAGE=/vmlinuz" in handler.query("cat /proc/cmdline", session)
     assert "proc /proc proc" in handler.query("cat /proc/mounts", session)
     assert "Linux version 6.1.21" in handler.query("dmesg", session)
-    assert handler.query("virt-what", session) == "\n"
+    assert handler.query("virt-what", session) == ""
     assert (
         handler.query("cat /sys/devices/virtual/dmi/id/product_name", session)
-        == "KVM Virtual Machine\n"
+        == "KVM Virtual Machine"
     )
     assert "sshd" in handler.query("ps -ef", session)
 
@@ -243,18 +243,20 @@ def test_common_recon_commands_are_hardcoded_and_coherent(tmp_path):
     session = handler.connect({"username": "ignored-login"})
     handle_cd(session, "etc")
 
-    assert handler.query("whoami", session) == "root\n"
+    assert handler.query("whoami", session) == "root"
     assert "uid=0(root) gid=0(root)" in handler.query("id", session)
-    assert handler.query("hostname", session) == "alpine-vm\n"
-    assert handler.query("pwd", session) == "/etc\n"
+    assert handler.query("hostname", session) == "alpine-vm"
+    assert handler.query("pwd", session) == "/etc"
 
     os_release = handler.query("cat      /etc/os-release", session)
     assert 'NAME="Alpine Linux"' in os_release
     assert "ID=alpine" in os_release
+    assert not os_release.endswith("\n")
 
     passwd = handler.query("cat /etc/passwd", session)
     assert "root:x:0:0:root:/root:/bin/sh" in passwd
     assert "sshd:x:" in passwd
+    assert not passwd.endswith("\n")
 
     assert "load average:" in handler.query("uptime", session)
     assert "/dev/sda1" in handler.query("df -h", session)
@@ -274,7 +276,32 @@ def test_common_recon_commands_are_hardcoded_and_coherent(tmp_path):
     assert "/usr/sbin/sshd -D" in ps_aux
     assert "ps aux" in ps_aux
 
-    assert handler.query("which      wget", session) == "/usr/bin/wget\n"
-    assert handler.query("which curl", session) == "/usr/bin/curl\n"
-    assert handler.query("which busybox", session) == "/bin/busybox\n"
-    assert "model name" in handler.query("cat /proc/cpuinfo", session)
+    assert handler.query("which      wget", session) == "/usr/bin/wget"
+    assert handler.query("which curl", session) == "/usr/bin/curl"
+    assert handler.query("which busybox", session) == "/bin/busybox"
+    cpuinfo = handler.query("cat /proc/cpuinfo", session)
+    assert "model name" in cpuinfo
+    assert not cpuinfo.endswith("\n")
+
+    for command in [
+        "whoami",
+        "id",
+        "uname",
+        "hostname",
+        "pwd",
+        "cat /etc/os-release",
+        "cat /etc/passwd",
+        "uptime",
+        "df -h",
+        "free -m",
+        "ip a",
+        "ifconfig",
+        "ps aux",
+        "which wget",
+        "which curl",
+        "which busybox",
+        "cat /proc/cpuinfo",
+    ]:
+        response = handler.query(command, session)
+        assert response is not None
+        assert not response.endswith("\n"), command

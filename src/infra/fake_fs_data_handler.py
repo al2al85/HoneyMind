@@ -186,7 +186,7 @@ class FakeFSDataHandler(HoneypotAction):
         system_response = self._handle_system_artifacts(query, session)
         if system_response is not None:
             session["_last_parser_action"] = "hardcoded"
-            return system_response
+            return self._strip_terminal_trailing_newlines(system_response)
 
         if "fs" in session:
             if query.startswith("ls"):
@@ -372,6 +372,9 @@ class FakeFSDataHandler(HoneypotAction):
         if session and session.get("cwd"):
             return session["cwd"]
         return "/"
+
+    def _strip_terminal_trailing_newlines(self, response: str) -> str:
+        return response.rstrip("\r\n")
 
     def _render_id(self) -> str:
         return (

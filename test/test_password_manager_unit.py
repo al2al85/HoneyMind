@@ -78,14 +78,31 @@ class TestPasswordManagerLogging:
 
 
 class TestPasswordManagerAcceptance:
+    def _config(self, **overrides):
+        config = {"password_compat_files_enabled": False}
+        config.update(overrides)
+        return config
+
     def test_rejects_before_threshold(self):
-        pm = PasswordManager({"password_min_attempts": 6, "password_max_attempts": 6, "password_early_success_probability": 0})
+        pm = PasswordManager(
+            self._config(
+                password_min_attempts=6,
+                password_max_attempts=6,
+                password_early_success_probability=0,
+            )
+        )
         session = make_session()
         for _ in range(5):
             assert pm.attempt(session, "u", "pass", "1.2.3.4") is False
 
     def test_accepts_at_threshold(self):
-        pm = PasswordManager({"password_min_attempts": 6, "password_max_attempts": 6, "password_early_success_probability": 0})
+        pm = PasswordManager(
+            self._config(
+                password_min_attempts=6,
+                password_max_attempts=6,
+                password_early_success_probability=0,
+            )
+        )
         session = make_session()
         for _ in range(5):
             pm.attempt(session, "u", "pass", "1.2.3.4")
@@ -93,11 +110,11 @@ class TestPasswordManagerAcceptance:
 
     def test_rejects_long_password_even_at_threshold(self):
         pm = PasswordManager(
-            {
-                "password_min_attempts": 1,
-                "password_max_attempts": 1,
-                "password_max_length": 8,
-            }
+            self._config(
+                password_min_attempts=1,
+                password_max_attempts=1,
+                password_max_length=8,
+            )
         )
         session = make_session()
         # Password longer than 8 chars should never be accepted
@@ -105,11 +122,11 @@ class TestPasswordManagerAcceptance:
 
     def test_accepts_password_exactly_8_chars(self):
         pm = PasswordManager(
-            {
-                "password_min_attempts": 1,
-                "password_max_attempts": 1,
-                "password_max_length": 8,
-            }
+            self._config(
+                password_min_attempts=1,
+                password_max_attempts=1,
+                password_max_length=8,
+            )
         )
         session = make_session()
         assert pm.attempt(session, "u", "12345678", "1.2.3.4") is True
@@ -118,7 +135,13 @@ class TestPasswordManagerAcceptance:
         """Threshold must be between min and max (inclusive)."""
         results = set()
         for _ in range(50):
-            pm = PasswordManager({"password_min_attempts": 6, "password_max_attempts": 10, "password_early_success_probability": 0})
+            pm = PasswordManager(
+                self._config(
+                    password_min_attempts=6,
+                    password_max_attempts=10,
+                    password_early_success_probability=0,
+                )
+            )
             session = make_session()
             accepted_at = None
             for i in range(1, 15):
@@ -128,7 +151,13 @@ class TestPasswordManagerAcceptance:
                 # Use a fresh per-attempt key so we control the count
                 # Actually we need same IP to accumulate — use the same IP
             # Reset and use same IP consistently
-            pm2 = PasswordManager({"password_min_attempts": 6, "password_max_attempts": 10, "password_early_success_probability": 0})
+            pm2 = PasswordManager(
+                self._config(
+                    password_min_attempts=6,
+                    password_max_attempts=10,
+                    password_early_success_probability=0,
+                )
+            )
             s2 = make_session()
             for j in range(1, 15):
                 ok = pm2.attempt(s2, "u", "pass", "fixed_ip")
@@ -141,7 +170,13 @@ class TestPasswordManagerAcceptance:
 
     def test_ip_based_tracking_across_sessions(self):
         """Attempts from the same IP accumulate across different HoneypotSession objects."""
-        pm = PasswordManager({"password_min_attempts": 3, "password_max_attempts": 3, "password_early_success_probability": 0})
+        pm = PasswordManager(
+            self._config(
+                password_min_attempts=3,
+                password_max_attempts=3,
+                password_early_success_probability=0,
+            )
+        )
         ip = "5.5.5.5"
         s1 = make_session()
         s2 = make_session()
@@ -152,7 +187,9 @@ class TestPasswordManagerAcceptance:
 
     def test_always_succeeds_after_first_success(self):
         """Once a password succeeds it is added to the allowed set and always works immediately."""
-        pm = PasswordManager({"password_min_attempts": 2, "password_max_attempts": 2})
+        pm = PasswordManager(
+            self._config(password_min_attempts=2, password_max_attempts=2)
+        )
         ip = "6.6.6.6"
         s = make_session()
         pm.attempt(s, "u", "pass", ip)
@@ -164,7 +201,13 @@ class TestPasswordManagerAcceptance:
     
     def test_resets_after_success(self):
         """After success, the password is permanently allowed and the IP counter resets for new passwords."""
-        pm = PasswordManager({"password_min_attempts": 2, "password_max_attempts": 2, "password_early_success_probability": 0})
+        pm = PasswordManager(
+            self._config(
+                password_min_attempts=2,
+                password_max_attempts=2,
+                password_early_success_probability=0,
+            )
+        )
         ip = "6.6.6.6"
         s = make_session()
         pm.attempt(s, "u", "pass", ip)   # count=1, fail
@@ -202,6 +245,7 @@ class TestPasswordManagerSaveSuccessful:
         config = {
             "password_min_attempts": 5,
             "password_max_attempts": 5,
+            "password_early_success_probability": 0,
             "local_log_dir": str(tmp_path),
         }
         pm = PasswordManager(config)
