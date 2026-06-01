@@ -39,8 +39,19 @@ def _iter_events(log_dir: Path):
                     event = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if event.get("dd-honeypot"):
+                if event.get("schema_version") == 1 or event.get("dd-honeypot"):
                     yield event
+
+
+def _client_ip(event: dict) -> str:
+    client = event.get("client") or {}
+    if isinstance(client, dict) and client.get("ip"):
+        return client["ip"]
+    return event.get("client_ip") or "?"
+
+
+def _event_time(event: dict) -> str:
+    return (event.get("timestamp") or event.get("time") or "")[:19]
 
 
 def _command_display(event: dict) -> str:
@@ -53,6 +64,11 @@ def _command_display(event: dict) -> str:
         success = "✓" if login.get("success") else "✗"
         pwd = login.get("password", "")
         return f"login user={user} password={pwd} [{success}]"
+    auth = event.get("auth") or {}
+    if auth:
+        user = (event.get("client") or {}).get("username", "?")
+        success = "yes" if auth.get("success") else "no"
+        return f"auth user={user} success={success}"
     return "(no command)"
 
 
@@ -61,10 +77,10 @@ def _command_display(event: dict) -> str:
 def build_sessions(log_dir: Path) -> dict[str, list[dict]]:
     sessions: dict[str, list[dict]] = defaultdict(list)
     for event in _iter_events(log_dir):
-        sid = event.get("session-id") or "unknown"
+        sid = event.get("session_id") or event.get("session-id") or "unknown"
         sessions[sid].append(event)
     for sid in sessions:
-        sessions[sid].sort(key=lambda e: (e.get("seq") or 0, e.get("time") or ""))
+        sessions[sid].sort(key=lambda e: (e.get("seq") or 0, _event_time(e)))
     return sessions
 
 
@@ -73,11 +89,11 @@ def print_session_timeline(sid: str, events: list[dict]):
         return
 
     first = events[0]
-    ip = first.get("client_ip") or "?"
-    protocol = first.get("protocol") or first.get("type") or "?"
-    port = first.get("port") or "?"
-    username = first.get("username") or "?"
-    time_start = first.get("time", "")[:19]
+    ip = _client_ip(first)
+    protocol = first.get("service") or first.get("protocol") or first.get("type") or "?"
+    port = (first.get("honeypot") or {}).get("port") or first.get("port") or "?"
+    username = (first.get("client") or {}).get("username") or first.get("username") or "?"
+    time_start = _event_time(first)
 
     categories_seen = set()
     for e in events:
@@ -93,8 +109,9 @@ def print_session_timeline(sid: str, events: list[dict]):
     for event in events:
         cat = classify_event(event)
         seq = event.get("seq", "?")
-        t = (event.get("time") or "")[:19]
-        elapsed = event.get("elapsed_ms")
+        t = _event_time(event)
+        timing = event.get("timing") or {}
+        elapsed = timing.get("since_previous_event_ms", event.get("elapsed_ms"))
         elapsed_str = f"+{elapsed}ms" if elapsed is not None else ""
         cmd = _command_display(event)
         cat_label = label(cat).ljust(18)
@@ -132,11 +149,11 @@ def print_summary(sessions: dict[str, list[dict]]):
     commands_seen: list[str] = []
 
     for event in all_events:
-        ip = event.get("client_ip")
+        ip = _client_ip(event)
         if ip:
             ip_counts[ip] += 1
         category_counts[classify_event(event)] += 1
-        proto = event.get("protocol") or event.get("type") or "?"
+        proto = event.get("service") or event.get("protocol") or event.get("type") or "?"
         protocol_counts[proto] += 1
         cmd = _extract_command(event)
         if cmd:
@@ -207,7 +224,7 @@ def main():
     if args.ip:
         matched = {
             sid: events for sid, events in sessions.items()
-            if any(e.get("client_ip") == args.ip for e in events)
+            if any(_client_ip(e) == args.ip for e in events)
         }
         if not matched:
             print(f"no sessions found for IP: {args.ip}", file=sys.stderr)

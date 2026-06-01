@@ -146,7 +146,7 @@ Remote API providers receive honeypot interaction data. Review privacy, legal, a
 
 ## Local Logging
 
-Structured honeypot events are written to stdout and, by default, to local JSONL files. Each line is one JSON object and preserves the `"dd-honeypot": true` marker, session ID, timestamp, honeypot type/name, and protocol-specific fields such as `command`, `query`, or `http-request`.
+Structured honeypot events are written to stdout and, by default, to local JSONL files. SSH events use the canonical HoneyMind schema with `schema_version`, UTC `timestamp`, `event_id`, `session_id`, session-local `seq`, `event_type`, `service`, nested `honeypot`, nested `client`, and `timing`.
 
 ```json
 {
@@ -169,7 +169,7 @@ ls                 Doc
 ls\tDoc
 ```
 
-All three inputs use `ls Doc` as the lookup/cache key. The raw attacker input is still preserved in protocol fields such as `command`, `query`, or `http-request`, and the LLM prompt still receives the raw input after a lookup miss.
+All three inputs use `ls Doc` as the lookup/cache key. For SSH command events, the raw attacker input is stored as `command.raw` and the normalized lookup form is stored as `command.normalized`; the LLM prompt still receives the raw input after a lookup miss.
 
 ```json
 {
@@ -178,16 +178,18 @@ All three inputs use `ls Doc` as the lookup/cache key. The raw attacker input is
 }
 ```
 
-When normalized logging is enabled, events can include additive fields such as:
+Command events include nested command details such as:
 
 ```json
 {
-  "dd-honeypot": true,
-  "honeymind": true,
-  "command": "ls                 Doc",
-  "raw_input": "ls                 Doc",
-  "normalized_command": "ls Doc",
-  "normalized_input": "ls Doc"
+  "event_type": "command",
+  "command": {
+    "raw": "ls                 Doc",
+    "normalized": "ls Doc",
+    "parser_action": "hardcoded",
+    "exit_code": 0,
+    "response": "..."
+  }
 }
 ```
 

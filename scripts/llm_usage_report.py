@@ -62,7 +62,7 @@ def main() -> int:
                     "prompt_tokens",
                     "completion_tokens",
                     "total_tokens",
-                    "total_cost_usd",
+                    "total_cost",
                     "currency",
                 ],
             ))
@@ -82,7 +82,7 @@ def main() -> int:
             "prompt_tokens",
             "completion_tokens",
             "total_tokens",
-            "total_cost_usd",
+            "total_cost",
             "currency",
         ]
     else:
@@ -93,7 +93,7 @@ def main() -> int:
             "prompt_tokens",
             "completion_tokens",
             "total_tokens",
-            "total_cost_usd",
+            "total_cost",
             "currency",
         ]
     print(_format_table(rows, columns))

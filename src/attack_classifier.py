@@ -113,6 +113,8 @@ def classify_command(command: str) -> Category:
 
 
 def classify_event(event: dict) -> Category:
+    if event.get("event_type") in {"auth_attempt", "auth_success", "auth_failure"}:
+        return Category.LOGIN
     if "login" in event:
         return Category.LOGIN
     command = _extract_command(event)
@@ -126,6 +128,9 @@ def label(category: Category) -> str:
 
 
 def _extract_command(event: dict) -> Optional[str]:
+    command = event.get("command")
+    if isinstance(command, dict):
+        return command.get("raw") or command.get("normalized")
     if event.get("command"):
         return str(event["command"])
     if event.get("query"):

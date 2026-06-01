@@ -24,8 +24,8 @@ def test_record_llm_usage_persists_tokens_and_cost(tmp_path):
         {
             "provider": "openai",
             "model_id": "gpt-4o-mini",
-            "prompt_usd_per_mtok": 2.0,
-            "completion_usd_per_mtok": 4.0,
+            "prompt_price_per_mtok": 2.0,
+            "completion_price_per_mtok": 4.0,
             "currency": "USD",
             "source": "unit-test",
         }
@@ -57,7 +57,8 @@ def test_record_llm_usage_persists_tokens_and_cost(tmp_path):
     assert row["response_chars"] == 123
     assert row["user_prompt_chars"] == 45
     assert row["system_prompt_chars"] == 67
-    assert row["total_cost_usd"] == pytest.approx((10 * 2.0 + 20 * 4.0) / 1_000_000)
+    assert row["total_cost"] == pytest.approx((10 * 2.0 + 20 * 4.0) / 1_000_000)
+    assert row["currency"] == "USD"
 
 
 def test_invoke_llm_records_usage(tmp_path, monkeypatch):
@@ -111,8 +112,8 @@ def test_usage_summaries_and_cli(tmp_path, monkeypatch):
         {
             "provider": "openai",
             "model_id": "gpt-4o-mini",
-            "prompt_usd_per_mtok": 2.0,
-            "completion_usd_per_mtok": 4.0,
+            "prompt_price_per_mtok": 2.0,
+            "completion_price_per_mtok": 4.0,
             "currency": "USD",
             "source": "unit-test",
         }
@@ -140,7 +141,7 @@ def test_usage_summaries_and_cli(tmp_path, monkeypatch):
             "prompt_tokens": 15,
             "completion_tokens": 27,
             "total_tokens": 42,
-            "total_cost_usd": pytest.approx((10 * 2.0 + 20 * 4.0 + 5 * 2.0 + 7 * 4.0) / 1_000_000),
+            "total_cost": pytest.approx((10 * 2.0 + 20 * 4.0 + 5 * 2.0 + 7 * 4.0) / 1_000_000),
             "currency": "USD",
             "price_source": "unit-test",
         }
@@ -158,3 +159,31 @@ def test_usage_summaries_and_cli(tmp_path, monkeypatch):
             assert e.code == 0, f"CLI exited with non-zero code: {e.code}"
     rendered = out.getvalue()
     assert "gpt-4o-mini" in rendered
+
+
+def test_openai_compatible_can_use_ovhcloud_price_alias(tmp_path):
+    db_path = tmp_path / "llm_usage.db"
+    prices = [
+        {
+            "provider": "ovhcloud",
+            "model_id": "gpt-oss-20b",
+            "prompt_price_per_mtok": 0.5,
+            "completion_price_per_mtok": 1.5,
+            "currency": "EUR",
+            "source": "ovh",
+        }
+    ]
+
+    record_llm_usage(
+        str(db_path),
+        provider="openai_compatible",
+        model_id="gpt-oss-20b",
+        response_json={"usage": {"prompt_tokens": 100, "completion_tokens": 200}},
+        model_prices=prices,
+    )
+
+    row = _read_single_row(db_path)
+    assert row["provider"] == "openai_compatible"
+    assert row["total_cost"] == pytest.approx((100 * 0.5 + 200 * 1.5) / 1_000_000)
+    assert row["currency"] == "EUR"
+    assert row["price_source"] == "ovh"

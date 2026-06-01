@@ -396,7 +396,7 @@ def test_dispatcher_session_consistency_and_logging(monkeypatch, capsys):
             assert len(llm_calls) <= 1, f"ERROR: Too many LLM calls: {len(llm_calls)}"
 
             out, _ = capsys.readouterr()
-            assert '"dd-honeypot": true' in out, "Missing dd-honeypot flag in logs"
+            assert '"schema_version": 1' in out, "Missing canonical schema marker in logs"
             assert (
                 '"name": "App_A"' in out
             ), "Missing target honeypot name in logs"

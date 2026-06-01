@@ -99,14 +99,15 @@ class SSHServerInterface(paramiko.ServerInterface):
             self.session, username, password, client_ip
         )
 
-        self.honeypot.log_login(
+        attempt = self.session.get("_last_auth_attempt") or {}
+        self.honeypot.log_auth_attempt(
             self.session,
-            {
-                "username": username,
-                "password": password,
-                "client_ip": client_ip,
-                "success": accepted,
-            },
+            username=attempt.get("username", username),
+            password=attempt.get("password", password),
+            client_ip=attempt.get("client_ip", client_ip),
+            attempt_number=attempt.get("attempt_number"),
+            required_attempts=attempt.get("required_attempts"),
+            success=bool(attempt.get("success", accepted)),
         )
 
         if not accepted:
@@ -250,9 +251,14 @@ class SSHServerInterface(paramiko.ServerInterface):
 
             result = self.action.query(command_str, self.session)
             output = result["output"] if isinstance(result, dict) else str(result)
+            parser_action = self.session.pop("_last_parser_action", "unknown")
 
-            self.honeypot.log_data(
-                self.session, {"method": "exec", "command": command_str, "response": output}
+            self.honeypot.log_command(
+                self.session,
+                raw=command_str,
+                response=output,
+                parser_action=parser_action,
+                exit_code=0,
             )
 
             channel.sendall((output.strip()).encode())
@@ -360,8 +366,13 @@ class SSHServerInterface(paramiko.ServerInterface):
                 output = (
                     response["output"] if isinstance(response, dict) else str(response)
                 )
-                self.honeypot.log_data(
-                    self.session, {"method": "shell", "command": command, "response": output}
+                parser_action = self.session.pop("_last_parser_action", "unknown")
+                self.honeypot.log_command(
+                    self.session,
+                    raw=command,
+                    response=output,
+                    parser_action=parser_action,
+                    exit_code=0,
                 )
                 channel.send(("\r\n" + output + "\r\n").encode())
 
@@ -445,8 +456,11 @@ class SSHHoneypot(BaseHoneypot):
         transport = None
         peer = f"{addr[0]}:{addr[1]}"
         start_ts = time.time()
+        session = HoneypotSession({"client_ip": addr[0]})
+        close_reason = "closed"
         try:
             logging.info("SSH connection accepted from %s", peer)
+            self.log_session_start(session, client_ip=addr[0])
             transport = Transport(client_socket)
             # Use configured SSH banner when available to match the fake system
             banner = (self.config or {}).get("ssh_banner") if hasattr(self, "config") else None
@@ -465,6 +479,7 @@ class SSHHoneypot(BaseHoneypot):
             handler = SSHServerInterface(self.action, self, self.config)
             handler.client_addr = addr[0]
             handler.transport = transport
+            handler.session = session
 
             transport.add_server_key(self.host_key)
             transport.start_server(server=handler)
@@ -479,11 +494,13 @@ class SSHHoneypot(BaseHoneypot):
 
         except EOFError:
             elapsed = time.time() - start_ts
+            close_reason = "client_disconnected"
             logging.warning("SSH client disconnected early from %s after %.2fs", peer, elapsed)
         except (SSHException, OSError) as e:
             elapsed = time.time() - start_ts
             message = str(e)
             if "SSH protocol banner" in message:
+                close_reason = "banner_error"
                 logging.warning(
                     "SSH banner read failed from %s after %.2fs: %s",
                     peer,
@@ -491,6 +508,7 @@ class SSHHoneypot(BaseHoneypot):
                     message,
                 )
             elif "Connection reset by peer" in message:
+                close_reason = "connection_reset"
                 logging.info(
                     "SSH peer reset connection during handshake from %s after %.2fs: %s",
                     peer,
@@ -498,6 +516,7 @@ class SSHHoneypot(BaseHoneypot):
                     message,
                 )
             else:
+                close_reason = "ssh_error"
                 logging.error(
                     "SSH error from %s after %.2fs: %s",
                     peer,
@@ -511,6 +530,12 @@ class SSHHoneypot(BaseHoneypot):
                     transport.close()
                 except (EOFError, OSError):
                     pass
+            self.log_session_end(
+                session,
+                client_ip=addr[0],
+                username=session.get("username"),
+                close_reason=close_reason,
+            )
             logging.info("SSH connection closed for %s", peer)
 
     def stop(self):

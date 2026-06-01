@@ -167,11 +167,15 @@ class DataHandler(HoneypotAction):
         result, lookup_info = self._search_with_raw_fallback(info)
         if result:
             logging.info(f"DataHandler.request: Found cached response for {lookup_info}")
+            session["_last_parser_action"] = "hardcoded"
             return {"output": result}
 
         invoked, response = self.invoke_llm_with_limit(self.request_user_prompt(info))
         if invoked:
             self._data_store.store(lookup_info, response)
+            session["_last_parser_action"] = "llm"
+        else:
+            session["_last_parser_action"] = "blocked"
         return {"output": response}
 
     def dispatch(

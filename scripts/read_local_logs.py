@@ -23,11 +23,14 @@ def _iter_events(log_dir: Path):
                     event = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if event.get("dd-honeypot") is True:
+                if event.get("schema_version") == 1 or event.get("dd-honeypot") is True:
                     yield event
 
 
 def _client_ip(event: dict):
+    client = event.get("client") or {}
+    if isinstance(client, dict) and client.get("ip"):
+        return client["ip"]
     login = event.get("login") or {}
     if isinstance(login, dict) and login.get("client_ip"):
         return login["client_ip"]
@@ -38,6 +41,9 @@ def _client_ip(event: dict):
 
 
 def _event_command(event: dict):
+    command = event.get("command")
+    if isinstance(command, dict):
+        return command.get("raw")
     if event.get("command"):
         return event["command"]
     if event.get("query"):
@@ -57,8 +63,10 @@ def summarize(log_dir: Path):
     commands = Counter()
 
     for event in _iter_events(log_dir):
-        sessions[event.get("session-id") or "unknown"].append(event)
-        if event.get("type"):
+        sessions[event.get("session_id") or event.get("session-id") or "unknown"].append(event)
+        if event.get("service"):
+            protocols[event["service"]] += 1
+        elif event.get("type"):
             protocols[event["type"]] += 1
         ip = _client_ip(event)
         if ip:

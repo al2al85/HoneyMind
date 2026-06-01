@@ -2,7 +2,7 @@
 
 HoneyMind writes structured JSONL logs locally by default. Use these local files first for analysis; AWS S3, Glue, and Athena are optional export paths.
 
-HoneyMind is based on [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot). The legacy `"dd-honeypot": true` log marker and `dd_honeypot` Athena table examples are preserved for compatibility.
+HoneyMind is based on [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot). New SSH logs use the canonical HoneyMind schema. Legacy dd-honeypot-shaped examples are kept below only for optional AWS/Athena compatibility.
 
 ## Local JSONL Analysis
 
@@ -21,31 +21,31 @@ python scripts/read_local_logs.py logs
 List session IDs:
 
 ```sh
-jq -r '."session-id"' logs/*.jsonl | sort -u
+jq -r '.session_id' logs/*.jsonl | sort -u
 ```
 
 Filter by session ID:
 
 ```sh
-jq 'select(."session-id" == "SESSION_ID")' logs/*.jsonl
+jq 'select(.session_id == "SESSION_ID")' logs/*.jsonl
 ```
 
 Filter by client IP:
 
 ```sh
-jq 'select(.login.client_ip == "127.0.0.1" or ."http-request".client_ip == "127.0.0.1")' logs/*.jsonl
+jq 'select(.client.ip == "127.0.0.1")' logs/*.jsonl
 ```
 
 Extract commands, SQL queries, and HTTP paths:
 
 ```sh
-jq -r '.command // .query // (."http-request".method + " /" + ."http-request".path)' logs/*.jsonl
+jq -r 'select(.event_type == "command") | .command.raw' logs/*.jsonl
 ```
 
 Count top commands or requests:
 
 ```sh
-jq -r '.command // .query // (."http-request".method + " /" + ."http-request".path)' logs/*.jsonl \
+jq -r 'select(.event_type == "command") | .command.raw' logs/*.jsonl \
   | sort | uniq -c | sort -nr | head
 ```
 

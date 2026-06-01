@@ -26,12 +26,13 @@ class TestPasswordManagerLogging:
             pm.attempt(session, "attacker", "pass", "1.2.3.4")
 
         log_files = list(tmp_path.glob("*.jsonl"))
-        assert log_files, "No log file created"
+        assert log_files, "No compatibility log file created"
         all_lines = []
         for lf in log_files:
             all_lines.extend(json.loads(l) for l in lf.read_text().splitlines() if l.strip())
-        password_logs = [l for l in all_lines if l.get("type") == "password_attempt"]
-        assert len(password_logs) == 3
+        assert len(all_lines) == 3
+        assert all("session_id" in line for line in all_lines)
+        assert all("success" in line for line in all_lines)
 
     def test_failed_attempts_logged(self, tmp_path):
         config = {
@@ -52,7 +53,7 @@ class TestPasswordManagerLogging:
         all_lines = []
         for lf in log_files:
             all_lines.extend(json.loads(l) for l in lf.read_text().splitlines() if l.strip())
-        failed = [l for l in all_lines if l.get("type") == "password_attempt" and not l["success"]]
+        failed = [l for l in all_lines if not l["success"]]
         assert len(failed) == 2
 
     def test_successful_attempt_logged_as_success(self, tmp_path):
@@ -71,7 +72,7 @@ class TestPasswordManagerLogging:
         all_lines = []
         for lf in log_files:
             all_lines.extend(json.loads(l) for l in lf.read_text().splitlines() if l.strip())
-        successes = [l for l in all_lines if l.get("type") == "password_attempt" and l["success"]]
+        successes = [l for l in all_lines if l["success"]]
         assert len(successes) == 1
         assert successes[0]["password"] == "admin"
 
@@ -195,6 +196,7 @@ class TestPasswordManagerSaveSuccessful:
         assert entry["username"] == "root"
         assert entry["password"] == "admin"
         assert entry["client_ip"] == "9.9.9.9"
+        assert entry["success"] is True
 
     def test_does_not_save_failed_credential(self, tmp_path):
         config = {

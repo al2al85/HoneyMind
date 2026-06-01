@@ -170,36 +170,46 @@ class FakeFSDataHandler(HoneypotAction):
         if self._data_file.exists():
             file_response = self.query_from_file(query)
             if file_response is not None:
+                session["_last_parser_action"] = "hardcoded"
                 return file_response
 
         system_response = self._handle_system_artifacts(query, session)
         if system_response is not None:
+            session["_last_parser_action"] = "hardcoded"
             return system_response
 
         if "fs" in session:
             if query.startswith("ls"):
                 parts = query.strip().split()
                 flags = [p for p in parts if p.startswith("-")]
+                session["_last_parser_action"] = "builtin"
                 return handle_ls(session, flags=" ".join(flags))
 
             elif query.startswith("cd "):
                 parts = query.split(maxsplit=1)
                 if len(parts) == 2:
+                    session["_last_parser_action"] = "builtin"
                     return handle_cd(session, parts[1])
+                session["_last_parser_action"] = "blocked"
                 return "Usage: cd <dir>"
             elif query.startswith("mkdir "):
                 parts = query.split(maxsplit=1)
                 if len(parts) == 2:
+                    session["_last_parser_action"] = "builtin"
                     return handle_mkdir(session, parts[1])
+                session["_last_parser_action"] = "blocked"
                 return "Usage: mkdir <dir>"
             elif "wget" in query.lower() or "curl" in query.lower():
                 parts = query.strip().split()
                 if len(parts) >= 2:
                     url = parts[-1]
                     logging.info(f"[FakeFSDataHandler] Handling download: {url}")
+                    session["_last_parser_action"] = "builtin"
                     return handle_download(session, url)
                 logging.warning("[FakeFSDataHandler] Invalid wget/curl syntax")
+                session["_last_parser_action"] = "blocked"
                 return "Usage: wget <url> or curl <url>"
+        session["_last_parser_action"] = "unknown"
         return None
 
     def _handle_uname(self, query: str) -> str:

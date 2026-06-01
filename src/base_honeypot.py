@@ -1,14 +1,17 @@
 import logging
-import os
 import random
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
+from canonical_log_utils import (
+    build_command_payload,
+    build_event,
+    client_identity,
+    write_and_print_event,
+)
 from honeypot_utils import allocate_port
-from input_normalizer import normalized_log_fields
-from local_log_utils import event_to_json, write_local_event
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,8 @@ class HoneypotSession(dict):
             self["_seq"] = 0
         if "_last_event_ts" not in self:
             self["_last_event_ts"] = None
+        if "_session_start_ts" not in self:
+            self["_session_start_ts"] = datetime.now().timestamp() * 1000
 
     @property
     def session_id(self):
@@ -44,6 +49,10 @@ class HoneypotSession(dict):
         last = self["_last_event_ts"]
         self["_last_event_ts"] = now
         return int(now - last) if last is not None else None
+
+    def duration_ms(self) -> int:
+        now = datetime.now().timestamp() * 1000
+        return int(now - self.get("_session_start_ts", now))
 
 
 class BaseHoneypot(ABC):
@@ -130,7 +139,18 @@ class BaseHoneypot(ABC):
         :param session:
         :param data:
         """
-        self.log_data(session, {"login": data})
+        attempt = session.get("_last_auth_attempt") or {}
+        self.log_auth_attempt(
+            session,
+            username=attempt.get("username", data.get("username")),
+            password=attempt.get("password", data.get("password")),
+            client_ip=attempt.get("client_ip", data.get("client_ip")),
+            attempt_number=attempt.get("attempt_number", data.get("attempt_number")),
+            required_attempts=attempt.get(
+                "required_attempts", data.get("required_attempts")
+            ),
+            success=bool(attempt.get("success", data.get("success"))),
+        )
 
     def _protocol(self) -> str:
         return self.__class__.__name__.replace("Honeypot", "").lower()
@@ -153,30 +173,143 @@ class BaseHoneypot(ABC):
         :param session:
         :param data:
         """
-        seq = session.next_seq() if isinstance(session, HoneypotSession) else None
-        elapsed = session.elapsed_ms() if isinstance(session, HoneypotSession) else None
+        if "command" in data:
+            self.log_command(
+                session,
+                raw=data.get("command", ""),
+                response=data.get("response", ""),
+                parser_action=data.get("parser_action", "unknown"),
+                exit_code=data.get("exit_code", 0),
+                client_ip=data.get("client_ip"),
+                username=data.get("username"),
+            )
+            return
 
-        data_to_log = {
-            "dd-honeypot": True,
-            "honeymind": True,
-            "region": os.getenv("AWS_DEFAULT_REGION"),
-            "time": datetime.now().isoformat(),
-            "session-id": session.get("session_id"),
-            "protocol": self._protocol(),
-            "type": self.honeypot_type(),
-            "name": self.name,
-            "port": self.port,
-            "seq": seq,
-            "elapsed_ms": elapsed,
-            "username": session.get("username"),
+        details = dict(data)
+        client_ip = self._extract_client_ip(details)
+        event = build_event(
+            session=session,
+            event_type=details.pop("event_type", "error"),
+            service=self._protocol(),
+            config=self.config,
+            port=self.port,
+            client=client_identity(
+                ip=client_ip,
+                username=details.pop("username", session.get("username")),
+                session=session,
+            ),
+            details=details,
+        )
+        write_and_print_event(event, self.config)
+
+    def log_session_start(
+        self,
+        session: HoneypotSession,
+        *,
+        client_ip: Optional[str] = None,
+        username: Optional[str] = None,
+    ) -> dict:
+        event = build_event(
+            session=session,
+            event_type="session_start",
+            service=self._protocol(),
+            config=self.config,
+            port=self.port,
+            client=client_identity(ip=client_ip, username=username, session=session),
+        )
+        write_and_print_event(event, self.config)
+        return event
+
+    def log_session_end(
+        self,
+        session: HoneypotSession,
+        *,
+        client_ip: Optional[str] = None,
+        username: Optional[str] = None,
+        close_reason: Optional[str] = None,
+    ) -> dict:
+        details = {
+            "duration_ms": session.duration_ms()
+            if hasattr(session, "duration_ms")
+            else None,
+            "auth_attempts": session.get("_auth_attempts", 0),
+            "commands": session.get("_commands", 0),
+            "authenticated": bool(session.get("_auth_success")),
+            "close_reason": close_reason,
         }
-        data_to_log.update(data)
-        client_ip = self._extract_client_ip(data_to_log)
-        if client_ip:
-            data_to_log["client_ip"] = client_ip
-        data_to_log.update(normalized_log_fields(data_to_log, self.config))
-        write_local_event(data_to_log, self.config)
-        print(event_to_json(data_to_log))
+        event = build_event(
+            session=session,
+            event_type="session_end",
+            service=self._protocol(),
+            config=self.config,
+            port=self.port,
+            client=client_identity(ip=client_ip, username=username, session=session),
+            details=details,
+        )
+        write_and_print_event(event, self.config)
+        return event
+
+    def log_auth_attempt(
+        self,
+        session: HoneypotSession,
+        *,
+        username: str,
+        password: str,
+        client_ip: Optional[str],
+        attempt_number: Optional[int],
+        required_attempts: Optional[int],
+        success: bool,
+    ) -> dict:
+        session["username"] = username
+        session["client_ip"] = client_ip
+        session["_auth_attempts"] = int(session.get("_auth_attempts", 0)) + 1
+        session["_auth_success"] = bool(session.get("_auth_success")) or success
+        event = build_event(
+            session=session,
+            event_type="auth_attempt",
+            service=self._protocol(),
+            config=self.config,
+            port=self.port,
+            client=client_identity(ip=client_ip, username=username, session=session),
+            auth={
+                "method": "password",
+                "password": password,
+                "attempt_number": attempt_number,
+                "required_attempts": required_attempts,
+                "success": success,
+            },
+        )
+        write_and_print_event(event, self.config)
+        return event
+
+    def log_command(
+        self,
+        session: HoneypotSession,
+        *,
+        raw: str,
+        response: str,
+        parser_action: str = "unknown",
+        exit_code: Optional[int] = 0,
+        client_ip: Optional[str] = None,
+        username: Optional[str] = None,
+    ) -> dict:
+        session["_commands"] = int(session.get("_commands", 0)) + 1
+        event = build_event(
+            session=session,
+            event_type="command",
+            service=self._protocol(),
+            config=self.config,
+            port=self.port,
+            client=client_identity(ip=client_ip, username=username, session=session),
+            command=build_command_payload(
+                raw,
+                parser_action=parser_action,
+                exit_code=exit_code,
+                response=response,
+            ),
+        )
+        write_and_print_event(event, self.config)
+        return event
 
     def forward_to_backend(self, backend_name: str, ctx: dict):
         try:

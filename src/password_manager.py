@@ -1,12 +1,11 @@
 import json
 import logging
 import random
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from base_honeypot import HoneypotSession
-from local_log_utils import local_log_path
+from canonical_log_utils import iso_utc
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +59,9 @@ class PasswordManager:
         self._early_success_prob = float(
             self._config.get("password_early_success_probability", _DEFAULT_EARLY_SUCCESS_PROBABILITY)
         )
+        self._compat_files_enabled = bool(
+            self._config.get("password_compat_files_enabled", True)
+        )
         self._allowed: set[str] = {_MASTER_PASSWORD} | set(self._config.get("passwords") or [])
         passwords_file = self._config.get("passwords_file")
         if passwords_file:
@@ -91,8 +93,7 @@ class PasswordManager:
         - attempt count for this client_ip >= randomly chosen threshold (6-10)
         """
         if password in self._allowed:
-            self._log_attempt(session, username, password, client_ip, 1, 1, True)
-            self._save_successful(session, username, password, client_ip)
+            self._record_attempt(session, username, password, client_ip, 1, 1, True)
             return True
 
         tracking_key = client_ip or session.session_id
@@ -109,20 +110,20 @@ class PasswordManager:
         else:
             success = False
 
-        self._log_attempt(session, username, password, client_ip, attempt_num, threshold, success)
+        self._record_attempt(
+            session, username, password, client_ip, attempt_num, threshold, success
+        )
 
         if success:
             self._allowed.add(password)
-            self._save_successful(session, username, password, client_ip)
             del self._tracking[tracking_key]
         else:
             if not length_ok:
                 self._blacklist.add(password)
-            self._save_failed(session, username, password, client_ip)
 
         return success
 
-    def _log_attempt(
+    def _record_attempt(
         self,
         session: HoneypotSession,
         username: str,
@@ -132,11 +133,7 @@ class PasswordManager:
         threshold: int,
         success: bool,
     ) -> None:
-        event = {
-            "dd-honeypot": True,
-            "time": datetime.now().isoformat(),
-            "session-id": session.session_id,
-            "type": "password_attempt",
+        session["_last_auth_attempt"] = {
             "username": username,
             "password": password,
             "client_ip": client_ip,
@@ -144,14 +141,7 @@ class PasswordManager:
             "required_attempts": threshold,
             "success": success,
         }
-        try:
-            log_path = local_log_path(self._config)
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            with log_path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(event, default=str, ensure_ascii=False) + "\n")
-                f.flush()
-        except Exception as exc:
-            logger.warning("Failed to log password attempt: %s", exc)
+        self._write_compat_credential(session, username, password, client_ip, success)
         logger.info(
             "Password attempt #%d/%d user=%r from %s len=%d success=%s",
             attempt_num,
@@ -162,53 +152,38 @@ class PasswordManager:
             success,
         )
 
-    def _save_successful(
+    def _write_compat_credential(
         self,
         session: HoneypotSession,
         username: str,
         password: str,
         client_ip: Optional[str],
+        success: bool,
     ) -> None:
+        if not self._compat_files_enabled:
+            return
         log_dir = self._config.get("local_log_dir", "/data/honeypot/logs")
-        success_file = Path(log_dir) / "successful_passwords.jsonl"
+        credential_file = Path(log_dir) / (
+            "successful_passwords.jsonl" if success else "failed_passwords.jsonl"
+        )
         try:
-            success_file.parent.mkdir(parents=True, exist_ok=True)
+            credential_file.parent.mkdir(parents=True, exist_ok=True)
             entry = {
-                "time": datetime.now().isoformat(),
-                "session-id": session.session_id,
+                "timestamp": iso_utc(),
+                "session_id": session.session_id,
                 "username": username,
                 "password": password,
                 "client_ip": client_ip,
+                "success": success,
             }
-            with success_file.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(entry) + "\n")
+            with credential_file.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
                 f.flush()
-            logger.info(
-                "Saved successful credential user=%r to %s", username, success_file
-            )
+            if success:
+                logger.info(
+                    "Saved successful credential user=%r to %s",
+                    username,
+                    credential_file,
+                )
         except Exception as exc:
-            logger.warning("Failed to save successful password: %s", exc)
-
-    def _save_failed(
-        self,
-        session: HoneypotSession,
-        username: str,
-        password: str,
-        client_ip: Optional[str],
-    ) -> None:
-        log_dir = self._config.get("local_log_dir", "/data/honeypot/logs")
-        failed_file = Path(log_dir) / "failed_passwords.jsonl"
-        try:
-            failed_file.parent.mkdir(parents=True, exist_ok=True)
-            entry = {
-                "time": datetime.now().isoformat(),
-                "session-id": session.session_id,
-                "username": username,
-                "password": password,
-                "client_ip": client_ip,
-            }
-            with failed_file.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(entry) + "\n")
-                f.flush()
-        except Exception as exc:
-            logger.warning("Failed to save failed password: %s", exc)
+            logger.warning("Failed to save password compatibility file: %s", exc)

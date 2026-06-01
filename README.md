@@ -222,7 +222,7 @@ Supported providers:
 
 `llm_api_key_env` takes priority over `llm_api_key` when the environment variable exists and is not empty. Localhost, `127.0.0.1`, `::1`, `host.docker.internal`, and private LAN OpenAI-compatible endpoints can run without a token by default. Public remote OpenAI-compatible endpoints require a token unless `llm_allow_no_api_key` is explicitly set to `true`.
 
-If you want cost tracking, provide `llm_model_prices` inline or seed the `llm_model_prices` table in `llm_usage.db`. Each row uses prices per million tokens (`*_usd_per_mtok`) for prompt/input and completion/output. If a model has no matching price row, usage is still logged but the cost columns stay `NULL`.
+If you want cost tracking, provide `llm_model_prices` inline or seed the `llm_model_prices` table in `llm_usage.db`. Each row uses prices per million tokens (`prompt_price_per_mtok` and `completion_price_per_mtok`) plus a `currency`. Usage rows store generic `prompt_cost`, `completion_cost`, `total_cost`, `currency`, and `price_source` fields. If a model has no matching price row, usage is still logged but the cost columns stay `NULL`. OpenAI-compatible usage can match an `ovhcloud` price row through the built-in provider alias.
 
 You can inspect usage with:
 
@@ -400,12 +400,17 @@ ls\tDoc
 
 All three inputs use `ls Doc` for lookup/cache reuse. If lookup misses, HoneyMind sends the original raw attacker input to the LLM and stores the generated response under the normalized key for future equivalent inputs.
 
-Structured logs keep raw fields such as `command`, `query`, or `http-request` and, by default, add `raw_input`, `normalized_input`, and protocol-specific fields such as `normalized_command`.
+SSH structured logs use the canonical HoneyMind event schema. Command events keep raw attacker input under `command.raw`, normalized lookup input under `command.normalized`, the response sent to the attacker under `command.response`, and the source under `command.parser_action`.
 
 ```json
 {
-  "input_normalization_enabled": true,
-  "log_normalized_input": true
+  "event_type": "command",
+  "command": {
+    "raw": "ls                 Doc",
+    "normalized": "ls Doc",
+    "parser_action": "hardcoded",
+    "response": "..."
+  }
 }
 ```
 
