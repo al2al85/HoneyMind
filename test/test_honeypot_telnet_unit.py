@@ -85,11 +85,13 @@ def test_telnet_multiple_sessions_long_timeout(telnet_honeypot, monkeypatch):
     monkeypatch.setattr(telnet_honeypot, "log_data", fake_log_data)
     _send_commands(telnet_honeypot.port, sleep_between=1)
 
-    assert len(logged_data) == 3
+    assert len(logged_data) == 5
     assert (
         logged_data[0]["session_id"]
         == logged_data[1]["session_id"]
         == logged_data[2]["session_id"]
+        == logged_data[3]["session_id"]
+        == logged_data[4]["session_id"]
     )
 
 

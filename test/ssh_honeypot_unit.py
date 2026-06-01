@@ -33,6 +33,8 @@ def ssh_honeypot():
             "data_file": str(data_file),
             "system_prompt": "You are a Linux terminal emulator.",
             "model_id": "test-model",
+            "password_min_attempts": 1,
+            "password_max_attempts": 1,
         }
         mock_action = Mock()
         mock_action.query.return_value = "Mocked LLM response"
@@ -131,7 +133,7 @@ def test_invalid_auth_logging(ssh_honeypot, caplog: pytest.LogCaptureFixture):
     except Exception:
         pass  # Expected to fail
 
-    assert "Authentication: invalid:invalid" in caplog.text
+    assert "Authentication attempt: invalid" in caplog.text
 
 
 def test_concurrent_connections(ssh_honeypot):
