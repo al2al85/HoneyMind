@@ -1,5 +1,15 @@
-name: Run LLM integration Tests
-on: [push, workflow_dispatch]
+name: Optional LLM Integration Tests
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      run_bedrock:
+        description: "Run live AWS Bedrock integration tests"
+        required: false
+        default: false
+        type: boolean
+
 jobs:
   llm-test:
     runs-on: ubuntu-latest
@@ -8,6 +18,10 @@ jobs:
       contents: read
       id-token: write
       actions: read
+
+    env:
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
 
     steps:
       - name: Checkout
@@ -39,14 +53,38 @@ jobs:
           pip install -r requirements.txt
           pip install -r test/test.requirements.txt
 
-      - name: Get AWS Permissions
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/dd-honeypot-github-role-for-bedrock-invoke
-          aws-region: us-east-1
+      - name: Decide whether to run Bedrock integration tests
+        id: bedrock
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" \
+                && "${{ github.event.inputs.run_bedrock }}" == "true" \
+                && -n "${AWS_ROLE_TO_ASSUME}" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Run integration tests
+      - name: Configure AWS credentials
+        if: steps.bedrock.outputs.enabled == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run Bedrock integration tests
+        if: steps.bedrock.outputs.enabled == 'true'
         timeout-minutes: 2
+        env:
+          RUN_BEDROCK_INTEGRATION: "true"
+          AWS_REGION: ${{ env.AWS_REGION }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
         run: |
           source .venv/bin/activate
           PYTHONPATH=src:test python -m pytest --color=yes test/test_*_integration.py
+
+      - name: Skip optional Bedrock integration tests
+        if: steps.bedrock.outputs.enabled != 'true'
+        run: |
+          echo "Skipping live Bedrock integration tests."
+          echo "Run this workflow manually with run_bedrock=true and set AWS_ROLE_TO_ASSUME to enable them."

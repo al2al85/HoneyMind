@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from honeypot_utils import init_env_from_file
@@ -6,6 +8,11 @@ from llm_utils import invoke_llm
 
 @pytest.fixture(autouse=True, scope="module")
 def set_aws_api_key():
+    if os.getenv("RUN_BEDROCK_INTEGRATION", "").lower() not in {"1", "true", "yes"}:
+        pytest.skip(
+            "Live Bedrock integration tests are optional. Set "
+            "RUN_BEDROCK_INTEGRATION=true to run them."
+        )
     init_env_from_file()
 
 

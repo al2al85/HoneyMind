@@ -45,7 +45,9 @@ PYTHONPATH=src:test python -m pytest --color=yes test/*_unit.py
 Unit tests also run automatically on every push using a dedicated workflow.
 
 #### Running integration tests
-To run integration tests locally, add any required API keys to your environment. AWS keys are only needed for Bedrock-specific integration tests. You can do this by creating env files under the `config` directory.
+Integration tests that call live LLM providers are optional. Normal CI does not require AWS or any hosted LLM credentials.
+
+To run Bedrock integration tests locally, set `RUN_BEDROCK_INTEGRATION=true` and add AWS credentials to your environment. You can do this by creating env files under the `config` directory.
 
 aws.env.list
 ```
@@ -57,8 +59,10 @@ AWS_REGION=YOUR_REGION
 Then, to run all the integration tests locally, use the following command:
 
 ```sh
-PYTHONPATH=src:test python -m pytest --color=yes test/*_integration.py
+RUN_BEDROCK_INTEGRATION=true PYTHONPATH=src:test python -m pytest --color=yes test/*_integration.py
 ```
+
+In GitHub Actions, the `Optional LLM Integration Tests` workflow skips live Bedrock calls by default. To run them manually, start the workflow with `run_bedrock=true` and configure the repository secret `AWS_ROLE_TO_ASSUME` with the IAM role ARN to assume.
 
 ### Building docker image and using it
 To build the docker image, use the following command from the root of the repository:
