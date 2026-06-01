@@ -29,6 +29,9 @@ def telnet_honeypot(tmp_path) -> Generator[TelnetHoneypot, None, None]:
                 "password-prompt": "Password: ",
             },
             "data_dir": str(tmp_path),
+            # Accept on first attempt so tests are not blocked by deferred-success logic
+            "password_min_attempts": 1,
+            "password_max_attempts": 1,
         },
     )
     try:
