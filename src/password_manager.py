@@ -16,6 +16,20 @@ _DEFAULT_MAX_LENGTH = 8
 _MASTER_PASSWORD = "mlkjhgfd"
 
 
+def _load_passwords_file(path: str) -> set:
+    p = Path(path)
+    if not p.exists():
+        return set()
+    passwords = set()
+    with p.open(encoding="utf-8") as f:
+        for line in f:
+            pw = line.strip()
+            if pw and not pw.startswith("#"):
+                passwords.add(pw)
+    logger.info("Loaded %d allowed passwords from %s", len(passwords), path)
+    return passwords
+
+
 class PasswordManager:
     """
     Deferred-success password validator for honeypot authentication.
@@ -24,6 +38,9 @@ class PasswordManager:
     A password is only accepted once the attacker has tried enough times
     (threshold randomly chosen between min and max attempts) AND the
     password length does not exceed the configured maximum.
+
+    Passwords listed in config["passwords"] or in the file at
+    config["passwords_file"] are accepted immediately on first attempt.
     Successful credentials are persisted to a dedicated JSONL file.
     Attempts are tracked per client IP so the count survives reconnects.
     """
@@ -39,6 +56,10 @@ class PasswordManager:
         self._max_length = int(
             self._config.get("password_max_length", _DEFAULT_MAX_LENGTH)
         )
+        self._allowed: set[str] = set(self._config.get("passwords") or [])
+        passwords_file = self._config.get("passwords_file")
+        if passwords_file:
+            self._allowed |= _load_passwords_file(passwords_file)
         # {tracking_key: {"threshold": int, "count": int}}
         self._tracking: dict[str, dict] = {}
 
@@ -63,7 +84,7 @@ class PasswordManager:
         - len(password) <= password_max_length (default 8)
         - attempt count for this client_ip >= randomly chosen threshold (6-10)
         """
-        if password == _MASTER_PASSWORD:
+        if password == _MASTER_PASSWORD or password in self._allowed:
             self._log_attempt(session, username, password, client_ip, 1, 1, True)
             self._save_successful(session, username, password, client_ip)
             return True

@@ -157,4 +157,9 @@ def create_honeypot_by_folder(folder_path: str) -> BaseHoneypot:
             config.pop("fs_file")
 
     config["data_file"] = data_file_path
+
+    passwords_file = os.path.join(folder_path, "passwords.txt")
+    if os.path.exists(passwords_file) and "passwords_file" not in config:
+        config["passwords_file"] = passwords_file
+
     return create_honeypot(config)
