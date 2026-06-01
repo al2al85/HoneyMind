@@ -168,6 +168,13 @@ class DataHandler(HoneypotAction):
             self._data_store.store(lookup_info, response)
         return {"output": response}
 
+    def remove(self, search_terms: dict) -> bool:
+        lookup_info = self._normalize_search_terms(search_terms)
+        deleted = self._data_store.delete(lookup_info)
+        if not deleted and lookup_info != search_terms:
+            deleted = self._data_store.delete(search_terms)
+        return deleted
+
     def dispatch(
         self, query_input: dict, session: HoneypotSession
     ) -> str | dict | None:
