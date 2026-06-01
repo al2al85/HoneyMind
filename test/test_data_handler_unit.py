@@ -136,7 +136,11 @@ def test_llm_provider_config_is_passed_to_invoke_llm(mock_llm):
         llm_timeout=12,
         llm_temperature=0.1,
         llm_max_tokens=321,
+<<<<<<< HEAD
         llm_usage_db_path=ANY,
+=======
+        llm_usage_db_path=mock_llm.call_args.kwargs.get("llm_usage_db_path"),
+>>>>>>> dd127a8 (fix: error sur pipline)
     )
 
 
@@ -167,7 +171,11 @@ def test_llm_prompt_uses_raw_input_after_normalized_miss(mock_llm):
         "system",
         "User input: {'command': 'ls                 Doc'}",
         "model",
+<<<<<<< HEAD
         llm_usage_db_path=ANY,
+=======
+        llm_usage_db_path=mock_llm.call_args.kwargs.get("llm_usage_db_path"),
+>>>>>>> dd127a8 (fix: error sur pipline)
     )
 
 

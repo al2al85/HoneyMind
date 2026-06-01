@@ -105,6 +105,12 @@ class PasswordManager:
             self._save_successful(session, username, password, client_ip)
             del self._tracking[tracking_key]
         else:
+<<<<<<< HEAD
+=======
+            if not length_ok:
+                # Definitively too long — will never succeed regardless of attempts
+                self._blacklist.add(password)
+>>>>>>> dd127a8 (fix: error sur pipline)
             self._save_failed(session, username, password, client_ip)
 
         return success
