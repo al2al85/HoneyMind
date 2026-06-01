@@ -82,3 +82,41 @@ def test_base_honeypot_log_data_writes_local_jsonl(tmp_path, capsys):
     assert file_event["dd-honeypot"] is True
     assert file_event["session-id"] == "session-1"
     assert file_event["command"] == "id"
+
+
+def test_base_honeypot_log_data_adds_normalized_command(tmp_path, capsys):
+    hp = LocalLogTestHoneypot(
+        config={
+            "name": "test",
+            "local_logging_enabled": True,
+            "local_log_dir": str(tmp_path),
+        }
+    )
+
+    hp.log_data(HoneypotSession(session_id="session-1"), {"command": "ls     Doc"})
+
+    stdout_event = json.loads(capsys.readouterr().out.strip())
+    assert stdout_event["dd-honeypot"] is True
+    assert stdout_event["honeymind"] is True
+    assert stdout_event["command"] == "ls     Doc"
+    assert stdout_event["raw_input"] == "ls     Doc"
+    assert stdout_event["normalized_command"] == "ls Doc"
+    assert stdout_event["normalized_input"] == "ls Doc"
+
+
+def test_base_honeypot_normalized_logging_can_be_disabled(tmp_path, capsys):
+    hp = LocalLogTestHoneypot(
+        config={
+            "name": "test",
+            "local_logging_enabled": True,
+            "local_log_dir": str(tmp_path),
+            "log_normalized_input": False,
+        }
+    )
+
+    hp.log_data(HoneypotSession(session_id="session-1"), {"command": "ls     Doc"})
+
+    stdout_event = json.loads(capsys.readouterr().out.strip())
+    assert stdout_event["command"] == "ls     Doc"
+    assert "normalized_command" not in stdout_event
+    assert "normalized_input" not in stdout_event

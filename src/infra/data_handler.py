@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from honeypot_utils import normalize_backend_name
+from input_normalizer import input_normalization_enabled, normalize_lookup_key
 from infra.data_store import SqliteDataStore, DataStore
 from infra.interfaces import HoneypotAction, HoneypotSession
 from llm_utils import invoke_llm, InvokeLimiter
@@ -27,6 +28,8 @@ class DataHandler(HoneypotAction):
         llm_timeout: int = None,
         llm_temperature: float = None,
         llm_max_tokens: int = None,
+        input_normalization_enabled: bool = None,
+        log_normalized_input: bool = None,
     ):
         data_folder = str(Path(data_file).parent.absolute())
         self._data_store = self._create_data_store(data_folder, structure)
@@ -55,6 +58,8 @@ class DataHandler(HoneypotAction):
         self._hints = self._load_hints()
         self._limiter = InvokeLimiter(20, 600)
         self._routes = routes or []
+        self._input_normalization_enabled = input_normalization_enabled is not False
+        self._log_normalized_input = log_normalized_input is not False
 
     def _load_data_entries(self, path):
         entries = []
@@ -104,6 +109,48 @@ class DataHandler(HoneypotAction):
     def request_user_prompt(self, info: dict) -> str:
         return f"User input: {info}"
 
+    def _normalize_search_terms(self, info: dict) -> dict:
+        if not input_normalization_enabled(
+            {"input_normalization_enabled": self._input_normalization_enabled}
+        ):
+            return dict(info)
+
+        normalized = dict(info)
+        for key, value in info.items():
+            if not isinstance(value, str):
+                continue
+            request_type = self._request_type_for_key(key)
+            if request_type:
+                normalized[key] = normalize_lookup_key(value, request_type)
+        return normalized
+
+    @staticmethod
+    def _request_type_for_key(key: str) -> Optional[str]:
+        if key == "command":
+            return "command"
+        if key == "query":
+            return "sql"
+        if key in {"path", "args", "routing_key"}:
+            return "http"
+        return None
+
+    def _search_with_raw_fallback(self, raw_info: dict) -> tuple[Optional[str], dict]:
+        lookup_info = self._normalize_search_terms(raw_info)
+        result = self._data_store.search(lookup_info)
+        if result:
+            return result, lookup_info
+
+        if lookup_info != raw_info:
+            result = self._data_store.search(raw_info)
+            if result:
+                logging.info(
+                    f"DataHandler.request: Found cached response for raw fallback {raw_info}"
+                )
+                self._data_store.store(lookup_info, result)
+                return result, raw_info
+
+        return None, lookup_info
+
     def user_prompt_hint(self, info: dict) -> Optional[str]:
         for entry in self._hints:
             if entry["path"] == info["path"] and entry["args"] == info["args"]:
@@ -111,15 +158,14 @@ class DataHandler(HoneypotAction):
         return None
 
     def request(self, info: dict, session: HoneypotSession, **kwargs) -> dict:
-        result = self._data_store.search(info)
+        result, lookup_info = self._search_with_raw_fallback(info)
         if result:
-            logging.info(f"DataHandler.request: Found cached response for {info}")
+            logging.info(f"DataHandler.request: Found cached response for {lookup_info}")
             return {"output": result}
 
         invoked, response = self.invoke_llm_with_limit(self.request_user_prompt(info))
         if invoked:
-            # Always store raw string
-            self._data_store.store(info, response)
+            self._data_store.store(lookup_info, response)
         return {"output": response}
 
     def dispatch(

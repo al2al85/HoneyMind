@@ -6,7 +6,7 @@ HoneyMind is based on [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/d
 
 ## Local JSONL Logging
 
-Every structured event keeps the `"dd-honeypot": true` marker and includes fields such as `time`, `session-id`, `type`, `name`, `login`, `command`, `query`, or `http-request` when they apply.
+Every structured event keeps the `"dd-honeypot": true` marker and includes fields such as `time`, `session-id`, `type`, `name`, `login`, `command`, `query`, or `http-request` when they apply. HoneyMind also adds `"honeymind": true` for new logs while preserving the legacy marker.
 
 By default, logs are written inside the container to:
 
@@ -46,6 +46,27 @@ python scripts/read_local_logs.py logs
 ```
 
 Stdout logging remains enabled for Docker users, so `docker logs honeymind` still works.
+
+## Normalized Input Fields
+
+HoneyMind preserves raw attacker input in existing fields and, by default, adds normalized lookup fields that explain cache/dataset deduplication:
+
+```json
+{
+  "command": "ls                 Doc",
+  "raw_input": "ls                 Doc",
+  "normalized_command": "ls Doc",
+  "normalized_input": "ls Doc"
+}
+```
+
+These fields reduce ambiguity during analysis: `command`, `query`, and `http-request` remain forensic raw input, while `normalized_input` shows the conservative lookup/cache key. Disable the additive fields with:
+
+```json
+{
+  "log_normalized_input": false
+}
+```
 
 ## Optional: Send Logs to S3 Using Fluent Bit
 

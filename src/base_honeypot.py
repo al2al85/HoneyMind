@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
 from honeypot_utils import allocate_port
+from input_normalizer import normalized_log_fields
 from local_log_utils import event_to_json, write_local_event
 
 logger = logging.getLogger(__name__)
@@ -125,6 +126,7 @@ class BaseHoneypot(ABC):
         """
         data_to_log = {
             "dd-honeypot": True,
+            "honeymind": True,
             "region": os.getenv("AWS_DEFAULT_REGION"),
             "time": datetime.now().isoformat(),
             "session-id": session.get("session_id"),
@@ -132,6 +134,7 @@ class BaseHoneypot(ABC):
             "name": self.name,
         }
         data_to_log.update(data)
+        data_to_log.update(normalized_log_fields(data_to_log, self.config))
         write_local_event(data_to_log, self.config)
         print(event_to_json(data_to_log))
 
