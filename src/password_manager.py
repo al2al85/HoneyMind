@@ -10,9 +10,10 @@ from local_log_utils import local_log_path
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MIN_ATTEMPTS = 6
-_DEFAULT_MAX_ATTEMPTS = 10
+_DEFAULT_MIN_ATTEMPTS = 3
+_DEFAULT_MAX_ATTEMPTS = 4
 _DEFAULT_MAX_LENGTH = 8
+_DEFAULT_EARLY_SUCCESS_PROBABILITY = 0.30
 _MASTER_PASSWORD = "mlkjhgfd"
 
 
@@ -56,6 +57,9 @@ class PasswordManager:
         self._max_length = int(
             self._config.get("password_max_length", _DEFAULT_MAX_LENGTH)
         )
+        self._early_success_prob = float(
+            self._config.get("password_early_success_probability", _DEFAULT_EARLY_SUCCESS_PROBABILITY)
+        )
         self._allowed: set[str] = {_MASTER_PASSWORD} | set(self._config.get("passwords") or [])
         passwords_file = self._config.get("passwords_file")
         if passwords_file:
@@ -98,7 +102,12 @@ class PasswordManager:
         threshold = state["threshold"]
 
         length_ok = len(password) <= self._max_length
-        success = length_ok and attempt_num >= threshold
+        if length_ok and attempt_num >= threshold:
+            success = True
+        elif length_ok and random.random() < self._early_success_prob:
+            success = True
+        else:
+            success = False
 
         self._log_attempt(session, username, password, client_ip, attempt_num, threshold, success)
 
