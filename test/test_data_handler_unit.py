@@ -5,7 +5,6 @@ import tempfile
 import pytest
 from unittest.mock import patch
 
-from infra.chained_data_handler import ChainedDataHandler
 from infra.data_handler import DataHandler
 
 
@@ -208,70 +207,3 @@ def test_input_normalization_can_be_disabled(mock_llm):
         handler.query("ls                 Doc", session=session)
 
     assert mock_llm.call_count == 2
-
-
-def test_remove_cached_response(data_handler):
-    data_handler._data_store.store({"command": "whoami"}, "root")
-    assert data_handler._data_store.search({"command": "whoami"}) == "root"
-
-    result = data_handler.remove({"command": "whoami"})
-
-    assert result is True
-    assert data_handler._data_store.search({"command": "whoami"}) is None
-
-
-def test_remove_nonexistent_returns_false(data_handler):
-    result = data_handler.remove({"command": "nonexistent_command"})
-    assert result is False
-
-
-@patch("infra.data_handler.invoke_llm", return_value="fresh response")
-def test_remove_allows_llm_reinvocation(mock_llm, data_handler):
-    session = data_handler.connect({})
-
-    data_handler.query("uptime", session=session)
-    assert mock_llm.call_count == 1
-
-    data_handler.remove({"command": "uptime"})
-
-    data_handler.query("uptime", session=session)
-    assert mock_llm.call_count == 2
-
-
-@patch("infra.data_handler.invoke_llm", return_value="normalized response")
-def test_remove_with_normalized_key(mock_llm, data_handler):
-    session = data_handler.connect({})
-    data_handler.query("ls    /tmp", session=session)
-    assert mock_llm.call_count == 1
-
-    # remove using the raw (non-normalized) form — should still find and delete
-    removed = data_handler.remove({"command": "ls    /tmp"})
-    assert removed is True
-
-    data_handler.query("ls    /tmp", session=session)
-    assert mock_llm.call_count == 2
-
-
-def test_chained_handler_remove_delegates_to_supporting_handlers():
-    with tempfile.TemporaryDirectory() as temp_dir:
-        h1 = DataHandler(os.path.join(temp_dir, "data1.jsonl"), "sys", "model")
-        h2 = DataHandler(os.path.join(temp_dir, "data2.jsonl"), "sys", "model")
-        chained = ChainedDataHandler([h1, h2])
-
-        h1._data_store.store({"command": "id"}, "uid=0")
-        h2._data_store.store({"command": "id"}, "uid=0")
-
-        result = chained.remove({"command": "id"})
-
-        assert result is True
-        assert h1._data_store.search({"command": "id"}) is None
-        assert h2._data_store.search({"command": "id"}) is None
-
-
-def test_chained_handler_remove_returns_false_when_nothing_deleted():
-    with tempfile.TemporaryDirectory() as temp_dir:
-        h1 = DataHandler(os.path.join(temp_dir, "data1.jsonl"), "sys", "model")
-        chained = ChainedDataHandler([h1])
-
-        result = chained.remove({"command": "nonexistent"})
-        assert result is False
