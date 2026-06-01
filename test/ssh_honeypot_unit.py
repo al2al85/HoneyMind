@@ -194,6 +194,8 @@ def ssh_honeypot_with_fakefs(tmp_path: Path):
         "system_prompt": "You are a Linux emulator",
         "model_id": "test-model",
         "fs_file": fs_path,
+        "password_min_attempts": 1,
+        "password_max_attempts": 1,
     }
 
     mock_action = Mock()

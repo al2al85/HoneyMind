@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from base_honeypot import HoneypotSession
-from local_log_utils import write_local_event
+from local_log_utils import local_log_path
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,14 @@ class PasswordManager:
             "required_attempts": threshold,
             "success": success,
         }
-        write_local_event(event, self._config)
+        try:
+            log_path = local_log_path(self._config)
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            with log_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(event, default=str, ensure_ascii=False) + "\n")
+                f.flush()
+        except Exception as exc:
+            logger.warning("Failed to log password attempt: %s", exc)
         logger.info(
             "Password attempt #%d/%d user=%r from %s len=%d success=%s",
             attempt_num,
