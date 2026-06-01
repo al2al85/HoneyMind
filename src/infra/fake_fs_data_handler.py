@@ -70,9 +70,12 @@ class FakeFSDataHandler(HoneypotAction):
             "os_release",
             self._default_os_release(),
         )
+        default_proc_cmdline = (
+            f"BOOT_IMAGE=/boot/vmlinuz-{self.uname_release} root=/dev/sda1 ro quiet splash"
+        )
         self.proc_cmdline = self.config.get(
             "proc_cmdline",
-            f"BOOT_IMAGE=/boot/vmlinuz-{self.uname_release} root=/dev/sda1 ro quiet splash",
+            self._proc_cmdline_from_dmesg(default_proc_cmdline),
         )
         self.proc_mounts = self.config.get(
             "proc_mounts",
@@ -151,6 +154,13 @@ class FakeFSDataHandler(HoneypotAction):
             'PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"\n'
             "UBUNTU_CODENAME=jammy\n"
         )
+
+    def _proc_cmdline_from_dmesg(self, default_cmdline: str) -> str:
+        for line in self.dmesg_lines:
+            marker = "Command line:"
+            if marker in line:
+                return line.split(marker, 1)[1].strip()
+        return default_cmdline
 
     def connect(self, auth_info: dict) -> HoneypotSession:
         logging.info(f"FakeFSDataHandler.connect: {auth_info}")
