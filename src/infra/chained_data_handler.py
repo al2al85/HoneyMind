@@ -26,3 +26,11 @@ class ChainedDataHandler:
             except Exception as e:
                 logging.warning(f"{handler.__class__.__name__} failed: {e}")
         return {"output": "Command not handled."}
+
+    def remove(self, search_terms: dict) -> bool:
+        deleted = False
+        for handler in self.handlers:
+            if hasattr(handler, "remove"):
+                if handler.remove(search_terms):
+                    deleted = True
+        return deleted
