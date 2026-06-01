@@ -1,5 +1,7 @@
 # HoneyMind
 
+![HoneyMind screenshot](docs/assets/honeymind-screenshot.png)
+
 HoneyMind is a local-first, cloud-optional, LLM-powered honeypot and attack analytics platform. It uses dynamic honeypot interactions to collect attacker behavior and make the resulting logs easier to analyze afterward.
 
 HoneyMind emulates realistic behavior across SSH, HTTP/HTTPS, MySQL, PostgreSQL, Redis, Telnet, and generic TCP protocols. It combines recorded payloads with LLM-based response generation to closely mimic real application behavior.
