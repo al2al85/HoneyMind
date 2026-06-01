@@ -285,9 +285,9 @@ class SSHServerInterface(paramiko.ServerInterface):
                 or f"{self.username}@SSHServer:{cwd}$ "
             )
 
-            prompt = render_prompt(prompt_template, self.session)
-
             while not channel.closed:
+                # Re-render prompt each loop to reflect updated session (cwd, username)
+                prompt = render_prompt(prompt_template, self.session)
                 buffer = ""
                 channel.send(prompt)
                 escape_seq = ""
