@@ -24,6 +24,8 @@ LLM_CONFIG_KEYS = (
     "llm_timeout",
     "llm_temperature",
     "llm_max_tokens",
+    "input_normalization_enabled",
+    "log_normalized_input",
 )
 
 
@@ -42,6 +44,7 @@ def build_data_handler(config: dict, log_callback=None):
         fakefs_handler = FakeFSDataHandler(
             data_file=data_file,
             fs_file=fs_file,
+            config=config,
         )
         llm_handler = DataHandler(
             data_file=data_file,

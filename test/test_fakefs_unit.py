@@ -172,3 +172,48 @@ def test_fakefs_invalid_json_line(tmp_path):
 
     response = handler.query("uptime", session)
     assert response == "up 5 days"
+
+
+def test_system_artifacts_are_coherent(tmp_path):
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    fs_path = os.path.join(base_dir, "test/honeypots/alpine/fs_alpine.jsonl.gz")
+
+    handler = FakeFSDataHandler(
+        data_file="test/honeypots/test_responses.jsonl",
+        fs_file=fs_path,
+        config={
+            "hostname": "alpine-vm",
+            "distro": "Alpine Linux",
+            "kernel": "6.1.21",
+            "uname_release": "6.1.21",
+            "arch": "x86_64",
+            "cpu_count": 2,
+            "cpu_model": "Intel(R) Xeon(R)",
+            "mem_total_kb": 1024 * 1024,
+            "clocksource": "tsc",
+            "dmi_sys_vendor": "QEMU",
+            "dmi_product_name": "KVM Virtual Machine",
+            "dmi_product_version": "Standard PC (Q35 + ICH9, 2009)",
+            "dmesg_lines": [
+                "[    0.000000] Linux version 6.1.21",
+                "[    0.000000] Command line: BOOT_IMAGE=/vmlinuz root=/dev/sda1 ro quiet",
+            ],
+        },
+    )
+
+    session = handler.connect({})
+
+    assert handler.query("uname -a", session).startswith(
+        "Linux alpine-vm 6.1.21 6.1.21 x86_64 GNU/Linux"
+    )
+    assert "MemTotal:" in handler.query("cat /proc/meminfo", session)
+    assert "processor" in handler.query("cat /proc/cpuinfo", session)
+    assert "BOOT_IMAGE=/vmlinuz" in handler.query("cat /proc/cmdline", session)
+    assert "proc /proc proc" in handler.query("cat /proc/mounts", session)
+    assert "Linux version 6.1.21" in handler.query("dmesg", session)
+    assert handler.query("virt-what", session) == "\n"
+    assert (
+        handler.query("cat /sys/devices/virtual/dmi/id/product_name", session)
+        == "KVM Virtual Machine\n"
+    )
+    assert "sshd" in handler.query("ps -ef", session)

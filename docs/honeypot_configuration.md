@@ -66,6 +66,8 @@ Each honeypot config must include the following fields:
 | `llm_timeout`     | LLM request timeout in seconds                            |
 | `llm_temperature` | LLM generation temperature                                |
 | `llm_max_tokens`  | Maximum generated tokens                                  |
+| `input_normalization_enabled` | Normalize dataset/cache lookup keys, defaults to `true` |
+| `log_normalized_input` | Include normalized input fields in structured logs, defaults to `true` |
 | `local_logging_enabled` | Enable local JSONL logging, defaults to `true`       |
 | `local_log_dir`   | Directory for local JSONL logs, defaults to `/data/honeypot/logs` |
 | `local_log_filename` | Filename pattern, defaults to `dd-honeypot-%Y-%m-%d.jsonl` |
@@ -156,6 +158,40 @@ Structured honeypot events are written to stdout and, by default, to local JSONL
 ```
 
 When using Docker, mount `/data/honeypot/logs` to a host folder to read logs directly from the machine running the honeypot.
+
+## Input Normalization
+
+HoneyMind normalizes attacker input for dataset and dynamic cache lookup before invoking the LLM. This keeps equivalent whitespace-only variants from consuming extra LLM calls:
+
+```text
+ls Doc
+ls                 Doc
+ls\tDoc
+```
+
+All three inputs use `ls Doc` as the lookup/cache key. The raw attacker input is still preserved in protocol fields such as `command`, `query`, or `http-request`, and the LLM prompt still receives the raw input after a lookup miss.
+
+```json
+{
+  "input_normalization_enabled": true,
+  "log_normalized_input": true
+}
+```
+
+When normalized logging is enabled, events can include additive fields such as:
+
+```json
+{
+  "dd-honeypot": true,
+  "honeymind": true,
+  "command": "ls                 Doc",
+  "raw_input": "ls                 Doc",
+  "normalized_command": "ls Doc",
+  "normalized_input": "ls Doc"
+}
+```
+
+The normalizer is conservative. It preserves quoted whitespace, escaped whitespace, case, paths, argument order, URL encoding, and raw payload content. It does not expand variables, resolve paths, sort arguments, lowercase commands, or deeply rewrite SQL/HTTP payloads.
 
 ## Example Configurations
 

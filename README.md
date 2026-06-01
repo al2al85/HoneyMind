@@ -40,6 +40,7 @@ The current license remains unchanged; see [LICENSE.md](LICENSE.md).
 * Dispatcher mode: routes connections to multiple backend honeypots on a single port ([docs](docs/dispatcher.md))
 * Fake filesystem: compressed JSONL definitions loaded into SQLite for shell commands (ls, cd, mkdir, wget)
 * Chained data handlers: file downloads → fake filesystem → dataset lookup → LLM fallback
+* Conservative input normalization for lookup/cache deduplication while preserving raw forensic logs
 * Session tracking with UUIDs, client IP logging, and per-session state
 * Local JSONL logging with honeypot metadata, plus optional Fluent Bit, CloudWatch, or S3 export
 * Docker-based deployment with multi-architecture support (amd64, arm64)
@@ -93,6 +94,10 @@ Datasets can be layered — for example, a general MySQL dataset combined with a
 
 **Known requests** are matched and returned directly. **Unknown requests** are handled by the LLM and logged separately for review and future inclusion.
 
+HoneyMind normalizes attacker inputs before dataset and dynamic cache lookup so equivalent whitespace variants reuse the same response. For example, `ls Doc`, `ls                 Doc`, and `ls\tDoc` map to the same lookup key. This reduces duplicate LLM calls, lowers hosted API cost, and keeps responses consistent.
+
+Normalization is intentionally conservative: it strips leading/trailing whitespace and collapses unquoted whitespace, while preserving quoted strings, escaped whitespace, case, paths, argument order, URL encoding, and raw payload content. Raw attacker input remains available in logs and is still used in the LLM prompt on a cache miss.
+
 ### Example
 
 ```json
@@ -123,6 +128,8 @@ Each honeypot is defined by a `config.json` in its own directory. The main field
 | `llm_temperature`  | Optional generation temperature                       |
 | `llm_max_tokens`   | Optional maximum generated tokens                     |
 | `llm_timeout`      | Optional LLM request timeout in seconds               |
+| `input_normalization_enabled` | Normalize lookup/cache keys, defaults to `true` |
+| `log_normalized_input` | Add normalized input fields to structured logs, defaults to `true` |
 | `local_logging_enabled` | Enable local JSONL logs, defaults to `true`      |
 | `local_log_dir`    | Directory for JSONL logs, defaults to `/data/honeypot/logs` |
 | `name`             | Display name for logging                              |
@@ -364,6 +371,31 @@ HONEYMIND_LLM_TOKEN=...
 ```
 
 Remote API providers receive honeypot interaction data when LLM fallback is used. Review privacy, legal, and operational requirements before sending attacker traffic to third-party services.
+
+### Input normalization
+
+HoneyMind keeps the dataset-first and LLM fallback flow, but uses a normalized lookup key before it searches the dataset or dynamic cache. The raw command/request is not replaced.
+
+Example:
+
+```text
+ls Doc
+ls                 Doc
+ls\tDoc
+```
+
+All three inputs use `ls Doc` for lookup/cache reuse. If lookup misses, HoneyMind sends the original raw attacker input to the LLM and stores the generated response under the normalized key for future equivalent inputs.
+
+Structured logs keep raw fields such as `command`, `query`, or `http-request` and, by default, add `raw_input`, `normalized_input`, and protocol-specific fields such as `normalized_command`.
+
+```json
+{
+  "input_normalization_enabled": true,
+  "log_normalized_input": true
+}
+```
+
+The normalizer does not lowercase commands, reorder arguments, decode URLs, expand variables, resolve paths, or deeply rewrite SQL/HTTP payloads.
 
 For AWS Bedrock, provide AWS credentials via environment variables or the backward-compatible `config/aws.env.list` file:
 

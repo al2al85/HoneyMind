@@ -299,9 +299,9 @@ class SSHServerInterface(paramiko.ServerInterface):
                 or f"{self.username}@SSHServer:{cwd}$ "
             )
 
-            prompt = render_prompt(prompt_template, self.session)
-
             while not channel.closed:
+                # Re-render prompt each loop to reflect updated session (cwd, username)
+                prompt = render_prompt(prompt_template, self.session)
                 buffer = ""
                 channel.send(prompt)
                 escape_seq = ""
@@ -441,7 +441,9 @@ class SSHHoneypot(BaseHoneypot):
         transport = None
         try:
             transport = Transport(client_socket)
-            transport.local_version = "SSH-2.0-OpenSSH_8.9p1"
+            # Use configured SSH banner when available to match the fake system
+            banner = (self.config or {}).get("ssh_banner") if hasattr(self, "config") else None
+            transport.local_version = banner or "SSH-2.0-OpenSSH_8.9p1"
             transport.handshake_timeout = 30
             transport.banner_timeout = 30
 

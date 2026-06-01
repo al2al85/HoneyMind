@@ -21,7 +21,10 @@ class ChainedDataHandler:
         for handler in self.handlers:
             try:
                 result = handler.query(command, session, **kwargs)
-                if result:
+                # Treat any non-None result as a valid response.
+                # Some handlers return empty string on success (e.g., mkdir),
+                # which is falsy but should NOT fallthrough to the next handler.
+                if result is not None:
                     return result
             except Exception as e:
                 logging.warning(f"{handler.__class__.__name__} failed: {e}")

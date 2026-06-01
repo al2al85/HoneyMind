@@ -137,3 +137,73 @@ def test_llm_provider_config_is_passed_to_invoke_llm(mock_llm):
         llm_temperature=0.1,
         llm_max_tokens=321,
     )
+
+
+@patch("infra.data_handler.invoke_llm", return_value="normalized cached response")
+def test_equivalent_commands_share_cached_llm_response(mock_llm):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        handler = DataHandler(os.path.join(temp_dir, "data.jsonl"), "system", "model")
+        session = handler.connect({})
+
+        response1 = handler.query("ls Doc", session=session)
+        response2 = handler.query("ls                 Doc", session=session)
+        response3 = handler.query("ls\tDoc", session=session)
+
+    assert response1["output"] == "normalized cached response"
+    assert response2["output"] == "normalized cached response"
+    assert response3["output"] == "normalized cached response"
+    assert mock_llm.call_count == 1
+
+
+@patch("infra.data_handler.invoke_llm", return_value="raw prompt response")
+def test_llm_prompt_uses_raw_input_after_normalized_miss(mock_llm):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        handler = DataHandler(os.path.join(temp_dir, "data.jsonl"), "system", "model")
+
+        handler.query("ls                 Doc", session=handler.connect({}))
+
+    mock_llm.assert_called_once_with(
+        "system",
+        "User input: {'command': 'ls                 Doc'}",
+        "model",
+    )
+
+
+@patch("infra.data_handler.invoke_llm", return_value="ShouldNotBeCalled")
+def test_raw_dataset_entry_falls_back_and_aliases_normalized_key(mock_llm):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        data_file = os.path.join(temp_dir, "data.jsonl")
+        with open(data_file, "w") as f:
+            f.write(
+                json.dumps(
+                    {"command": "ls                 Doc", "response": "Documents\n"}
+                )
+                + "\n"
+            )
+
+        handler = DataHandler(data_file, "system", "model")
+        session = handler.connect({})
+
+        response1 = handler.query("ls                 Doc", session=session)
+        response2 = handler.query("ls Doc", session=session)
+
+    assert response1["output"] == "Documents\n"
+    assert response2["output"] == "Documents\n"
+    mock_llm.assert_not_called()
+
+
+@patch("infra.data_handler.invoke_llm", return_value="separate response")
+def test_input_normalization_can_be_disabled(mock_llm):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        handler = DataHandler(
+            os.path.join(temp_dir, "data.jsonl"),
+            "system",
+            "model",
+            input_normalization_enabled=False,
+        )
+        session = handler.connect({})
+
+        handler.query("ls Doc", session=session)
+        handler.query("ls                 Doc", session=session)
+
+    assert mock_llm.call_count == 2
