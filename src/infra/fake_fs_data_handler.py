@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+from input_normalizer import normalize_command_input
 from infra.fake_fs.commands import handle_ls, handle_cd, handle_mkdir, handle_download
 from infra.fake_fs.filesystem import FakeFileSystem
 from infra.fake_fs.fs_utils import create_db_from_jsonl_gz
@@ -18,19 +19,36 @@ class FakeFSDataHandler(HoneypotAction):
         self.config = config or {}
 
         self.hostname = self.config.get("hostname", "server")
+        self.username = self.config.get(
+            "simulated_user", self.config.get("username", "root")
+        )
+        self.uid = int(self.config.get("uid", 0))
+        self.gid = int(self.config.get("gid", 0))
+        self.group = self.config.get("group", self.username)
         self.uname_sysname = self.config.get("uname_sysname", "Linux")
         self.uname_kernel = self.config.get("kernel", "5.10.0")
         self.uname_release = self.config.get("uname_release", self.uname_kernel)
         self.uname_version = self.config.get("uname_version", "#1 SMP PREEMPT_DYNAMIC")
         self.uname_machine = self.config.get("arch", "x86_64")
-        self.uname_processor = self.config.get("uname_processor", self.config.get("arch", "x86_64"))
-        self.uname_hardware_platform = self.config.get("uname_hardware_platform", self.config.get("arch", "x86_64"))
+        self.uname_processor = self.config.get(
+            "uname_processor", self.config.get("arch", "x86_64")
+        )
+        self.uname_hardware_platform = self.config.get(
+            "uname_hardware_platform", self.config.get("arch", "x86_64")
+        )
         self.uname_os = self.config.get("uname_os", "GNU/Linux")
         self.cpu_count = int(self.config.get("cpu_count", 1))
         self.cpu_model = self.config.get(
             "cpu_model", "Intel(R) Core(TM) i7-8650U CPU @ 1.90GHz"
         )
         self.mem_total_kb = int(self.config.get("mem_total_kb", 2048 * 1024))
+        self.interface = self.config.get("interface", "eth0")
+        self.ip_address = self.config.get("ip_address", "10.0.2.15")
+        self.netmask = self.config.get("netmask", "255.255.255.0")
+        self.cidr_prefix = int(self.config.get("cidr_prefix", 24))
+        self.mac_address = self.config.get("mac_address", "52:54:00:12:34:56")
+        self.broadcast = self.config.get("broadcast", "10.0.2.255")
+        self.root_device = self.config.get("root_device", "/dev/sda1")
         self.clocksource = self.config.get("clocksource", "tsc")
         self.dmesg_lines = self.config.get(
             "dmesg_lines",
@@ -45,7 +63,7 @@ class FakeFSDataHandler(HoneypotAction):
         )
         self.os_release_content = self.config.get(
             "os_release",
-            f'NAME="{self.distro_name}"\nPRETTY_NAME="{self.distro_name}"\nID={self.distro_name.lower().replace(" ", "_")}\n',
+            self._default_os_release(),
         )
         self.proc_cmdline = self.config.get(
             "proc_cmdline", "BOOT_IMAGE=/vmlinuz root=/dev/sda1 ro quiet"
@@ -90,15 +108,56 @@ class FakeFSDataHandler(HoneypotAction):
         store = FakeFSDataStore(str(fs_path))
         self.fakefs = FakeFileSystem(store)
 
+    def _default_os_release(self) -> str:
+        distro = self.distro_name.lower()
+        if "alpine" in distro:
+            return (
+                'NAME="Alpine Linux"\n'
+                "ID=alpine\n"
+                'PRETTY_NAME="Alpine Linux v3.18"\n'
+                'VERSION_ID="3.18.4"\n'
+                'HOME_URL="https://alpinelinux.org/"\n'
+                'BUG_REPORT_URL="https://gitlab.alpinelinux.org/alpine/aports/-/issues"\n'
+            )
+        if "debian" in distro:
+            return (
+                'PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"\n'
+                'NAME="Debian GNU/Linux"\n'
+                'VERSION_ID="12"\n'
+                'VERSION="12 (bookworm)"\n'
+                "ID=debian\n"
+                'HOME_URL="https://www.debian.org/"\n'
+            )
+        return (
+            f'NAME="{self.distro_name}"\n'
+            f'PRETTY_NAME="{self.distro_name} LTS"\n'
+            "ID=ubuntu\n"
+            'VERSION_ID="20.04"\n'
+            'VERSION="20.04.6 LTS (Focal Fossa)"\n'
+            'HOME_URL="https://www.ubuntu.com/"\n'
+        )
+
     def connect(self, auth_info: dict) -> HoneypotSession:
         logging.info(f"FakeFSDataHandler.connect: {auth_info}")
-        return HoneypotSession({"cwd": "/", "fs": self.fakefs})
+        return HoneypotSession(
+            {
+                "cwd": "/",
+                "fs": self.fakefs,
+                "username": auth_info.get("username", self.username),
+                "hostname": self.hostname,
+            }
+        )
 
     def query(self, query: str, session: HoneypotSession, **kwargs) -> str:
         logging.info(f"FakeFSDataHandler.query: {query}")
-        query = query.strip()
+        query = normalize_command_input(query)
 
-        system_response = self._handle_system_artifacts(query)
+        if self._data_file.exists():
+            file_response = self.query_from_file(query)
+            if file_response is not None:
+                return file_response
+
+        system_response = self._handle_system_artifacts(query, session)
         if system_response is not None:
             return system_response
 
@@ -126,7 +185,7 @@ class FakeFSDataHandler(HoneypotAction):
                     return handle_download(session, url)
                 logging.warning("[FakeFSDataHandler] Invalid wget/curl syntax")
                 return "Usage: wget <url> or curl <url>"
-        return self.query_from_file(query)
+        return None
 
     def _handle_uname(self, query: str) -> str:
         parts = shlex.split(query)
@@ -176,7 +235,38 @@ class FakeFSDataHandler(HoneypotAction):
         field_order = ["s", "n", "r", "v", "m", "p", "i", "o"]
         return " ".join(field_values[f] for f in field_order if f in active) + "\n"
 
-    def _handle_system_artifacts(self, query: str) -> Optional[str]:
+    def _handle_system_artifacts(
+        self, query: str, session: HoneypotSession
+    ) -> Optional[str]:
+        if query == "whoami":
+            return f"{self.username}\n"
+        if query == "id":
+            return self._render_id()
+        if query.startswith("id "):
+            return self._handle_id(query)
+        if query == "hostname":
+            return f"{self.hostname}\n"
+        if query in ("hostname -f", "hostname --fqdn"):
+            return f"{self.hostname}.localdomain\n"
+        if query == "pwd":
+            return f"{self._cwd_for(session)}\n"
+        if query == "uptime":
+            return self._render_uptime()
+        if query == "df -h":
+            return self._render_df_h()
+        if query == "free -m":
+            return self._render_free_m()
+        if query in ("ip a", "ip addr", "ip address"):
+            return self._render_ip_addr()
+        if query == "ifconfig":
+            return self._render_ifconfig()
+        if query == "which wget":
+            return "/usr/bin/wget\n"
+        if query == "which curl":
+            return "/usr/bin/curl\n"
+        if query == "which busybox":
+            return "/bin/busybox\n"
+
         if query == "uname" or query.startswith("uname "):
             return self._handle_uname(query)
 
@@ -184,6 +274,8 @@ class FakeFSDataHandler(HoneypotAction):
             return self.os_release_content + "\n"
         if query == "cat /etc/issue":
             return f"{self.distro_name}\\n\\l\n"
+        if query == "cat /etc/passwd":
+            return self._render_passwd()
 
         if query == "cat /proc/cmdline":
             return self.proc_cmdline + "\n"
@@ -228,7 +320,9 @@ class FakeFSDataHandler(HoneypotAction):
         if dmi_file is not None:
             return dmi_file
 
-        if query in ("ps", "ps -ef", "ps aux"):
+        if query == "ps aux":
+            return self._render_ps_aux_output()
+        if query in ("ps", "ps -ef"):
             return self._render_ps_output()
         if query.startswith("ss ") or query == "ss":
             return self._render_ss_output()
@@ -238,6 +332,126 @@ class FakeFSDataHandler(HoneypotAction):
             return self._render_lsof_output()
 
         return None
+
+    def _cwd_for(self, session: Optional[HoneypotSession]) -> str:
+        if session and session.get("cwd"):
+            return session["cwd"]
+        return "/"
+
+    def _render_id(self) -> str:
+        return (
+            f"uid={self.uid}({self.username}) gid={self.gid}({self.group}) "
+            f"groups={self.gid}({self.group})\n"
+        )
+
+    def _handle_id(self, query: str) -> str:
+        try:
+            parts = shlex.split(query)
+        except ValueError:
+            return self._render_id()
+
+        if len(parts) == 2:
+            if parts[1] in ("-u", "--user"):
+                return f"{self.uid}\n"
+            if parts[1] in ("-g", "--group"):
+                return f"{self.gid}\n"
+            if parts[1] in ("-un", "-nu", "--name"):
+                return f"{self.username}\n"
+            if parts[1] in ("-gn", "-ng"):
+                return f"{self.group}\n"
+        return self._render_id()
+
+    def _render_passwd(self) -> str:
+        lines = [
+            "root:x:0:0:root:/root:/bin/sh",
+            "daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin",
+            "bin:x:2:2:bin:/bin:/usr/sbin/nologin",
+            "sys:x:3:3:sys:/dev:/usr/sbin/nologin",
+            "sync:x:4:65534:sync:/bin:/bin/sync",
+            "games:x:5:60:games:/usr/games:/usr/sbin/nologin",
+            "man:x:6:12:man:/var/cache/man:/usr/sbin/nologin",
+            "lp:x:7:7:lp:/var/spool/lpd:/usr/sbin/nologin",
+            "mail:x:8:8:mail:/var/mail:/usr/sbin/nologin",
+            "news:x:9:9:news:/var/spool/news:/usr/sbin/nologin",
+            "uucp:x:10:10:uucp:/var/spool/uucp:/usr/sbin/nologin",
+            "proxy:x:13:13:proxy:/bin:/usr/sbin/nologin",
+            "www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin",
+            "backup:x:34:34:backup:/var/backups:/usr/sbin/nologin",
+            "nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin",
+            "sshd:x:102:65534::/run/sshd:/usr/sbin/nologin",
+        ]
+        if self.username != "root":
+            lines.append(
+                f"{self.username}:x:{self.uid}:{self.gid}:"
+                f"{self.username}:/home/{self.username}:/bin/sh"
+            )
+        return "\n".join(lines) + "\n"
+
+    def _render_uptime(self) -> str:
+        return " 13:37:42 up 5 days,  4:17,  1 user,  load average: 0.00, 0.01, 0.05\n"
+
+    def _render_df_h(self) -> str:
+        return (
+            "Filesystem      Size  Used Avail Use% Mounted on\n"
+            f"{self.root_device}        20G  6.4G   13G  34% /\n"
+            "tmpfs           997M     0  997M   0% /dev/shm\n"
+            "tmpfs           399M  1.2M  398M   1% /run\n"
+            "tmpfs           5.0M     0  5.0M   0% /run/lock\n"
+        )
+
+    def _render_free_m(self) -> str:
+        total = self.mem_total_kb // 1024
+        used = max(total // 3, 1)
+        free = max(total - used - 128, 0)
+        shared = max(total // 128, 1)
+        buff_cache = max(total - used - free, 0)
+        available = free + buff_cache
+        swap_total = 1024 if total >= 1024 else 0
+        swap_used = 0
+        swap_free = swap_total - swap_used
+        return (
+            "              total        used        free      shared  buff/cache   available\n"
+            f"Mem:           {total:4d}        {used:4d}        {free:4d}"
+            f"          {shared:2d}        {buff_cache:4d}        {available:4d}\n"
+            f"Swap:          {swap_total:4d}        {swap_used:4d}        {swap_free:4d}\n"
+        )
+
+    def _render_ip_addr(self) -> str:
+        return (
+            "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN "
+            "group default qlen 1000\n"
+            "    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00\n"
+            "    inet 127.0.0.1/8 scope host lo\n"
+            "       valid_lft forever preferred_lft forever\n"
+            f"2: {self.interface}: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 "
+            "qdisc fq_codel state UP group default qlen 1000\n"
+            f"    link/ether {self.mac_address} brd ff:ff:ff:ff:ff:ff\n"
+            f"    inet {self.ip_address}/{self.cidr_prefix} brd {self.broadcast} "
+            f"scope global dynamic {self.interface}\n"
+            "       valid_lft 86342sec preferred_lft 86342sec\n"
+            "    inet6 fe80::5054:ff:fe12:3456/64 scope link\n"
+            "       valid_lft forever preferred_lft forever\n"
+        )
+
+    def _render_ifconfig(self) -> str:
+        return (
+            f"{self.interface}: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500\n"
+            f"        inet {self.ip_address}  netmask {self.netmask}  "
+            f"broadcast {self.broadcast}\n"
+            "        inet6 fe80::5054:ff:fe12:3456  prefixlen 64  scopeid 0x20<link>\n"
+            f"        ether {self.mac_address}  txqueuelen 1000  (Ethernet)\n"
+            "        RX packets 1842  bytes 214287 (209.2 KiB)\n"
+            "        RX errors 0  dropped 0  overruns 0  frame 0\n"
+            "        TX packets 971  bytes 126042 (123.0 KiB)\n"
+            "        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0\n"
+            "\n"
+            "lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536\n"
+            "        inet 127.0.0.1  netmask 255.0.0.0\n"
+            "        inet6 ::1  prefixlen 128  scopeid 0x10<host>\n"
+            "        loop  txqueuelen 1000  (Local Loopback)\n"
+            "        RX packets 12  bytes 1024 (1.0 KiB)\n"
+            "        TX packets 12  bytes 1024 (1.0 KiB)\n"
+        )
 
     def _render_cpuinfo(self) -> str:
         blocks = []
@@ -324,6 +538,19 @@ class FakeFSDataHandler(HoneypotAction):
             "root         112       1  0 00:00 ?        00:00:00 sshd: server [listener]\n"
             "root         118       1  0 00:00 ?        00:00:00 cron\n"
             "root         130       1  0 00:00 ?        00:00:00 rsyslogd\n"
+        )
+
+    def _render_ps_aux_output(self) -> str:
+        return (
+            "USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\n"
+            "root           1  0.0  0.3 168420  6908 ?        Ss   09:17   0:01 /sbin/init\n"
+            "root         112  0.0  0.2  15436  5120 ?        Ss   09:17   0:00 /usr/sbin/sshd -D\n"
+            "root         118  0.0  0.1   6816  2864 ?        Ss   09:17   0:00 /usr/sbin/cron -f\n"
+            "syslog       130  0.0  0.2 222400  4864 ?        Ssl  09:17   0:00 /usr/sbin/rsyslogd -n\n"
+            "root         210  0.0  0.4  55284  9320 ?        Ss   09:18   0:00 nginx: master process /usr/sbin/nginx\n"
+            "www-data     211  0.0  0.3  55824  7204 ?        S    09:18   0:00 nginx: worker process\n"
+            f"{self.username:<8}    642  0.0  0.1   4632  3780 pts/0    Ss   13:37   0:00 -sh\n"
+            f"{self.username:<8}    711  0.0  0.1   7484  3188 pts/0    R+   13:37   0:00 ps aux\n"
         )
 
     def _render_ss_output(self) -> str:

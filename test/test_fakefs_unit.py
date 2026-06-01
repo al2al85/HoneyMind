@@ -218,3 +218,63 @@ def test_system_artifacts_are_coherent(tmp_path):
         == "KVM Virtual Machine\n"
     )
     assert "sshd" in handler.query("ps -ef", session)
+
+
+def test_common_recon_commands_are_hardcoded_and_coherent(tmp_path):
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    fs_path = os.path.join(base_dir, "test/honeypots/alpine/fs_alpine.jsonl.gz")
+
+    handler = FakeFSDataHandler(
+        data_file="test/honeypots/test_responses.jsonl",
+        fs_file=fs_path,
+        config={
+            "hostname": "alpine-vm",
+            "distro": "Alpine Linux",
+            "kernel": "6.1.21",
+            "uname_release": "6.1.21",
+            "arch": "x86_64",
+            "cpu_count": 2,
+            "mem_total_kb": 1024 * 1024,
+            "interface": "eth0",
+            "ip_address": "10.0.2.15",
+            "mac_address": "52:54:00:12:34:56",
+        },
+    )
+    session = handler.connect({"username": "ignored-login"})
+    handle_cd(session, "etc")
+
+    assert handler.query("whoami", session) == "root\n"
+    assert "uid=0(root) gid=0(root)" in handler.query("id", session)
+    assert handler.query("hostname", session) == "alpine-vm\n"
+    assert handler.query("pwd", session) == "/etc\n"
+
+    os_release = handler.query("cat      /etc/os-release", session)
+    assert 'NAME="Alpine Linux"' in os_release
+    assert "ID=alpine" in os_release
+
+    passwd = handler.query("cat /etc/passwd", session)
+    assert "root:x:0:0:root:/root:/bin/sh" in passwd
+    assert "sshd:x:" in passwd
+
+    assert "load average:" in handler.query("uptime", session)
+    assert "/dev/sda1" in handler.query("df -h", session)
+    assert "Mem:" in handler.query("free -m", session)
+
+    ip_addr = handler.query("ip a", session)
+    assert "eth0" in ip_addr
+    assert "10.0.2.15/24" in ip_addr
+    assert "52:54:00:12:34:56" in ip_addr
+
+    ifconfig = handler.query("ifconfig", session)
+    assert "inet 10.0.2.15" in ifconfig
+    assert "ether 52:54:00:12:34:56" in ifconfig
+
+    ps_aux = handler.query("ps aux", session)
+    assert "USER" in ps_aux
+    assert "/usr/sbin/sshd -D" in ps_aux
+    assert "ps aux" in ps_aux
+
+    assert handler.query("which      wget", session) == "/usr/bin/wget\n"
+    assert handler.query("which curl", session) == "/usr/bin/curl\n"
+    assert handler.query("which busybox", session) == "/bin/busybox\n"
+    assert "model name" in handler.query("cat /proc/cpuinfo", session)
