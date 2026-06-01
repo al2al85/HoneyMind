@@ -799,6 +799,6 @@ class PostgresHoneypot(BaseHoneypot):
     def wait_until_ready(self, timeout=5):
         """Wait until the server is ready to accept connections"""
         start = time.time()
-        while self.port == 0 and time.time() - start < timeout:
+        while not self._running and time.time() - start < timeout:
             time.sleep(0.05)
-        return self.port != 0
+        return self._running
