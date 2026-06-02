@@ -38,7 +38,7 @@ This Code of Conduct applies within all project spaces and to public spaces wher
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project lead at [Viswanath S Chirravuri](https://www.linkedin.com/in/chviswanath/). All complaints will be reviewed and investigated and will result in a response that is deemed necessary and appropriate to the circumstances. The project team is obligated to maintain confidentiality with regard to the reporter of an incident.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the repository maintainers through the project's GitHub channels. If the report contains sensitive personal information, open a minimal public issue asking maintainers to establish a private channel and do not include sensitive details publicly. All complaints will be reviewed and investigated and will result in a response that is deemed necessary and appropriate to the circumstances. The project team is obligated to maintain confidentiality with regard to the reporter of an incident.
 
 Project maintainers who do not follow or enforce the Code of Conduct in good faith may face temporary or permanent repercussions as determined by other project maintainers.
 

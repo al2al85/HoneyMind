@@ -402,8 +402,8 @@ def test_honeymind_fake_file_readers_use_seeded_content(tmp_path):
     spaced_env_content = handler.query("cat       /srv/app/.env", session)
     assert env_content == spaced_env_content
     assert "DB_PASSWORD=dev_password_123" in env_content
-    assert "sk-test-fake-honeymind" in env_content
-    assert "fakeSecretKeyForHoneyMindOnlyDoNotUse" in env_content
+    assert "HONEYMIND_FAKE_API_KEY" in env_content
+    assert "HONEYMIND_FAKE_AWS_SECRET_ACCESS_KEY" in env_content
 
     assert "APP_NAME=HoneyMindDemo" in handler.query("head -n 2 /srv/app/.env", session)
     assert "MYSQL_PASSWORD=changeme123" in handler.query("tail /srv/app/.env", session)

@@ -148,8 +148,8 @@ def trap_files_for_fs() -> list[dict]:
             "owner": "root",
             "content": (
                 "# Legacy credentials (rotated 2025-01-01)\n"
-                "db_password=0ldP@ssw0rd_2024\n"
-                "api_key=sk-canary-honeymind-7f3k2p9x\n"
+                "db_password=FAKE_ROTATED_PASSWORD_DO_NOT_USE\n"
+                "api_key=HONEYMIND_FAKE_CANARY_TOKEN\n"
             ),
         },
         {

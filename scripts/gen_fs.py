@@ -203,12 +203,12 @@ DEBIAN_FS = [
         ),
     },
 
-    # --- SSL private key (lure) ---
+    # --- Synthetic SSL private key lure ---
     {
         "path": "/etc/ssl/private/honeymind-server.key",
         "is_dir": _F, "permissions": "-rw-------", "owner": "root",
         "content": (
-            "-----BEGIN PRIVATE KEY-----\n"
+            "-----BEGIN HONEYMIND SYNTHETIC PRIVATE KEY-----\n"
             "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC9mK7pLqRvNwTj\n"
             "Y4sHbCfUeGiDkPaVxZlQnRmWtBcCsFtEv9iKeMzOpLoMwXyUrSvJcHdIfVfOtDa\n"
             "PlWkamXnRqDsFuCyFzEjNoQtMvLpKiJiHg8cUrSvJbHdIfVeOtDaPlWkamXnRqDs\n"
@@ -226,7 +226,7 @@ DEBIAN_FS = [
             "oGBANXmK7pLqRvNwTjY4sHbCfUeGiDkPaVxZlQnRmWtBcCsFtEv9iKeMzOpLoMw\n"
             "XyUrSvJcHdIfVfOtDaPlWkamXnRqDsFuCyFzEjNoQtMvLpKiJiHg8cUrSvJbHdI\n"
             "fVeOtDaPlWkamXnRqDsFuCyFzEjNoQtMvLpKiJiHg8cUrSvJbHdIfVeOtEWAgYA\n"
-            "-----END PRIVATE KEY-----\n"
+            "-----END HONEYMIND SYNTHETIC PRIVATE KEY-----\n"
         ),
     },
     {
@@ -310,15 +310,15 @@ DEBIAN_FS = [
             "  db:\n"
             "    image: mysql:8.0\n"
             "    environment:\n"
-            "      MYSQL_ROOT_PASSWORD: r00t_Mysql!2024\n"
+            "      MYSQL_ROOT_PASSWORD: HONEYMIND_FAKE_MYSQL_ROOT_PASSWORD\n"
             "      MYSQL_DATABASE: app_production\n"
             "      MYSQL_USER: app_user\n"
-            "      MYSQL_PASSWORD: Sup3rS3cr3t!2024\n"
+            "      MYSQL_PASSWORD: HONEYMIND_FAKE_DB_PASSWORD\n"
             "    volumes:\n"
             "      - db_data:/var/lib/mysql\n\n"
             "  redis:\n"
             "    image: redis:7-alpine\n"
-            "    command: redis-server --requirepass redis_s3cr3t\n\n"
+            "    command: redis-server --requirepass HONEYMIND_FAKE_REDIS_PASSWORD\n\n"
             "volumes:\n"
             "  db_data:\n"
         ),
@@ -357,12 +357,12 @@ DEBIAN_FS = [
             "DB_PORT=3306\n"
             "DB_DATABASE=app_production\n"
             "DB_USERNAME=app_user\n"
-            "DB_PASSWORD=Sup3rS3cr3t!2024\n\n"
+            "DB_PASSWORD=HONEYMIND_FAKE_DB_PASSWORD\n\n"
             "REDIS_HOST=redis.internal\n"
-            "REDIS_PASSWORD=redis_s3cr3t\n"
+            "REDIS_PASSWORD=HONEYMIND_FAKE_REDIS_PASSWORD\n"
             "REDIS_PORT=6379\n\n"
-            "AWS_ACCESS_KEY_ID=AKIAQXL7NBPZR3KWT4MC\n"
-            "AWS_SECRET_ACCESS_KEY=v8Kp2mXnQj5RtYwLzA1bNcHdFeGsUoViTkWrEyPl\n"
+            "AWS_ACCESS_KEY_ID=HONEYMIND_FAKE_AWS_ACCESS_KEY_ID\n"
+            "AWS_SECRET_ACCESS_KEY=HONEYMIND_FAKE_AWS_SECRET_ACCESS_KEY\n"
             "AWS_DEFAULT_REGION=eu-west-1\n"
             "S3_BUCKET=internal-backups\n"
         ),
@@ -376,7 +376,7 @@ DEBIAN_FS = [
             "    'db' => [\n"
             "        'host'     => 'db01.internal',\n"
             "        'user'     => 'app_user',\n"
-            "        'password' => 'Sup3rS3cr3t!2024',\n"
+            "        'password' => 'HONEYMIND_FAKE_DB_PASSWORD',\n"
             "        'dbname'   => 'app_production',\n"
             "    ],\n"
             "    'admin_email' => 'admin@internal.company.com',\n"
@@ -384,12 +384,12 @@ DEBIAN_FS = [
         ),
     },
 
-    # --- SSH keys (lure) ---
+    # --- Synthetic SSH keys lure ---
     {
         "path": "/root/.ssh/id_rsa",
         "is_dir": _F, "permissions": "-rw-------", "owner": "root",
         "content": (
-            "-----BEGIN RSA PRIVATE KEY-----\n"
+            "-----BEGIN HONEYMIND SYNTHETIC RSA PRIVATE KEY-----\n"
             "MIIEpAIBAAKCAQEA7X2mK9pLqRvNwTjY3sHbCfUeGiDkOaVxZlPnQmWtAcBrFs\n"
             "Eu8hJdMzNpKoLwXyTqRvIbGcHfUeNsDaOkVjZlWmQpCrFtBxEyDiMnPsLuKoJh\n"
             "Gf7bTqRvIcDkNaVxZlWmQpEuFsBrCtAyHiDjMoLwXyTqRvNbGcHfUeNsDaOkVj\n"
@@ -413,7 +413,7 @@ DEBIAN_FS = [
             "K9pLqRvNwTjY3sHbCfUeGiDkOaVxZlPnQmWtAcBrFsEu8hJdMzNpKoLwXyTqRv\n"
             "IbGcHfUeNsDaOkVjZlWmQpCrFtBxEyDiMnPsLuKoJhGf7bTqRvIcDkNaVxZlWmQ\n"
             "pEuFsBrCtAyHiDjMoLwXyTqRvNbGcHfUeNsDaOkVjZlWmQpCrFtBxEyCo=\n"
-            "-----END RSA PRIVATE KEY-----\n"
+            "-----END HONEYMIND SYNTHETIC RSA PRIVATE KEY-----\n"
         ),
     },
     {
@@ -456,22 +456,22 @@ DEBIAN_FS = [
             "  PRIMARY KEY (`id`)\n"
             ") ENGINE=InnoDB;\n\n"
             "INSERT INTO `api_keys` VALUES\n"
-            "(1,1,'sk-prod-4Xk9mP2vQnRjLwZuYtAbCdEfGhIjKlMnOpQrStUv','2025-06-01 00:00:00');\n"
+            "(1,1,'HONEYMIND_FAKE_API_TOKEN_PROD','2025-06-01 00:00:00');\n"
         ),
     },
 
-    # --- AWS credentials (lure) ---
+    # --- Synthetic AWS credentials lure ---
     {
         "path": "/root/.aws/credentials",
         "is_dir": _F, "permissions": "-rw-------", "owner": "root",
         "content": (
             "[default]\n"
-            "aws_access_key_id = AKIAQXL7NBPZR3KWT4MC\n"
-            "aws_secret_access_key = v8Kp2mXnQj5RtYwLzA1bNcHdFeGsUoViTkWrEyPl\n"
+            "aws_access_key_id = HONEYMIND_FAKE_AWS_ACCESS_KEY_ID\n"
+            "aws_secret_access_key = HONEYMIND_FAKE_AWS_SECRET_ACCESS_KEY\n"
             "region = eu-west-1\n\n"
             "[prod]\n"
-            "aws_access_key_id = AKIAQXL7NBPZR3KWT4MC\n"
-            "aws_secret_access_key = v8Kp2mXnQj5RtYwLzA1bNcHdFeGsUoViTkWrEyPl\n"
+            "aws_access_key_id = HONEYMIND_FAKE_AWS_ACCESS_KEY_ID\n"
+            "aws_secret_access_key = HONEYMIND_FAKE_AWS_SECRET_ACCESS_KEY\n"
             "region = eu-west-1\n"
         ),
     },
@@ -485,8 +485,8 @@ DEBIAN_FS = [
         "is_dir": _F, "permissions": "-rw-------", "owner": "debian",
         "content": (
             "[default]\n"
-            "aws_access_key_id = AKIAQXL7NBPZR3KWT4MC\n"
-            "aws_secret_access_key = v8Kp2mXnQj5RtYwLzA1bNcHdFeGsUoViTkWrEyPl\n"
+            "aws_access_key_id = HONEYMIND_FAKE_AWS_ACCESS_KEY_ID\n"
+            "aws_secret_access_key = HONEYMIND_FAKE_AWS_SECRET_ACCESS_KEY\n"
             "region = eu-west-1\n"
         ),
     },
@@ -503,7 +503,7 @@ DEBIAN_FS = [
             "select * from api_keys;\n"
             "update users set role='admin' where username='jdupont';\n"
             "select * from users where role='admin';\n"
-            "grant all privileges on app_production.* to 'app_user'@'%' identified by 'Sup3rS3cr3t!2024';\n"
+            "grant all privileges on app_production.* to 'app_user'@'%' identified by 'HONEYMIND_FAKE_DB_PASSWORD';\n"
             "flush privileges;\n"
         ),
     },
@@ -550,7 +550,7 @@ DEBIAN_FS = [
             "ls -la\n"
             "cd /var/www/html\n"
             "sudo apt update && sudo apt upgrade -y\n"
-            "mysql -u app_user -pSup3rS3cr3t!2024 -h db01.internal app_production\n"
+            "mysql -u app_user -pHONEYMIND_FAKE_DB_PASSWORD -h db01.internal app_production\n"
             "ssh root@10.0.0.10\n"
             "cat /opt/app/.env\n"
             "cd /opt/app && git pull origin main\n"

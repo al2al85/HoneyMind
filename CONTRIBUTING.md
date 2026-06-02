@@ -1,101 +1,140 @@
-# Contributing guidelines
+# Contributing to HoneyMind
 
-We welcome contributions from everyone. To become a contributor, follow these steps:
+Thank you for helping improve HoneyMind.
 
-HoneyMind is based on [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot). Please keep the original attribution and license intact when contributing.
+HoneyMind is based on [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot). Contributions must preserve the original attribution and the existing Apache 2.0 license.
+
+## How to Contribute
 
 1. Fork the repository.
-2. Create a new branch for your feature or bugfix.
-3. Make your changes.
-4. Submit a pull request.
+2. Create a branch from `main`.
+3. Make a focused change.
+4. Add or update tests when behavior changes.
+5. Update documentation when configuration, behavior, or user-facing workflows change.
+6. Open a pull request with a clear description.
 
-### Contributing code
+Use conventional commit-style messages when possible, for example:
 
-When contributing code, please ensure that you follow our coding standards and guidelines. This helps maintain the quality and consistency of the codebase.
-
-## Pull Request Checklist
-
-Before submitting a pull request, please ensure that you have completed the following:
-
-- [ ] Followed the coding style guidelines.
-- [ ] Written tests for your changes.
-- [ ] Run all tests and ensured they pass.
-- [ ] Updated documentation if necessary.
-
-### License
-
-By contributing to this project, you agree that your contributions will be licensed under the project's open-source license.
-
-### Coding style
-
-### Testing
-
-All contributions must be accompanied by tests to ensure that the code works as expected and does not introduce regressions.
-
-#### Running unit tests
-To creat a virtual environment, use the following command:
-```sh
-python -m venv venv && source venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt --upgrade && pip install -r test/test.requirements.txt --upgrade
+```text
+fix(ssh): normalize terminal output
+feat(llm): add provider usage tracking
+docs(security): clarify public reporting process
+test(fakefs): cover common reconnaissance commands
 ```
 
-To run all the unit tests locally, use the following command:
+## Development Setup
+
+Create a virtual environment and install dependencies:
+
+```sh
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install -r test/test.requirements.txt
+```
+
+Run the unit test suite:
+
 ```sh
 PYTHONPATH=src:test python -m pytest --color=yes test/*_unit.py
 ```
-Unit tests also run automatically on every push using a dedicated workflow.
 
-#### Running integration tests
-Integration tests that call live LLM providers are optional. Normal CI does not require AWS or any hosted LLM credentials.
+Unit tests run automatically in GitHub Actions on pushes and manual workflow runs.
 
-To run Bedrock integration tests locally, set `RUN_BEDROCK_INTEGRATION=true` and add AWS credentials to your environment. You can do this by creating env files under the `config` directory.
+## Optional Integration Tests
 
-aws.env.list
-```
-For hosted OpenAI-compatible or Anthropic providers, prefer `config/llm.env.list`.
-AWS_ACCESS_KEY_ID=YOUR_ACCESS_KEY
-AWS_SECRET_ACCESS_KEY=YOUR_SECRET_KEY
-AWS_REGION=YOUR_REGION
-```
-Then, to run all the integration tests locally, use the following command:
+Integration tests that call live LLM providers are optional. Normal CI does not require AWS credentials or hosted LLM credentials.
+
+To run live Bedrock integration tests locally:
 
 ```sh
-RUN_BEDROCK_INTEGRATION=true PYTHONPATH=src:test python -m pytest --color=yes test/*_integration.py
+RUN_BEDROCK_INTEGRATION=true PYTHONPATH=src:test python -m pytest --color=yes test/test_*_integration.py
 ```
 
-In GitHub Actions, the `Optional LLM Integration Tests` workflow skips live Bedrock calls by default. To run them manually, start the workflow with `run_bedrock=true` and configure the repository secret `AWS_ROLE_TO_ASSUME` with the IAM role ARN to assume.
+For Bedrock, provide AWS credentials through environment variables or a local ignored file such as `config/aws.env.list`:
 
-### Building docker image and using it
-To build the docker image, use the following command from the root of the repository:
+```sh
+AWS_ACCESS_KEY_ID=YOUR_ACCESS_KEY
+AWS_SECRET_ACCESS_KEY=YOUR_SECRET_KEY
+AWS_REGION=us-east-1
+```
+
+For hosted OpenAI-compatible or Anthropic providers, prefer `config/llm.env.list`:
+
+```sh
+OPENAI_API_KEY=...
+ANTHROPIC_API_KEY=...
+HONEYMIND_LLM_TOKEN=...
+```
+
+Never commit these files or real credentials.
+
+In GitHub Actions, the optional LLM integration workflow skips live Bedrock calls by default. To run them manually, start the workflow with `run_bedrock=true` and configure `AWS_ROLE_TO_ASSUME` as a repository secret.
+
+## Pull Request Checklist
+
+Before submitting a pull request, check:
+
+- The change is focused and does not rewrite unrelated protocol behavior.
+- Existing dataset-first and LLM fallback behavior is preserved unless the PR explicitly changes it.
+- Unit tests pass locally.
+- New behavior has tests.
+- Documentation is updated when public behavior or configuration changes.
+- No real secrets, private keys, host-specific data, or personal data are committed.
+- Synthetic honeypot lure values are clearly fake.
+
+## Coding Guidelines
+
+- Prefer existing package boundaries and helper APIs.
+- Keep protocol handlers focused on protocol behavior.
+- Keep local-first operation working without AWS credentials.
+- Use `requests` for simple HTTP LLM provider calls unless a dependency is already required.
+- Avoid logging API keys, Authorization headers, tokens, or secret values.
+- Preserve structured log compatibility, including the legacy `dd-honeypot` marker when present.
+
+## Docker
+
+Build the image:
+
 ```sh
 docker build -t honeymind:latest .
 ```
-To run the docker image, use the following command:
+
+Run a local-first deployment:
+
 ```sh
-docker run -it --rm --name honeymind -p 5000:80 -v $(pwd)/test/honeypots:/data/honeypot honeymind:latest
+docker run -it --rm \
+  --name honeymind \
+  -p 2222:2222 \
+  -p 8080:80 \
+  -v $(pwd)/honeypots:/data/honeypot \
+  -v $(pwd)/logs:/data/honeypot/logs \
+  --env-file config/llm.env.list \
+  honeymind:latest
 ```
-explanation of the command:
-- `-p 5000:80`: Map port 5000 on the host to port 80 in the container. You add additional ports if needed.
-- `-v $(pwd)/test/honeypots:/data/honeypot`: Mount the local directory `test/honeypots` to `/data/honeypot` in the container. This allows you to access files in the container from your host machine. You can change the path to any other directory you want to mount.
 
-### Version publication
+## Releases
 
-Before publishing a new version, make sure the main branch is up-to-date, for example push changes from the dev branch to the main branch:
+Releases are created from `main` using annotated tags:
+
 ```sh
-git switch dev
-git pull
-git push origin dev:main
-```
-Monitor the workflow to make sure tests are passing and then move to the version update.
-
-The versions of the projects are managed using git tags. To publish a new version, make sure the main branch is up-to-date and create a new tag with the version number:
-```sh
+git switch main
+git pull --rebase origin main
 git tag -a v0.1.0 -m "Release 0.1.0"
-git push --tags
+git push origin v0.1.0
 ```
-Workflow will automatically publish the new version to the Docker repository under github container registry.
 
-### Issues management
+The Docker publication workflow builds and publishes tagged releases to GitHub Container Registry.
 
-If you find a bug or have a feature request, please create an issue in the GitHub repository. Provide as much detail as possible to help us understand and address the issue.
+## Issues
 
-We will review your issue and respond as soon as possible. Thank you for helping us improve the project!
+For bugs and feature requests, open a GitHub issue with:
+
+- What you expected.
+- What happened.
+- Configuration details that are safe to share.
+- Logs or traces with secrets removed.
+- Steps to reproduce.
+
+For vulnerabilities, follow [SECURITY.md](SECURITY.md) instead of posting sensitive details publicly.

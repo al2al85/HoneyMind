@@ -1,45 +1,72 @@
-Describe here all the security policies in place on this repository to help your contributors to handle security issues efficiently.
-
-## Goods practices to follow
-
-:warning:**You must never store credentials information into source code or config file in a GitHub repository**
-- Block sensitive data being pushed to GitHub by git-secrets or its likes as a git pre-commit hook
-- Audit for slipped secrets with dedicated tools
-- Use environment variables for secrets in CI/CD (e.g. GitHub Secrets) and secret managers in production
-
 # Security Policy
+
+HoneyMind is a local-first, cloud-optional honeypot platform. Because honeypots intentionally collect attacker interaction data, security reports and deployments should be handled carefully.
+
+HoneyMind is based on the original [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot) project and preserves the original license and attribution.
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are currently being supported with security updates.
+Security fixes are provided for:
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Version | Supported |
+| ------- | --------- |
+| `main` | Yes |
+| Latest tagged release | Yes |
+| Older tagged releases | Best effort |
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
-Tell them where to go, how often they can expect to get an update on a reported vulnerability, what to expect if the vulnerability is accepted or declined, etc.
+Please do not disclose vulnerabilities publicly before maintainers have had a reasonable opportunity to investigate.
 
-You can ask for support by contacting security@opensource.thalesgroup.com
+Preferred reporting path:
 
-## Disclosure policy
+1. Use GitHub private vulnerability reporting if it is enabled for this repository.
+2. If private reporting is not available, open a GitHub issue with a short, non-sensitive summary and ask maintainers to establish a private channel.
 
-Define the procedure for what a reporter who finds a security issue needs to do in order to fully disclose the problem safely, including who to contact and how.
+Do not include exploit details, credentials, tokens, captured attacker data, or private infrastructure information in a public issue.
 
-## Security Update policy
+Useful details for a private report:
 
-Define how you intend to update users about new security vulnerabilities as they are found.
+- Affected component or protocol.
+- Impact and expected risk.
+- Reproduction steps or proof of concept.
+- Whether the issue affects local-only deployments, hosted LLM providers, AWS Bedrock, logging, or Docker packaging.
+- Any suggested remediation.
 
-## Security related configuration
+## Expected Response
 
-Settings users should consider that would impact the security posture of deploying this project, such as HTTPS, authorization and many others.
+Maintainers will triage reports as soon as practical. Accepted reports should receive:
 
-## Known security gaps & future enhancements
+- Confirmation that the report was received.
+- A severity assessment.
+- A remediation plan or explanation if the report is not accepted.
+- Coordinated disclosure timing when a fix is needed.
 
-Security improvements you haven’t gotten to yet.
-Inform users those security controls aren’t in place, and perhaps suggest they contribute an implementation
+## Secret Handling
+
+Never commit real credentials, API keys, host keys, cloud tokens, private keys, or production configuration files.
+
+HoneyMind supports local environment files such as `config/llm.env.list`, `config/aws.env.list`, and `config/.env`; these files are intentionally ignored by Git. Keep secrets in local environment files, GitHub Actions secrets, or a dedicated secret manager.
+
+The repository may contain synthetic honeypot lure content. Synthetic values must be clearly fake and must never include real private keys, real cloud credentials, real API tokens, personal data, or host-specific secrets.
+
+## Deployment Notes
+
+- Run HoneyMind only on systems and networks where you are authorized to operate a honeypot.
+- Review local laws, privacy obligations, and acceptable-use rules before collecting attacker interaction data.
+- Local LLM endpoints keep fallback prompts on your own infrastructure.
+- Hosted LLM providers receive interaction data when LLM fallback is used. Review provider terms and data handling policies before enabling them.
+- AWS Bedrock, CloudWatch, S3, Glue, and Athena are optional integrations and should only be configured intentionally.
+
+## Disclosure Scope
+
+Security reports can include issues in:
+
+- Protocol handlers and authentication behavior.
+- Dataset-first and LLM fallback handling.
+- Local JSONL logging and log conversion.
+- Docker packaging and runtime configuration.
+- CI/CD workflows and release automation.
+- Secret redaction and API token handling.
+
+Operational reports about internet-exposed test deployments are also welcome when they identify a project-level security issue. Reports about a specific user's deployment should be sent to that deployment owner whenever possible.

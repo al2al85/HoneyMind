@@ -129,7 +129,7 @@ head /srv/app/.env
 tail /srv/app/.env
 ```
 
-The seeded files are synthetic and must stay that way. They may contain plausible placeholders such as `DB_PASSWORD=dev_password_123` or `API_KEY=sk-test-fake-honeymind-000000000000`, but they must never contain real host data, real private keys, real tokens, or personal information. Unknown paths keep the existing behavior instead of being invented automatically.
+The seeded files are synthetic and must stay that way. They may contain plausible placeholders such as `DB_PASSWORD=dev_password_123` or `API_KEY=HONEYMIND_FAKE_API_KEY`, but they must never contain real host data, real private keys, real tokens, or personal information. Unknown paths keep the existing behavior instead of being invented automatically.
 
 To customize the base filesystem, provide your own `.jsonl.gz` via `fs_file`; HoneyMind keeps the existing format and layers the default profile into the same FakeFS store. For generation details, see [FakeFS JSON guide](docs/fakefs_json_guide.md).
 

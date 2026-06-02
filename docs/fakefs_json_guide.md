@@ -4,7 +4,7 @@ This guide shows how to extract a container’s file system and convert it into 
 
 HoneyMind keeps the original JSONL.GZ FakeFS format. At runtime, SSH honeypots can enrich the loaded filesystem with a synthetic Linux server profile containing realistic `/etc`, `/proc`, `/var/www/html`, `/srv/app`, log, backup, cron, and user files. Known files are served locally before the LLM fallback.
 
-Never put real secrets or host files into a FakeFS dataset. Fake credentials should be clearly synthetic, such as `DB_PASSWORD=dev_password_123` or `API_KEY=sk-test-fake-honeymind-000000000000`.
+Never put real secrets or host files into a FakeFS dataset. Fake credentials should be clearly synthetic, such as `DB_PASSWORD=dev_password_123` or `API_KEY=HONEYMIND_FAKE_API_KEY`.
 
 ---
 

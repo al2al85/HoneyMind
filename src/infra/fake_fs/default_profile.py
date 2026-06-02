@@ -206,7 +206,7 @@ def build_honeymind_profile(profile: dict) -> list[dict]:
             make_file(
                 "/var/www/html/.env",
                 "APP_ENV=production\nDB_HOST=127.0.0.1\nDB_USER=webapp\nDB_PASSWORD=dev_password_123\n"
-                "API_KEY=sk-test-fake-honeymind-000000000000\n",
+                "API_KEY=HONEYMIND_FAKE_API_KEY\n",
                 "-rw-r-----",
                 "www-data",
             ),
@@ -243,15 +243,15 @@ def build_honeymind_profile(profile: dict) -> list[dict]:
                 "APP_NAME=HoneyMindDemo\nAPP_ENV=production\nDB_HOST=mysql\nDB_PORT=3306\n"
                 "DB_DATABASE=appdb\nDB_USERNAME=appuser\nDB_PASSWORD=dev_password_123\n"
                 "MYSQL_PASSWORD=changeme123\n"
-                "API_KEY=sk-test-fake-honeymind-000000000000\n"
-                "AWS_ACCESS_KEY_ID=AKIAFAKEHONEYMIND0000\n"
-                "AWS_SECRET_ACCESS_KEY=fakeSecretKeyForHoneyMindOnlyDoNotUse\n",
+                "API_KEY=HONEYMIND_FAKE_API_KEY\n"
+                "AWS_ACCESS_KEY_ID=HONEYMIND_FAKE_AWS_ACCESS_KEY_ID\n"
+                "AWS_SECRET_ACCESS_KEY=HONEYMIND_FAKE_AWS_SECRET_ACCESS_KEY\n",
                 "-rw-r-----",
                 "deploy",
             ),
             make_file(
                 "/srv/app/.env.backup",
-                "APP_ENV=staging\nDB_PASSWORD=old_fake_password_123\nAPI_KEY=sk-test-fake-honeymind-backup\n",
+                "APP_ENV=staging\nDB_PASSWORD=old_fake_password_123\nAPI_KEY=HONEYMIND_FAKE_BACKUP_API_KEY\n",
                 "-rw-------",
                 "deploy",
             ),
