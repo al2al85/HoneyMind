@@ -124,7 +124,7 @@ def _load_sessions(log_dir: Path) -> dict[str, list[dict]]:
 
 # ── LLM call ─────────────────────────────────────────────────────────────────
 
-def _call_llm(user_prompt: str, args=None) -> str:
+def _call_llm(user_prompt: str, args=None, log_dir: Path = None) -> str:
     try:
         from llm_providers.llm_utils import invoke_llm
     except ImportError:
@@ -154,6 +154,11 @@ def _call_llm(user_prompt: str, args=None) -> str:
     )
     max_tokens = args.max_tokens if args else 600
 
+    usage_db = (
+        os.environ.get("LLM_USAGE_DB")
+        or (str(log_dir / "llm_usage.db") if log_dir else None)
+    )
+
     kwargs = {}
     if provider:
         kwargs["llm_provider"] = provider
@@ -161,6 +166,8 @@ def _call_llm(user_prompt: str, args=None) -> str:
         kwargs["llm_base_url"] = base_url
     if api_key_env:
         kwargs["llm_api_key_env"] = api_key_env
+    if usage_db:
+        kwargs["llm_usage_db_path"] = usage_db
 
     print(f"  model: {model}  provider: {provider or 'auto'}  max_tokens: {max_tokens}")
 
@@ -352,7 +359,7 @@ def main():
         if not args.dry_run:
             prompt = _MULTIDIM_PROMPT.format(condensed=condensed_str)
             print(f"\n── LLM Analysis (campaign {cid}) ──")
-            print(_call_llm(prompt, args))
+            print(_call_llm(prompt, args, log_dir))
         return
 
     # Single session analysis
@@ -372,7 +379,7 @@ def main():
 
         if not args.dry_run:
             print(f"\n── LLM Analysis ──")
-            result = _call_llm(_SESSION_PROMPT.format(condensed=condensed_str), args)
+            result = _call_llm(_SESSION_PROMPT.format(condensed=condensed_str), args, log_dir)
             print(result)
         return
 
@@ -409,7 +416,7 @@ def main():
 
     if not args.dry_run:
         print(f"\n── LLM Analysis ──")
-        result = _call_llm(_MULTIDIM_PROMPT.format(condensed=condensed_str), args)
+        result = _call_llm(_MULTIDIM_PROMPT.format(condensed=condensed_str), args, log_dir)
         print(result)
 
 
