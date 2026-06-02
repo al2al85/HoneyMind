@@ -299,6 +299,8 @@ function DataProvider({ children }) {
         error:   null,
         data: {
           campaigns,
+          ips:          rawIps,
+          geoMap,
           stats:        computeStats(campaigns, rawIps, commandTotal),
           topCountries: computeTopCountries(rawIps, geoMap),
           topCommands:  computeTopCommands(rawCommands, rawCampaigns),
