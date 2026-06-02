@@ -11,9 +11,23 @@ import pytest
 from scp import SCPClient
 
 from infra.honeypot_wrapper import create_honeypot
+from honeypots.ssh_honeypot import CLEAR_SCREEN, normalize_terminal_output
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def test_normalize_terminal_output_uses_crlf_without_extra_blank_line():
+    output = normalize_terminal_output("root\nbin:x:2:2:bin:/bin:/usr/sbin/nologin\n")
+
+    assert output == "root\r\nbin:x:2:2:bin:/bin:/usr/sbin/nologin"
+    assert "\n" not in output.replace("\r\n", "")
+
+
+def test_normalize_terminal_output_handles_existing_crlf():
+    output = normalize_terminal_output("PRETTY_NAME=\"Ubuntu\"\r\nID=ubuntu\r\n")
+
+    assert output == "PRETTY_NAME=\"Ubuntu\"\r\nID=ubuntu"
 
 
 @pytest.fixture
@@ -115,6 +129,45 @@ def test_interactive_shell(ssh_honeypot):
             break
 
     assert b"" in output
+    client.close()
+
+
+def test_interactive_clear_sends_terminal_escape(ssh_honeypot):
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    client.connect(
+        "localhost",
+        port=ssh_honeypot.port,
+        username="user",
+        password="pass",
+        timeout=10,
+        banner_timeout=10,
+        auth_timeout=10,
+        look_for_keys=False,
+        allow_agent=False,
+    )
+
+    channel = client.invoke_shell()
+    channel.settimeout(5)
+
+    start = time.time()
+    while time.time() - start < 5:
+        if channel.recv_ready():
+            channel.recv(1024)
+            break
+
+    channel.send("clear\n")
+    output = b""
+    start = time.time()
+    while time.time() - start < 5:
+        if channel.recv_ready():
+            output += channel.recv(1024)
+        if CLEAR_SCREEN.encode() in output:
+            break
+
+    assert CLEAR_SCREEN.encode() in output
+    ssh_honeypot.action.query.assert_not_called()
     client.close()
 
 

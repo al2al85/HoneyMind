@@ -17,6 +17,15 @@ from infra.prompt_utils import render_prompt
 from analysis.ssh_fingerprint import FingerprintingTransport
 
 
+CLEAR_SCREEN = "\x1b[2J\x1b[H"
+
+
+def normalize_terminal_output(output: str) -> str:
+    text = "" if output is None else str(output)
+    text = text.rstrip("\r\n")
+    return text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\r\n")
+
+
 class EnhancedParamikoFilter(logging.Filter):
     def __init__(self):
         super().__init__()
@@ -253,9 +262,13 @@ class SSHServerInterface(paramiko.ServerInterface):
                 channel.shutdown_write()
                 return False
 
-            result = self.action.query(command_str, self.session)
-            output = result["output"] if isinstance(result, dict) else str(result)
-            parser_action = self.session.pop("_last_parser_action", "unknown")
+            if command_str == "clear":
+                output = CLEAR_SCREEN
+                parser_action = "builtin"
+            else:
+                result = self.action.query(command_str, self.session)
+                output = result["output"] if isinstance(result, dict) else str(result)
+                parser_action = self.session.pop("_last_parser_action", "unknown")
 
             self.honeypot.log_command(
                 self.session,
@@ -265,7 +278,13 @@ class SSHServerInterface(paramiko.ServerInterface):
                 exit_code=0,
             )
 
-            channel.sendall((output.strip()).encode())
+            if command_str == "clear":
+                channel.sendall(CLEAR_SCREEN.encode())
+            else:
+                payload = normalize_terminal_output(output)
+                if payload:
+                    payload += "\r\n"
+                channel.sendall(payload.encode())
             channel.send_exit_status(0)
             def safe_shutdown():
                 try:
@@ -362,6 +381,17 @@ class SSHServerInterface(paramiko.ServerInterface):
                     channel.send("\r\nConnection closed.\r\n")
                     break
 
+                if command == "clear":
+                    self.honeypot.log_command(
+                        self.session,
+                        raw=command,
+                        response="",
+                        parser_action="builtin",
+                        exit_code=0,
+                    )
+                    channel.send(CLEAR_SCREEN)
+                    continue
+
                 if self.action is None:
                     channel.send(b"\r\nCommand not available\r\n")
                     continue
@@ -378,7 +408,11 @@ class SSHServerInterface(paramiko.ServerInterface):
                     parser_action=parser_action,
                     exit_code=0,
                 )
-                channel.send(("\r\n" + output + "\r\n").encode())
+                payload = normalize_terminal_output(output)
+                if payload:
+                    channel.send(("\r\n" + payload + "\r\n").encode())
+                else:
+                    channel.send("\r\n")
 
         except (SSHException, OSError) as e:
             logging.error(f"Shell error: {e}")
