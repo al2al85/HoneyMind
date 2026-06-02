@@ -87,7 +87,8 @@ def get_campaigns():
 
 def main():
     parser = argparse.ArgumentParser(description="HoneyMind IOC API")
-    parser.add_argument("--db", default=os.environ.get("IOC_DB", "/data/honeypot/iocs.db"))
+    parser.add_argument("--db", default=os.environ.get("IOC_DB", "/data/honeypot/iocs.db"),
+                        help="path to SQLite IOC database (default: $IOC_DB or /data/honeypot/iocs.db)")
     parser.add_argument("--port", type=int, default=int(os.environ.get("IOC_API_PORT", 5000)))
     parser.add_argument("--host", default=os.environ.get("IOC_API_HOST", "0.0.0.0"))
     args = parser.parse_args()

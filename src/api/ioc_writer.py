@@ -303,8 +303,10 @@ def run(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="HoneyMind IOC writer")
-    parser.add_argument("--log-dir", default=os.environ.get("LOG_DIR", "/data/honeypot/logs"))
-    parser.add_argument("--db", default=os.environ.get("IOC_DB", "/data/honeypot/iocs.db"))
+    parser.add_argument("--log-dir", default=os.environ.get("LOG_DIR", "/data/honeypot/logs"),
+                        help="path to JSONL log directory (default: $LOG_DIR or /data/honeypot/logs)")
+    parser.add_argument("--db", default=os.environ.get("IOC_DB", "/data/honeypot/iocs.db"),
+                        help="path to SQLite IOC database (default: $IOC_DB or /data/honeypot/iocs.db)")
     parser.add_argument("--download-dir", default=os.environ.get("HONEYPOT_DOWNLOAD_DIR", "/data/honeypot/downloads"))
     parser.add_argument("--upload-dir", default=os.environ.get("HONEYPOT_UPLOAD_DIR", "/data/honeypot/uploads"))
     parser.add_argument("--poll", type=int, default=int(os.environ.get("IOC_POLL_INTERVAL", 15)),

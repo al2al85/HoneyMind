@@ -14,12 +14,13 @@ The writer is the only process that writes; the API server reads only.
 WAL mode allows concurrent reads while the writer commits.
 """
 import json
+import os
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
-DEFAULT_DB = "/data/honeypot/iocs.db"
+DEFAULT_DB = os.environ.get("IOC_DB", "/data/honeypot/iocs.db")
 
 _SCHEMA = """
 PRAGMA journal_mode = WAL;
