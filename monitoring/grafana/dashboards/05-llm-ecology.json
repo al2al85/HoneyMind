@@ -41,11 +41,10 @@
       "description": "Formule : (prompt×0.25 + completion) / 1000 × Wh/ktok × 0.46 gCO2/Wh. Intensité carbone : moyenne mondiale IEA 2022 (460 gCO2/kWh).",
       "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "auto", "graphMode": "none" },
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "displayName": "${__value} gCO2",
           "color": { "mode": "thresholds" },
           "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] }
         }
@@ -194,7 +193,7 @@
       "gridPos": { "h": 6, "w": 24, "x": 0, "y": 27 },
       "options": {
         "mode": "markdown",
-        "content": "## Methodology\n\n| Metric | Estimation basis |\n|--------|------------------|\n| **Energy (Wh)** | ~0.003 Wh per 1k tokens (hosted), ~0.001 Wh (local Ollama) |\n| **CO2 (g)** | Energy × 0.486 gCO₂/Wh (EU average grid mix, 2023) |\n| **Prompt tokens** | Weighted 0.5× (typically cheaper compute) |\n\n**Reference points** — 1 kg CO₂ ≈ 6 km by car ≈ 4 kWh electricity. A typical ChatGPT session ≈ 0.001–0.01 kWh.\n\nSources: IEA 2023, Luccioni et al. \"Power Hungry Processing\" (2023)."
+        "content": "## Méthodologie d'estimation CO2\n\n**Formule** : `CO2 (g) = (prompt × 0.25 + completion) / 1000 × Wh/ktok × 0.46`\n\n| Métrique | Base d'estimation |\n|----------|-------------------|\n| **Énergie cloud** (Anthropic/OpenAI/Bedrock) | **1.5 Wh / 1 000 tokens completion** — inference batché, A100/H100 en datacenter |\n| **Énergie local** (Ollama) | **3.0 Wh / 1 000 tokens completion** — GPU grand public, pas de batching |\n| **Énergie inconnu** | **2.0 Wh / 1 000 tokens completion** — valeur prudente par défaut |\n| **Tokens prompt** | Pondérés à **0.25×** — prefill parallèle ~4× moins coûteux que le décodage autorégressif |\n| **Intensité carbone** | **0.46 gCO₂/Wh** — moyenne mondiale IEA 2022 (460 gCO₂/kWh) |\n\n**Points de référence** — 1 kg CO₂ ≈ 6 km en voiture ≈ 4 kWh électricité. Une requête ChatGPT ≈ 3 Wh (IEA 2024). 1 recherche Google ≈ 0.3 Wh.\n\nSources : IEA 2024, MLCommons LLM inference benchmarks, Luccioni et al. \"Power Hungry Processing\" (2023)."
       }
     }
   ]
