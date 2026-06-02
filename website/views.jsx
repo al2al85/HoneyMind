@@ -693,6 +693,7 @@ function parseStixIndicators(bundle) {
     const matches = [...(obj.pattern || '').matchAll(/'([^']+)'/g)];
     const value = matches.length ? matches[matches.length - 1][1] : '';
     if (!value) continue;
+    if (/^server_ip$/i.test(value)) continue;
     out[type].push({
       value,
       confidence:        obj.confidence ?? 0,
