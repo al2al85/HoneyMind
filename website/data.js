@@ -144,7 +144,7 @@
       if (inOl) { html += '</ol>'; inOl = false; }
     };
     const closeTable = () => {
-      if (inTable) { html += '</tbody></table>'; inTable = false; tableHead = null; }
+      if (inTable) { html += '</tbody></table></div>'; inTable = false; tableHead = null; }
     };
     const parseRow = (line, tag) => {
       const cells = line.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|');
@@ -170,7 +170,7 @@
         closeLists();
         tableHead = parseRow(raw, 'th');
         i++; // skip separator
-        html += `<table><thead>${tableHead}</thead><tbody>`;
+        html += `<div style="overflow-x:auto;margin:14px 0"><table style="margin:0"><thead>${tableHead}</thead><tbody>`;
         inTable = true;
         continue;
       }
