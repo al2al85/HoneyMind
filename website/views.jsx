@@ -22,7 +22,7 @@ function SecH({ title, hint }) {
 }
 
 /* ============ DASHBOARD ============ */
-function DashboardView({ themeToggle }) {
+function DashboardView({ themeToggle, go }) {
   const { data, loading, error, reload } = useHM();
   const [sheetIp, setSheetIp] = useState(null);
 
@@ -35,20 +35,26 @@ function DashboardView({ themeToggle }) {
   const peak = data.timeseries.length ? Math.max(...data.timeseries.map(d => d.attacks)) : 0;
 
   const handleMapClick = point => {
-    const ipData = (data.ips || []).find(i => i.ip === point.ip) || {};
+    const ipData    = (data.ips || []).find(i => i.ip === point.ip) || {};
+    const campaigns = (ipData.campaign_ids || [])
+      .map(id => data.campaigns.find(c => c.id === id))
+      .filter(Boolean);
     setSheetIp({
-      ip:           point.ip,
-      country:      point.country || 'Inconnu',
-      code:         '',
-      lat:          point.lat,
-      lon:          point.lon,
-      connections:  point.weight || 0,
-      success:      0,
-      commands:     Object.values(ipData.ioc_counts || {}).reduce((a, b) => a + b, 0),
-      asn:          '—',
-      org:          '—',
-      firstSeen:    (ipData.first_seen || '').slice(0, 10) || '—',
-      sampleCommands: [],
+      ip:               point.ip,
+      country:          point.country || 'Inconnu',
+      code:             '',
+      lat:              point.lat,
+      lon:              point.lon,
+      connections:      point.weight || 0,
+      success:          0,
+      commands:         Object.values(ipData.ioc_counts || {}).reduce((a, b) => a + b, 0),
+      asn:              '—',
+      org:              '—',
+      firstSeen:        (ipData.first_seen || '').slice(0, 10) || '—',
+      sampleCommands:   [],
+      campaigns,
+      attackCategories: ipData.attack_categories || [],
+      iocCounts:        ipData.ioc_counts || {},
     });
   };
 
@@ -135,7 +141,7 @@ function DashboardView({ themeToggle }) {
 
       </div>
     </div>
-    {sheetIp && <IpSheet ip={sheetIp} onClose={() => setSheetIp(null)} />}
+    {sheetIp && <IpSheet ip={sheetIp} onClose={() => setSheetIp(null)} go={go} />}
     </>
   );
 }
@@ -604,7 +610,7 @@ function CampaignDetailView({ id, go, themeToggle }) {
                 </thead>
                 <tbody>
                   {c.ips.map(ip => (
-                    <tr key={ip.ip} className="click" onClick={() => setSheetIp(ip)}>
+                    <tr key={ip.ip} className="click" onClick={() => setSheetIp({ ...ip, campaigns: [c], attackCategories: ip.attackCategories || [], iocCounts: ip.iocCounts || {} })}>
                       <td className="ipcell" style={{ color:'var(--honey-deep)', fontWeight:600 }}>{ip.ip}</td>
                       <td style={{ fontSize:12.5, color:'var(--text-dim)' }}>
                         <span className="mono" style={{ color:'var(--text-faint)', marginRight:6 }}>{ip.code}</span>{ip.country}
@@ -643,7 +649,7 @@ function CampaignDetailView({ id, go, themeToggle }) {
         }
 
       </div>
-      {sheetIp && <IpSheet ip={sheetIp} onClose={() => setSheetIp(null)} />}
+      {sheetIp && <IpSheet ip={sheetIp} onClose={() => setSheetIp(null)} go={go} />}
     </div>
   );
 }

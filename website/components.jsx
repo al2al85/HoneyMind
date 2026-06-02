@@ -504,11 +504,16 @@ function CopyBtn({ text, title }) {
 }
 
 /* ---- IP slide-over ---- */
-function IpSheet({ ip, onClose }) {
+function IpSheet({ ip, onClose, go }) {
   useEffect(() => {
     const k = e => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
   }, []);
+
+  const camps   = ip.campaigns || [];
+  const cats    = ip.attackCategories || [];
+  const iocCnts = ip.iocCounts || {};
+
   return (
     <>
       <div className="scrim" onClick={onClose}></div>
@@ -517,7 +522,9 @@ function IpSheet({ ip, onClose }) {
           <div>
             <div className="crumb">Adresse IP</div>
             <div className="mono" style={{ fontSize:20, fontWeight:600, color:'var(--honey-deep)', marginTop:4 }}>{ip.ip}</div>
-            <div style={{ color:'var(--text-dim)', fontSize:13, marginTop:4 }}>{ip.country} · {ip.org}</div>
+            <div style={{ color:'var(--text-dim)', fontSize:13, marginTop:4 }}>
+              {[ip.country, ip.org].filter(Boolean).join(' · ')}
+            </div>
           </div>
           <button className="iconbtn" onClick={onClose}><Icon name="close" /></button>
         </div>
@@ -525,16 +532,82 @@ function IpSheet({ ip, onClose }) {
           <a className="vt-btn" href={D.vtIpUrl(ip.ip)} target="_blank" rel="noopener">
             <Icon name="shield" width="16" height="16" /> Analyser sur VirusTotal <Icon name="ext" width="14" height="14" />
           </a>
+
+          {/* Infos réseau */}
           <dl className="kv">
-            <dt>Pays</dt><dd>{ip.country} ({ip.code})</dd>
-            <dt>ASN</dt><dd>{ip.asn}</dd>
-            <dt>Organisation</dt><dd>{ip.org}</dd>
+            {ip.country  && <><dt>Pays</dt><dd>{ip.country}{ip.code ? ` (${ip.code})` : ''}</dd></>}
+            {ip.asn && ip.asn !== '—' && <><dt>ASN</dt><dd>{ip.asn}</dd></>}
+            {ip.org && ip.org !== '—' && <><dt>Organisation</dt><dd>{ip.org}</dd></>}
             <dt>Première vue</dt><dd>{ip.firstSeen}</dd>
-            <dt>Connexions</dt><dd>{ip.connections}</dd>
-            <dt>Réussies</dt><dd>{ip.success}</dd>
-            <dt>Commandes</dt><dd>{ip.commands}</dd>
-            <dt>Coordonnées</dt><dd>{ip.lat?.toFixed(1)}, {ip.lon?.toFixed(1)}</dd>
+            <dt>Sessions</dt><dd>{ip.connections}</dd>
+            {ip.success > 0 && <><dt>Réussies</dt><dd>{ip.success}</dd></>}
           </dl>
+
+          {/* Catégories d'attaque */}
+          {cats.length > 0 && (
+            <div style={{ marginBottom:18 }}>
+              <div className="crumb" style={{ marginBottom:8 }}>Tactiques observées</div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {cats.map(c => (
+                  <span key={c} style={{ fontSize:11.5, padding:'3px 9px', borderRadius:999,
+                    background:'color-mix(in oklch,var(--honey) 14%,transparent)',
+                    color:'var(--honey-deep)', fontFamily:'var(--font-mono)' }}>
+                    {c.replace(/_/g,'-').toLowerCase()}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* IOC counts */}
+          {Object.keys(iocCnts).some(k => iocCnts[k] > 0) && (
+            <div style={{ marginBottom:18 }}>
+              <div className="crumb" style={{ marginBottom:8 }}>Indicateurs (IOC)</div>
+              <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+                {[['ipv4-addr','IP'],['url','URL'],['domain-name','Domaines'],['file','Fichiers']].map(([k,lbl]) =>
+                  iocCnts[k] > 0 ? (
+                    <div key={k} style={{ textAlign:'center', padding:'6px 14px',
+                      background:'var(--surface-2)', borderRadius:9, border:'1px solid var(--border-soft)' }}>
+                      <div style={{ fontSize:18, fontWeight:600 }}>{iocCnts[k]}</div>
+                      <div style={{ fontSize:11, color:'var(--text-faint)', marginTop:2 }}>{lbl}</div>
+                    </div>
+                  ) : null
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Campagnes */}
+          {camps.length > 0 && (
+            <div style={{ marginBottom:18 }}>
+              <div className="crumb" style={{ marginBottom:8 }}>Campagnes associées</div>
+              {camps.map(c => (
+                <div key={c.id}
+                  onClick={() => go && (go({ name:'campaign', id:c.id }), onClose())}
+                  style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+                    padding:'10px 14px', background:'var(--surface-2)', borderRadius:9, marginBottom:6,
+                    border:'1px solid var(--border-soft)',
+                    cursor: go ? 'pointer' : 'default',
+                    transition:'background .12s',
+                  }}
+                  onMouseEnter={e => go && (e.currentTarget.style.background = 'color-mix(in oklch,var(--honey) 10%,transparent)')}
+                  onMouseLeave={e => e.currentTarget.style.background = 'var(--surface-2)'}
+                >
+                  <div>
+                    <span className="cid" style={{ fontSize:13 }}>{c.id}</span>
+                    <span style={{ fontSize:12, color:'var(--text-faint)', marginLeft:8 }}>{c.name}</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <Status value={c.status} />
+                    <Severity level={c.severity} />
+                    {go && <Icon name="chev" style={{ width:14, height:14, color:'var(--text-faint)' }} />}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Commandes observées */}
           {ip.sampleCommands && ip.sampleCommands.length > 0 && (
             <div>
               <div className="crumb" style={{ marginBottom:8 }}>Commandes observées</div>

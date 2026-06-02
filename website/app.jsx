@@ -378,7 +378,7 @@ function App() {
   else if (route.name === 'campaign')  view = <CampaignDetailView id={route.id} go={go} themeToggle={themeToggle} />;
   else if (route.name === 'iocs')      view = <IocView themeToggle={themeToggle} />;
   else if (route.name === 'cost')      view = <CostView themeToggle={themeToggle} />;
-  else                                  view = <DashboardView themeToggle={themeToggle} />;
+  else                                  view = <DashboardView go={go} themeToggle={themeToggle} />;
 
   return (
     <DataProvider>
