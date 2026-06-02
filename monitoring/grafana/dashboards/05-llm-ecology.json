@@ -29,12 +29,12 @@
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
       "fieldConfig": {
         "defaults": {
-          "unit": "currencyUSD",
+          "unit": "currencyEUR",
           "color": { "mode": "thresholds" },
           "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 10 }] }
         }
       },
-      "targets": [{ "expr": "sum(honeymind_llm_cost_total)", "legendFormat": "USD", "refId": "A" }]
+      "targets": [{ "expr": "sum(honeymind_llm_cost_total)", "legendFormat": "EUR", "refId": "A" }]
     },
     {
       "id": 3, "type": "stat", "title": "Estimated CO2 (grams)",
@@ -125,14 +125,14 @@
       "options": { "tooltip": { "mode": "multi" } },
       "fieldConfig": {
         "defaults": {
-          "unit": "currencyUSD",
+          "unit": "currencyEUR",
           "custom": { "lineWidth": 2, "fillOpacity": 20 },
           "color": { "mode": "fixed", "fixedColor": "#F2CC0C" }
         }
       },
       "targets": [{
         "expr": "sum(honeymind_llm_cost_total)",
-        "legendFormat": "Cumulative cost (USD)",
+        "legendFormat": "Cumulative cost (EUR)",
         "refId": "A"
       }]
     },
@@ -179,7 +179,7 @@
             "renameByName": {
               "Value #prompt": "Prompt Tokens",
               "Value #completion": "Completion Tokens",
-              "Value #cost": "Cost (USD)",
+              "Value #cost": "Cost (EUR)",
               "Value #co2": "CO2 (g)"
             }
           }
