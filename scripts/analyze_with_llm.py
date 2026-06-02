@@ -23,6 +23,8 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+from core.honeypot_utils import _load_env_file
+
 from analysis.log_condenser import (
     condense_session,
     condense_sessions,
@@ -173,6 +175,31 @@ def _call_llm(user_prompt: str, args=None) -> str:
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+def _resolve_env_file(env_file: str = None) -> None:
+    """Load env file — explicit path > default locations."""
+    candidates = []
+    if env_file:
+        candidates = [env_file]
+    else:
+        root = Path(__file__).resolve().parents[1]
+        candidates = [
+            root / "config" / "llm.env.list",
+            root / "config" / ".env",
+            Path(".env"),
+            Path("config" / "llm.env.list"),
+        ]
+
+    for path in candidates:
+        p = Path(path)
+        if p.exists():
+            _load_env_file(str(p))
+            print(f"  loaded env: {p}")
+            return
+
+    if env_file:
+        print(f"warning: env file not found: {env_file}", file=sys.stderr)
+
+
 def _sessions_for_campaign(campaign, sessions: dict) -> dict:
     """Return the subset of sessions belonging to a campaign, matched by IP."""
     campaign_ips = set(campaign.ips)
@@ -199,6 +226,10 @@ def main():
         epilog=f"Available dimensions: {', '.join(_ALL_DIMENSIONS)}",
     )
     parser.add_argument("log_dir", nargs="?", default="/data/honeypot/logs")
+    parser.add_argument(
+        "--env-file", metavar="FILE", default=None,
+        help="Path to .env file with LLM config (default: config/llm.env.list or .env)",
+    )
     parser.add_argument("--session", metavar="ID", help="Analyze a single session")
     parser.add_argument("--campaign", metavar="ID", help="Analyze a specific campaign (e.g. C001). Use --list-campaigns to see available ones")
     parser.add_argument("--list-campaigns", action="store_true", help="List detected campaigns and exit")
@@ -222,6 +253,9 @@ def main():
     llm.add_argument("--max-tokens",  type=int, default=600, help="Max tokens for LLM response (default: 600)")
 
     args = parser.parse_args()
+
+    # Load .env file — CLI arg > default locations
+    _resolve_env_file(args.env_file)
 
     log_dir = Path(args.log_dir)
     if not log_dir.exists():
