@@ -540,6 +540,10 @@ class HoneypotSFTPServerInterface(SFTPServerInterface):
             return paramiko.SFTPServer.convert_errno(exc.errno)
         return SFTP_OK
 
+    def chattr(self, path, attr):
+        # Accept fsetstat silently — newer OpenSSH clients call this after upload
+        return SFTP_OK
+
 
 class SSHHoneypot(BaseHoneypot):
     def __init__(self, port=0, action: HoneypotAction = None, config: dict = None):
