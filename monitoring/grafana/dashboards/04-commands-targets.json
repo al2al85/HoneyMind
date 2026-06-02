@@ -141,8 +141,8 @@
         "y": 8
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "options": {
         "sortBy": [
@@ -180,11 +180,53 @@
       },
       "targets": [
         {
-          "expr": "sort_desc(sum by (file_path, attack_category) (honeymind_files_accessed_total))",
-          "legendFormat": "{{file_path}}",
           "refId": "A",
-          "instant": true,
-          "format": "table"
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{job=\"honeymind\", event_type=\"command\"} | json | _file_accessed != \"\" | _file_accessed != \"null\"",
+          "queryType": "range",
+          "maxLines": 500
+        }
+      ],
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "line",
+            "format": "json"
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "_file_accessed": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": [
+              {
+                "desc": true,
+                "displayName": "_file_accessed Count"
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 30
+          }
         }
       ]
     },
@@ -263,7 +305,7 @@
         "h": 10,
         "w": 8,
         "x": 16,
-        "y": 8
+        "y": 28
       },
       "datasource": {
         "type": "prometheus",
@@ -295,7 +337,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 28
       },
       "datasource": {
         "type": "loki",
@@ -322,7 +364,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 18
+        "y": 28
       },
       "datasource": {
         "type": "loki",
@@ -349,7 +391,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 36
       },
       "datasource": {
         "type": "loki",
@@ -366,6 +408,108 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Top Passwords Tried",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 16,
+        "y": 18
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{job=\"honeymind\", event_type=\"auth_attempt\"} | json | _auth_password != \"\" | _auth_password != \"null\"",
+          "queryType": "range",
+          "maxLines": 2000
+        }
+      ],
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "line",
+            "format": "json"
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "_auth_password": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": [
+              {
+                "desc": true,
+                "displayName": "_auth_password Count"
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 30
+          }
+        }
+      ],
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "_auth_password Count",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "_auth_password"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Mot de passe"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "_auth_password Count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Occurrences"
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }
