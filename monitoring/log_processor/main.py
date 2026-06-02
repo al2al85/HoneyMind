@@ -82,7 +82,6 @@ def _build_labels(event: dict) -> dict[str, str]:
         "bot_verdict": str(bot.get("verdict") or "unknown"),
         # profile_type = script_kiddie / opportunist / targeted / nation_state
         "profile_type": str(event.get("_sophistication") or ""),
-        "sophistication_score": str(event.get("_sophistication_score") or "0"),
         "tools": ",".join(tools) if tools else "",
         "anonymization": ",".join(anon) if anon else "",
         "session_id": str(event.get("session_id") or ""),
