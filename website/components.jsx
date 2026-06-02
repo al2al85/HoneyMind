@@ -173,6 +173,12 @@ table.tbl tbody tr:last-child td { border-bottom: 0; }
 .md blockquote { border-left: 3px solid color-mix(in oklch,var(--honey) 60%,transparent);
   margin: 10px 0; padding: 4px 14px; color: var(--text-faint); font-style: italic; }
 .md strong { color: var(--text); }
+.md table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13px; }
+.md th { background: var(--surface-2); color: var(--text); font-weight: 600; text-align: left;
+  padding: 7px 12px; border-bottom: 2px solid var(--border-soft); }
+.md td { padding: 6px 12px; border-bottom: 1px solid var(--border-soft); color: var(--text-dim); }
+.md tr:last-child td { border-bottom: none; }
+.md tr:hover td { background: color-mix(in oklch, var(--honey) 5%, transparent); }
 
 .two-col { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; align-items: start; }
 @media (max-width: 1040px){ .two-col{ grid-template-columns: 1fr; } }

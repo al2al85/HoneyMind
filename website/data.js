@@ -125,24 +125,63 @@
   // ── Mini moteur Markdown → HTML ─────────────────────────────────────────────
   function mdToHtml(md) {
     const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const inline = t => esc(t)
+      .replace(/`([^`]+)`/g,'<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g,'<em>$1</em>')
+      .replace(/_([^_]+)_/g,'<em>$1</em>');
+
+    // Pre-pass: collect table blocks (consecutive lines containing |)
+    const isTableRow  = l => /^\s*\|.+\|/.test(l);
+    const isSepRow    = l => /^\s*\|[\s|:-]+\|/.test(l);
+
     const lines = md.split('\n');
-    let html = '', inUl = false, inOl = false, inCode = false;
+    let html = '', inUl = false, inOl = false, inCode = false, inTable = false;
+    let tableHead = null;
+
     const closeLists = () => {
       if (inUl) { html += '</ul>'; inUl = false; }
       if (inOl) { html += '</ol>'; inOl = false; }
     };
-    const inline = t => esc(t)
-      .replace(/`([^`]+)`/g,'<code>$1</code>')
-      .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
-      .replace(/_([^_]+)_/g,'<em>$1</em>');
-    for (const raw of lines) {
+    const closeTable = () => {
+      if (inTable) { html += '</tbody></table>'; inTable = false; tableHead = null; }
+    };
+    const parseRow = (line, tag) => {
+      const cells = line.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|');
+      return '<tr>' + cells.map(c => `<${tag}>${inline(c.trim())}</${tag}>`).join('') + '</tr>';
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+
+      // Code blocks
       if (raw.trim().startsWith('```')) {
-        if (!inCode) { closeLists(); html += '<pre><code>'; inCode = true; }
+        closeLists(); closeTable();
+        if (!inCode) { html += '<pre><code>'; inCode = true; }
         else { html += '</code></pre>'; inCode = false; }
         continue;
       }
       if (inCode) { html += esc(raw) + '\n'; continue; }
+
       const line = raw.trim();
+
+      // Table detection: header row followed by separator row
+      if (!inTable && isTableRow(raw) && i + 1 < lines.length && isSepRow(lines[i + 1])) {
+        closeLists();
+        tableHead = parseRow(raw, 'th');
+        i++; // skip separator
+        html += `<table><thead>${tableHead}</thead><tbody>`;
+        inTable = true;
+        continue;
+      }
+      if (inTable) {
+        if (isTableRow(raw)) {
+          html += parseRow(raw, 'td');
+          continue;
+        }
+        closeTable();
+      }
+
       if (line === '') { closeLists(); continue; }
       if (line.startsWith('### ')) { closeLists(); html += `<h3>${inline(line.slice(4))}</h3>`; continue; }
       if (line.startsWith('## '))  { closeLists(); html += `<h2>${inline(line.slice(3))}</h2>`; continue; }
@@ -154,12 +193,12 @@
       }
       if (/^\d+\. /.test(line)) {
         if (!inOl) { closeLists(); html += '<ol>'; inOl = true; }
-        html += `<li>${inline(line.replace(/^\d+\.\s/,''))}</li>`; continue;
+        html += `<li>${inline(line.replace(/^\d+\.\s/, ''))}</li>`; continue;
       }
       closeLists();
       html += `<p>${inline(line)}</p>`;
     }
-    closeLists();
+    closeLists(); closeTable();
     if (inCode) html += '</code></pre>';
     return html;
   }

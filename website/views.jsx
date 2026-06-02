@@ -284,23 +284,67 @@ function AiReport({ campaignId }) {
     </div>
   );
 
+  const [fullscreen, setFullscreen] = React.useState(false);
   const ts = report.generated_at ? new Date(report.generated_at).toLocaleString('fr-FR') : '';
+  const mdHtml = D.mdToHtml(report.content || '');
+
+  const btnStyle = {
+    display:'inline-flex', alignItems:'center', gap:6, padding:'4px 11px',
+    background:'var(--surface-2)', border:'1px solid var(--border-soft)',
+    color:'var(--text-faint)', borderRadius:7, cursor:'pointer', fontSize:12,
+  };
+
   return (
-    <div className="card ai-card">
-      {bar(
-        <span style={{ display:'flex', alignItems:'center', gap:10 }}>
-          {ts && <span style={{ fontSize:11.5, color:'var(--text-faint)' }}>{ts}</span>}
-          <button onClick={onGenerate} title="Regénérer" style={{
-            display:'inline-flex', alignItems:'center', gap:6, padding:'4px 11px',
-            background:'var(--surface-2)', border:'1px solid var(--border-soft)',
-            color:'var(--text-faint)', borderRadius:7, cursor:'pointer', fontSize:12,
+    <>
+      <div className="card ai-card">
+        {bar(
+          <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+            {ts && <span style={{ fontSize:11.5, color:'var(--text-faint)' }}>{ts}</span>}
+            <button onClick={() => setFullscreen(true)} style={btnStyle} title="Plein écran">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+                <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+              </svg>
+              Plein écran
+            </button>
+            <button onClick={onGenerate} style={btnStyle} title="Regénérer">
+              <Icon name="refresh" style={{ width:12, height:12 }} /> Regénérer
+            </button>
+          </span>
+        )}
+        <div className="md" style={{ maxHeight:480 }} dangerouslySetInnerHTML={{ __html: mdHtml }} />
+      </div>
+
+      {fullscreen && (
+        <div onClick={() => setFullscreen(false)} style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,.6)', backdropFilter:'blur(4px)',
+          zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:24,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background:'var(--surface)', border:'1px solid var(--border-soft)', borderRadius:14,
+            width:'min(900px,95vw)', maxHeight:'90vh', display:'flex', flexDirection:'column',
+            boxShadow:'0 24px 80px rgba(0,0,0,.4)',
           }}>
-            <Icon name="refresh" style={{ width:12, height:12 }} /> Regénérer
-          </button>
-        </span>
+            <div className="ai-bar" style={{ borderRadius:'14px 14px 0 0' }}>
+              <span className="t">
+                <Icon name="brain" style={{ width:16, height:16, color:'var(--honey-deep)' }} /> Rapport IA — plein écran
+              </span>
+              <button onClick={() => setFullscreen(false)} style={{
+                ...btnStyle, padding:'5px 12px', fontSize:13,
+              }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
+                  <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
+                </svg>
+                Fermer
+              </button>
+            </div>
+            <div className="md" style={{ overflowY:'auto', padding:'16px 32px 32px', maxHeight:'none' }}
+              dangerouslySetInnerHTML={{ __html: mdHtml }} />
+          </div>
+        </div>
       )}
-      <div className="md" dangerouslySetInnerHTML={{ __html: D.mdToHtml(report.content || '') }} />
-    </div>
+    </>
   );
 }
 
@@ -406,12 +450,10 @@ function CampaignDetailView({ id, go, themeToggle }) {
             </div>
           </div>
 
-          {/* Rapport IA */}
-          <div>
-            <SecH title="Analyse IA" hint="rapport généré par le LLM" />
-            <AiReport campaignId={c.id} />
-          </div>
         </div>
+
+        <SecH title="Analyse IA" hint="rapport généré par le LLM" />
+        <AiReport campaignId={c.id} />
 
         {/* IOC */}
         <SecH title="Indicateurs de compromission (IOC)"
