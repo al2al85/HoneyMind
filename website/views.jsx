@@ -576,11 +576,6 @@ function CampaignDetailView({ id, go, themeToggle }) {
 
         <div style={{ display:'flex', gap:10, marginBottom:22, flexWrap:'wrap', alignItems:'center' }}>
           <Status value={c.status} /><Severity level={c.severity} />
-          {c.confidence !== undefined && (
-            <span style={{ fontSize:12, color:'var(--text-faint)' }}>
-              Confiance : {(c.confidence * 100).toFixed(0)}%
-            </span>
-          )}
         </div>
 
         <div className="stat-grid" style={{ marginBottom:4 }}>
@@ -599,7 +594,7 @@ function CampaignDetailView({ id, go, themeToggle }) {
           </>
         )}
 
-        <div className="two-col" style={{ marginTop:24 }}>
+        <div style={{ marginTop:24 }}>
           {/* Liste IP */}
           <div>
             <SecH title="Adresses IP" hint="" />

@@ -97,8 +97,8 @@ table.tbl tbody tr:last-child td { border-bottom: 0; }
 .ipcell { font-family: var(--font-mono); }
 
 /* Badges */
-.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600;
-  padding: 3px 9px; border-radius: 999px; letter-spacing: .02em; white-space: nowrap; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  padding: 4px 11px; border-radius: 999px; letter-spacing: .02em; white-space: nowrap; }
 .sev-critique{ background: color-mix(in oklch,var(--c-red) 18%,transparent); color: var(--c-red); }
 .sev-élevée  { background: color-mix(in oklch,var(--c-amber) 20%,transparent); color: var(--c-amber); }
 .sev-moyenne { background: color-mix(in oklch,var(--honey) 20%,transparent); color: var(--honey-deep); }
