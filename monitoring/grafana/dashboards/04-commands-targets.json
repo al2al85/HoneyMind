@@ -434,43 +434,11 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{job=\"honeymind\", event_type=\"auth_attempt\"} | json | _auth_password != \"\" | _auth_password != \"null\"",
-          "queryType": "range",
-          "maxLines": 1000
+          "expr": "topk(30, sum by (_auth_password) (count_over_time({job=\"honeymind\", event_type=\"auth_attempt\"} | json | _auth_password != \"\" | _auth_password != \"null\" [7d])))",
+          "queryType": "instant"
         }
       ],
-      "transformations": [
-        {
-          "id": "groupBy",
-          "options": {
-            "fields": {
-              "_auth_password": {
-                "aggregations": [
-                  "count"
-                ],
-                "operation": "groupby"
-              }
-            }
-          }
-        },
-        {
-          "id": "sortBy",
-          "options": {
-            "fields": [
-              {
-                "desc": true,
-                "displayName": "_auth_password Count"
-              }
-            ]
-          }
-        },
-        {
-          "id": "limit",
-          "options": {
-            "limitField": 30
-          }
-        }
-      ],
+      "transformations": [],
       "options": {
         "sortBy": [
           {
@@ -484,19 +452,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "_auth_password"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Mot de passe"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "_auth_password Count"
+              "options": "Value #A"
             },
             "properties": [
               {
@@ -506,8 +462,7 @@
             ]
           }
         ]
-      },
-      "timeFrom": "7d"
+      }
     }
   ]
 }
