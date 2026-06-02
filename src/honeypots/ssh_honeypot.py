@@ -141,8 +141,16 @@ class SSHServerInterface(paramiko.ServerInterface):
                 sess = self.action.connect(creds)
                 if isinstance(sess, dict):
                     sid = self.session.session_id
+                    _seq = self.session.get("_seq", 0)
+                    _last_ts = self.session.get("_last_event_ts")
+                    _start_ts = self.session.get("_session_start_ts")
                     self.session.update(sess)
                     self.session["session_id"] = sid
+                    self.session["_seq"] = _seq
+                    if _last_ts is not None:
+                        self.session["_last_event_ts"] = _last_ts
+                    if _start_ts is not None:
+                        self.session["_session_start_ts"] = _start_ts
             except (SSHException, OSError) as e:
                 logging.warning("Backend connect failed, continuing auth: %r", e)
         return paramiko.AUTH_SUCCESSFUL

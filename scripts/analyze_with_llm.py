@@ -186,7 +186,7 @@ def _resolve_env_file(env_file: str = None) -> None:
             root / "config" / "llm.env.list",
             root / "config" / ".env",
             Path(".env"),
-            Path("config" / "llm.env.list"),
+            Path("config") / "llm.env.list",
         ]
 
     for path in candidates:

@@ -96,14 +96,20 @@ class PasswordManager:
             self._record_attempt(session, username, password, client_ip, 1, 1, True)
             return True
 
+        # Reject immediately — too long, will never succeed regardless of attempts
+        if len(password) > self._max_length:
+            self._blacklist.add(password)
+            self._record_attempt(session, username, password, client_ip, 0, 0, False)
+            return False
+
         tracking_key = client_ip or session.session_id
         state = self._state(tracking_key)
         state["count"] += 1
         attempt_num = state["count"]
         threshold = state["threshold"]
 
-        length_ok = len(password) <= self._max_length
-        if length_ok and attempt_num >= threshold:
+        length_ok = True  # already checked above
+        if attempt_num >= threshold:
             success = True
         elif length_ok and random.random() < self._early_success_prob:
             success = True
@@ -117,9 +123,6 @@ class PasswordManager:
         if success:
             self._allowed.add(password)
             del self._tracking[tracking_key]
-        else:
-            if not length_ok:
-                self._blacklist.add(password)
 
         return success
 

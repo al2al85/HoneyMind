@@ -116,8 +116,16 @@ class TelnetHoneypot(BaseHoneypot):
                     backend_sess = self._action.connect(login_data)
                     if isinstance(backend_sess, dict):
                         sid = session.session_id
+                        _seq = session.get("_seq", 0)
+                        _last_ts = session.get("_last_event_ts")
+                        _start_ts = session.get("_session_start_ts")
                         session.update(backend_sess)
                         session["session_id"] = sid
+                        session["_seq"] = _seq
+                        if _last_ts is not None:
+                            session["_last_event_ts"] = _last_ts
+                        if _start_ts is not None:
+                            session["_session_start_ts"] = _start_ts
                     self._sessions[client_ip] = (session, now)
                     self.log_login(session, login_data)
                     break
@@ -127,8 +135,16 @@ class TelnetHoneypot(BaseHoneypot):
                 backend_sess = self._action.connect(login_data)
                 if isinstance(backend_sess, dict):
                     sid = session.session_id
+                    _seq = session.get("_seq", 0)
+                    _last_ts = session.get("_last_event_ts")
+                    _start_ts = session.get("_session_start_ts")
                     session.update(backend_sess)
                     session["session_id"] = sid
+                    session["_seq"] = _seq
+                    if _last_ts is not None:
+                        session["_last_event_ts"] = _last_ts
+                    if _start_ts is not None:
+                        session["_session_start_ts"] = _start_ts
                 self._sessions[client_ip] = (session, now)
                 self.log_login(session, login_data)
 
