@@ -87,7 +87,7 @@ function DashboardView({ themeToggle, go }) {
               fontSize:12.5, fontWeight:600, letterSpacing:'.04em', textTransform:'uppercase' }}>
               <Icon name="brain" style={{ width:16, height:16 }} /> Honeypot augmenté par IA
             </div>
-            <p style={{ margin:'10px 0 0', fontSize:15.5, color:'var(--text-dim)', lineHeight:1.6, maxWidth:620 }}>
+            <p style={{ margin:'10px 0 0', fontSize:15.5, color:'var(--text-dim)', lineHeight:1.6 }}>
               HoneyMind expose des services leurres pour capturer les attaques réelles. Chaque session est
               journalisée, et une IA répond aux commandes complexes puis analyse l'ensemble des logs pour en
               extraire campagnes, indicateurs de compromission et synthèses exploitables.
