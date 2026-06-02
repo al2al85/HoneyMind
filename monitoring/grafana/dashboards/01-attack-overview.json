@@ -728,7 +728,7 @@
       "targets": [
         {
           "expr": "topk(15, sum by (client_ip) (count_over_time({job=\"honeymind\", client_ip!=\"\"}[$__range])))",
-          "queryType": "range",
+          "queryType": "instant",
           "refId": "A",
           "datasource": {
             "type": "loki",
