@@ -96,9 +96,7 @@ function DashboardView({ themeToggle, go }) {
               <Icon name="brain" style={{ width:16, height:16 }} /> Honeypot augmenté par IA
             </div>
             <p style={{ margin:'10px 0 0', fontSize:15.5, color:'var(--text-dim)', lineHeight:1.6 }}>
-              HoneyMind expose des services leurres pour capturer les attaques réelles. Chaque session est
-              journalisée, et une IA répond aux commandes complexes puis analyse l'ensemble des logs pour en
-              extraire campagnes, indicateurs de compromission et synthèses exploitables.
+              HoneyMind déploie des services leurres conçus pour attirer et observer les attaques réelles. Toutes les interactions sont enregistrées et analysées. Grâce à une architecture optimisée combinant mémoire, cache et intelligence artificielle, les traitements sont réalisés de manière efficace tout en limitant les coûts d'exploitation. Les données collectées sont ensuite corrélées, à l'aide de l'intelligence artificielle, afin d'identifier les campagnes malveillantes, les indicateurs de compromission (IoC) et les tendances d'attaque.
             </p>
           </div>
         </div>
