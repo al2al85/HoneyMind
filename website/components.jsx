@@ -288,6 +288,7 @@ function Sidebar({ route, go }) {
     { id: 'dashboard', label: 'Dashboard',  ic: 'grid'   },
     { id: 'campaigns', label: 'Campagnes',  ic: 'layers' },
     { id: 'iocs',      label: 'IOC',        ic: 'shield' },
+    { id: 'cost',      label: 'Coûts IA',   ic: 'pulse'  },
   ];
   const active = route.name === 'campaign' ? 'campaigns' : route.name;
   return (

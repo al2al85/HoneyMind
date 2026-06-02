@@ -129,6 +129,102 @@ def get_commands():
     return jsonify(result)
 
 
+@app.get("/api/v1/llm-cost")
+def get_llm_cost():
+    """LLM usage + cost + eco metrics from llm_usage.db."""
+    import os, sqlite3
+    from pathlib import Path
+
+    log_dir = app.config.get("LOG_DIR", "/data/honeypot/logs")
+    db_path = os.path.join(log_dir, "llm_usage.db")
+
+    # Pricing in EUR per million tokens
+    PRICES = {
+        "gpt-oss-20b":  {"input": 0.04, "output": 0.15},
+        "gpt-oss-120b": {"input": 0.08, "output": 0.40},
+    }
+    # Rough CO2 estimate: gCO2e per token (GPU inference, efficient DC)
+    CO2_G_PER_TOKEN = 0.0003
+
+    if not Path(db_path).exists():
+        return jsonify({"models": [], "total_cost_eur": 0, "total_tokens": 0,
+                        "total_calls": 0, "daily": [], "eco": {}})
+
+    try:
+        from llm_providers.llm_usage import get_usage_summary, get_daily_usage_summary
+        rows = get_usage_summary(db_path)
+        daily_rows = get_daily_usage_summary(db_path)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    models = []
+    total_cost = 0.0
+    total_tokens = 0
+    total_calls = 0
+
+    for row in rows:
+        mid = row.get("model_id", "")
+        p = PRICES.get(mid)
+        pt = row.get("prompt_tokens") or 0
+        ct = row.get("completion_tokens") or 0
+        tt = row.get("total_tokens") or 0
+        calls = row.get("calls") or 0
+        if p:
+            cost = (pt * p["input"] + ct * p["output"]) / 1_000_000
+        else:
+            cost = (row.get("total_cost") or 0)
+
+        total_cost += cost
+        total_tokens += tt
+        total_calls += calls
+        models.append({
+            "model_id": mid,
+            "provider": row.get("provider", ""),
+            "calls": calls,
+            "prompt_tokens": pt,
+            "completion_tokens": ct,
+            "total_tokens": tt,
+            "cost_eur": round(cost, 6),
+            "price_input_per_mtok": p["input"] if p else None,
+            "price_output_per_mtok": p["output"] if p else None,
+        })
+
+    # Daily aggregated cost
+    daily = []
+    for row in daily_rows:
+        mid = row.get("model_id", "")
+        p = PRICES.get(mid)
+        pt = row.get("prompt_tokens") or 0
+        ct = row.get("completion_tokens") or 0
+        tt = row.get("total_tokens") or 0
+        cost = (pt * p["input"] + ct * p["output"]) / 1_000_000 if p else (row.get("total_cost") or 0)
+        daily.append({
+            "date": row.get("day", ""),
+            "model_id": mid,
+            "total_tokens": tt,
+            "cost_eur": round(cost, 6),
+        })
+
+    co2_g = total_tokens * CO2_G_PER_TOKEN
+    eco = {
+        "co2_grams": round(co2_g, 2),
+        "co2_kg": round(co2_g / 1000, 4),
+        "equiv_km_car": round(co2_g / 120, 3),       # 120 gCO2e/km avg EU car
+        "equiv_phone_charges": round(co2_g / 8.22, 1), # 8.22 gCO2e per charge
+        "equiv_searches": round(co2_g / 0.3, 0),       # 0.3 gCO2e per Google search
+        "method_note": "Estimation : 0,0003 gCO2e/token (inférence GPU, DC efficace)",
+    }
+
+    return jsonify({
+        "models": models,
+        "total_cost_eur": round(total_cost, 6),
+        "total_tokens": total_tokens,
+        "total_calls": total_calls,
+        "daily": daily,
+        "eco": eco,
+    })
+
+
 @app.get("/api/v1/iocs/activity")
 def get_activity():
     try:

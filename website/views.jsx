@@ -983,4 +983,142 @@ function IocTableFile({ rows }) {
   );
 }
 
-Object.assign(window, { DashboardView, CampaignsView, CampaignDetailView, IocView });
+/* ============ COST VIEW ============ */
+
+const fmt6 = n => (n ?? 0).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:6 });
+const fmtK = n => n >= 1e6 ? (n/1e6).toFixed(2) + ' M' : n >= 1e3 ? (n/1e3).toFixed(1) + ' k' : String(n);
+
+function CostView({ themeToggle }) {
+  const [data, setData]     = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError]   = React.useState(null);
+
+  const doLoad = React.useCallback(() => {
+    setLoading(true); setError(null);
+    fetch('/api/v1/llm-cost')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(d => { setData(d); setLoading(false); })
+      .catch(e => { setError(e.message); setLoading(false); });
+  }, []);
+
+  useEffect(() => { doLoad(); }, [doLoad]);
+
+  if (loading) return <LoadingView themeToggle={themeToggle} />;
+  if (error)   return <ErrorView message={error} onRetry={doLoad} themeToggle={themeToggle} />;
+
+  const eco = data.eco || {};
+  const models = data.models || [];
+
+  return (
+    <div className="main">
+      <PageHead crumb="HoneyMind · Analyse" title="Coûts IA &amp; Impact"
+        right={
+          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+            <button onClick={doLoad} style={{ background:'var(--surface-2)', border:'1px solid var(--border-soft)',
+              color:'var(--text-dim)', width:32, height:32, borderRadius:8, display:'grid', placeItems:'center', cursor:'pointer' }}>
+              <Icon name="refresh" style={{ width:15, height:15 }} />
+            </button>
+            {themeToggle}
+          </div>
+        }
+      />
+      <div className="content">
+
+        {/* KPIs */}
+        <div className="stat-grid" style={{ marginBottom:24 }}>
+          <Stat icon="pulse" label="Coût total"
+            value={`${fmt6(data.total_cost_eur)} €`}
+            sub="toutes requêtes confondues" accent="var(--c-amber)" />
+          <Stat icon="cmd" label="Tokens consommés"
+            value={fmtK(data.total_tokens)}
+            sub={`${nf(data.total_calls)} appels LLM`} accent="var(--c-violet)" />
+          <Stat icon="globe" label="CO₂ estimé"
+            value={eco.co2_grams >= 1000 ? `${(eco.co2_grams/1000).toFixed(2)} kg` : `${(eco.co2_grams||0).toFixed(1)} g`}
+            sub="équivalent CO₂" accent="var(--c-green)" />
+        </div>
+
+        {/* Coût par modèle */}
+        <SecH title="Coût par modèle" hint="basé sur les tarifs OVHcloud AI Endpoints" />
+        {models.length === 0
+          ? <div className="card" style={{ padding:32, textAlign:'center' }}>
+              <p className="empty-note">Aucune donnée d'usage disponible. Vérifiez que llm_usage.db est accessible.</p>
+            </div>
+          : <div className="card tbl-wrap">
+              <table className="tbl">
+                <thead><tr>
+                  <th>Modèle</th>
+                  <th className="num">Appels</th>
+                  <th className="num">Tokens input</th>
+                  <th className="num">Tokens output</th>
+                  <th className="num">Prix input / M</th>
+                  <th className="num">Prix output / M</th>
+                  <th className="num">Coût total</th>
+                </tr></thead>
+                <tbody>
+                  {models.map(m => (
+                    <tr key={m.model_id}>
+                      <td style={{ fontFamily:'var(--font-mono)', fontWeight:600, color:'var(--honey-deep)' }}>{m.model_id}</td>
+                      <td className="num">{nf(m.calls)}</td>
+                      <td className="num">{fmtK(m.prompt_tokens)}</td>
+                      <td className="num">{fmtK(m.completion_tokens)}</td>
+                      <td className="num" style={{ color:'var(--text-faint)', fontSize:12 }}>
+                        {m.price_input_per_mtok != null ? `${m.price_input_per_mtok} €` : '—'}
+                      </td>
+                      <td className="num" style={{ color:'var(--text-faint)', fontSize:12 }}>
+                        {m.price_output_per_mtok != null ? `${m.price_output_per_mtok} €` : '—'}
+                      </td>
+                      <td className="num" style={{ fontWeight:600, color:'var(--c-amber)' }}>
+                        {fmt6(m.cost_eur)} €
+                      </td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop:'2px solid var(--border-soft)' }}>
+                    <td colSpan={6} style={{ fontWeight:600, textAlign:'right', paddingRight:14 }}>Total</td>
+                    <td className="num" style={{ fontWeight:700, fontSize:15, color:'var(--honey-deep)' }}>
+                      {fmt6(data.total_cost_eur)} €
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+        }
+
+        {/* Impact écologique */}
+        <SecH title="Impact écologique estimé" />
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px,1fr))', gap:16, marginBottom:24 }}>
+          {[
+            { icon: '🚗', label: 'Équivalent voiture', value: `${(eco.equiv_km_car||0).toFixed(2)} km`,
+              sub: 'base : 120 gCO₂e/km (moy. UE)' },
+            { icon: '📱', label: 'Charges smartphone', value: nf(Math.round(eco.equiv_phone_charges||0)),
+              sub: 'base : 8,22 gCO₂e/charge' },
+            { icon: '🔍', label: 'Recherches web equiv.', value: nf(Math.round(eco.equiv_searches||0)),
+              sub: 'base : 0,3 gCO₂e/requête' },
+          ].map(({ icon, label, value, sub }) => (
+            <div key={label} className="card" style={{ padding:'18px 20px' }}>
+              <div style={{ fontSize:28, marginBottom:8 }}>{icon}</div>
+              <div style={{ fontSize:12.5, color:'var(--text-faint)', marginBottom:4 }}>{label}</div>
+              <div style={{ fontSize:22, fontWeight:600, letterSpacing:'-.02em' }}>{value}</div>
+              <div style={{ fontSize:11.5, color:'var(--text-faint)', marginTop:4 }}>{sub}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="card" style={{ padding:'16px 20px', display:'flex', gap:10, alignItems:'flex-start' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-amber)" strokeWidth="2" style={{ flexShrink:0, marginTop:2 }}>
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <p style={{ margin:0, fontSize:12.5, color:'var(--text-faint)', lineHeight:1.6 }}>
+            <strong style={{ color:'var(--text-dim)' }}>Méthodologie :</strong> {eco.method_note || '—'}.
+            Les équivalences écologiques sont des ordres de grandeur indicatifs.
+            L'impact réel dépend du mix énergétique du centre de données,
+            du taux d'utilisation des GPU et de l'optimisation des requêtes.
+            OVHcloud vise un PUE &lt; 1,3 et déploie des énergies renouvelables sur plusieurs sites.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { DashboardView, CampaignsView, CampaignDetailView, IocView, CostView });
