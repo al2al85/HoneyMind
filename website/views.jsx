@@ -128,11 +128,12 @@ function CampaignsView({ go, themeToggle }) {
   const cols = [
     { k: 'id',                   label: 'Campagne' },
     { k: 'status',               label: 'Statut' },
-    { k: 'attackingIps',         label: 'IP attaq.',   num: true },
-    { k: 'connectionAttempts',   label: 'Sessions',    num: true },
+    { k: 'attackingIps',         label: 'IP attaq.',      num: true },
+    { k: 'connectionAttempts',   label: 'Sessions',       num: true },
     { k: 'commandsRun',          label: 'Cmd. observées', num: true },
-    { k: 'filesTransferred',     label: 'Fichiers',    num: true },
+    { k: 'filesTransferred',     label: 'Fichiers',       num: true },
     { k: 'severity',             label: 'Sévérité' },
+    { k: 'lastActivity',         label: 'Dernière action' },
   ];
 
   const activeCampaigns = data.campaigns.filter(c => c.status === 'active');
@@ -157,6 +158,11 @@ function CampaignsView({ go, themeToggle }) {
               <td className="num">{nf(c.commandsRun)}</td>
               <td className="num">{nf(c.filesTransferred)}</td>
               <td><Severity level={c.severity} /></td>
+              <td style={{ fontSize:12, color:'var(--text-faint)', fontFamily:'var(--font-mono)', whiteSpace:'nowrap' }}>
+                {c.lastActivity
+                  ? new Date(c.lastActivity).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+                  : '—'}
+              </td>
               <td style={{ color:'var(--text-faint)' }}><Icon name="chev" style={{ width:16, height:16 }} /></td>
             </tr>
           ))}
@@ -185,7 +191,7 @@ function CampaignsView({ go, themeToggle }) {
               <p className="empty-note">Aucune campagne détectée pour le moment.</p>
             </div>
           : <>
-              <SecH title={`Campagnes actives (${activeCampaigns.length})`} hint="Cliquez une ligne pour le détail" />
+              <SecH title={`Campagnes actives (${activeCampaigns.length})`} hint="" />
               {activeCampaigns.length
                 ? renderCampaignTable(activeCampaigns)
                 : <div className="card" style={{ padding:24 }}><p className="empty-note">Aucune campagne active.</p></div>
@@ -197,7 +203,7 @@ function CampaignsView({ go, themeToggle }) {
                 Une campagne est considérée comme active si sa dernière activité a eu lieu il y a moins d'une heure.
               </p>
 
-              <SecH title={`Campagnes inactives (${inactiveCampaigns.length})`} hint="tri conservé dans chaque section" />
+              <SecH title={`Campagnes inactives (${inactiveCampaigns.length})`} hint="" />
               {inactiveCampaigns.length
                 ? renderCampaignTable(inactiveCampaigns)
                 : <div className="card" style={{ padding:24 }}><p className="empty-note">Aucune campagne inactive.</p></div>
@@ -566,7 +572,7 @@ function CampaignDetailView({ id, go, themeToggle }) {
         <div className="two-col" style={{ marginTop:24 }}>
           {/* Liste IP */}
           <div>
-            <SecH title="Adresses IP" hint="Cliquez une IP pour le détail" />
+            <SecH title="Adresses IP" hint="" />
             <div className="card tbl-wrap" style={{ maxHeight:460, overflowY:'auto' }}>
               <table className="tbl">
                 <thead>

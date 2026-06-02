@@ -150,6 +150,7 @@ function transformCampaigns(apiCampaigns, allIpsArr, geoMap) {
       status:               campaignStatus(c),
       start:                (c.time_start || '').split('T')[0] || '—',
       end:                  (c.time_end   || '').split('T')[0] || '—',
+      lastActivity:         c.time_end || null,
       attackingIps:         (c.ips || []).length,
       connectionAttempts:   c.session_count || 0,
       successfulConnections:0,
