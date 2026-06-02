@@ -77,13 +77,13 @@ function DashboardView({ themeToggle }) {
           <Stat icon="file"   label="Fichiers transférés"  value={nf(s.filesTransferred)}  sub="détectés via IOC"        accent="var(--c-amber)" />
         </div>
 
-        <SecH title="Origine des attaques" hint="Géolocalisation des IP source" />
+        <SecH title="Origine des attaques" />
         {data.mapPoints.length > 0
           ? <WorldMap points={data.mapPoints} height={420} />
           : <div className="card map-wrap"><p className="empty-note">Aucune IP géolocalisée pour le moment.</p></div>
         }
 
-        <div className="two-col" style={{ marginTop:24 }}>
+        <div className="two-col" style={{ marginTop:24, gridTemplateColumns:'1fr 1fr' }}>
           <div>
             <SecH title="Activité (30 derniers jours)" hint={peak ? 'Pic : ' + nf(peak) + ' / jour' : ''} />
             <div className="card" style={{ padding:'18px 18px 12px' }}>
@@ -94,7 +94,7 @@ function DashboardView({ themeToggle }) {
             </div>
           </div>
           <div>
-            <SecH title="Top commandes" hint="observées dans les sessions" />
+            <SecH title="Top commandes" />
             <div className="card" style={{ padding:'16px 18px' }}>
               {cmdBar.length > 0
                 ? <BarList data={cmdBar} colors={CH} />
@@ -106,7 +106,7 @@ function DashboardView({ themeToggle }) {
 
         {countriesBar.length > 0 && (
           <>
-            <SecH title="Pays les plus actifs" hint="par nombre d'IP attaquantes" />
+            <SecH title="Pays les plus actifs" />
             <div className="card" style={{ padding:'18px 22px' }}>
               <BarList data={countriesBar} colors={CH} showFlag />
             </div>
@@ -602,12 +602,12 @@ function CampaignDetailView({ id, go, themeToggle }) {
 
         </div>
 
-        <SecH title="Analyse IA" hint="rapport généré par le LLM" />
+        <SecH title="Analyse IA" />
         <AiReport campaignId={c.id} />
 
         {/* IOC */}
         <SecH title="Indicateurs de compromission (IOC)"
-          hint={iocLoading ? 'chargement…' : 'extraits de la base STIX'} />
+          hint={iocLoading ? 'chargement…' : ''} />
         {iocLoading
           ? <div style={{ display:'flex', justifyContent:'center', padding:32 }}><div className="spinner"></div></div>
           : <div className="ioc-grid">

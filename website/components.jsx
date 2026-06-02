@@ -405,23 +405,32 @@ function WorldMap({ points, height = 360 }) {
 }
 
 /* ---- Bar list ---- */
-function BarList({ data, colors, showFlag }) {
+function BarList({ data, colors, showFlag, maxLabelLen = 48 }) {
   const max = Math.max(...data.map(d => d.value), 1);
   return (
     <div>
-      {data.map((d, i) => (
-        <div key={i} style={{ marginBottom: 6 }}>
-          <div className="bar-meta">
-            <span style={{ display:'flex', gap:8, alignItems:'center' }}>
-              {showFlag && <span className="flag">{d.code}</span>}{d.label}
-            </span>
-            <span className="v">{d.value.toLocaleString('fr-FR')}</span>
+      {data.map((d, i) => {
+        const label = d.label && d.label.length > maxLabelLen
+          ? d.label.slice(0, maxLabelLen) + '…'
+          : d.label;
+        return (
+          <div key={i} style={{ marginBottom: 6 }}>
+            <div className="bar-meta">
+              <span style={{ display:'flex', gap:8, alignItems:'center', minWidth:0 }}
+                title={d.label}>
+                {showFlag && <span className="flag">{d.code}</span>}
+                <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {label}
+                </span>
+              </span>
+              <span className="v" style={{ flexShrink:0, marginLeft:8 }}>{d.value.toLocaleString('fr-FR')}</span>
+            </div>
+            <div className="bar-track">
+              <div className="bar-fill" style={{ width:(d.value / max * 100) + '%', background: colors[i % colors.length] }} />
+            </div>
           </div>
-          <div className="bar-track">
-            <div className="bar-fill" style={{ width:(d.value / max * 100) + '%', background: colors[i % colors.length] }} />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
