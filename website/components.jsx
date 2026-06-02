@@ -544,23 +544,6 @@ function IpSheet({ ip, onClose, go }) {
           </dl>
 
 
-          {/* IOC counts */}
-          {Object.keys(iocCnts).some(k => iocCnts[k] > 0) && (
-            <div style={{ marginBottom:18 }}>
-              <div className="crumb" style={{ marginBottom:8 }}>Indicateurs (IOC)</div>
-              <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
-                {[['ipv4-addr','IP'],['url','URL'],['domain-name','Domaines'],['file','Fichiers']].map(([k,lbl]) =>
-                  iocCnts[k] > 0 ? (
-                    <div key={k} style={{ textAlign:'center', padding:'6px 14px',
-                      background:'var(--surface-2)', borderRadius:9, border:'1px solid var(--border-soft)' }}>
-                      <div style={{ fontSize:18, fontWeight:600 }}>{iocCnts[k]}</div>
-                      <div style={{ fontSize:11, color:'var(--text-faint)', marginTop:2 }}>{lbl}</div>
-                    </div>
-                  ) : null
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Campagnes */}
           {camps.length > 0 && (
