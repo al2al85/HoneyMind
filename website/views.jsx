@@ -188,9 +188,11 @@ function CampaignsView({ go, themeToggle }) {
 
 /* ============ RAPPORT IA ============ */
 function AiReport({ campaignId }) {
+  // ALL hooks must be declared before any conditional return
   const { fetchReport, generateReport } = useHM();
-  const [report, setReport] = React.useState(null);
-  const [polling, setPolling] = React.useState(false);
+  const [report, setReport]       = React.useState(null);
+  const [polling, setPolling]     = React.useState(false);
+  const [fullscreen, setFullscreen] = React.useState(false);
 
   const load = React.useCallback(async () => {
     const r = await fetchReport(campaignId);
@@ -284,7 +286,6 @@ function AiReport({ campaignId }) {
     </div>
   );
 
-  const [fullscreen, setFullscreen] = React.useState(false);
   const ts = report.generated_at ? new Date(report.generated_at).toLocaleString('fr-FR') : '';
   const mdHtml = D.mdToHtml(report.content || '');
 
