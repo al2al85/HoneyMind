@@ -25,8 +25,8 @@
         "y": 0
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "options": {
         "reduceOptions": {
@@ -54,9 +54,13 @@
       },
       "targets": [
         {
-          "expr": "sum(honeymind_events_total)",
-          "legendFormat": "Events",
-          "refId": "A"
+          "expr": "sum(count_over_time({job=\"honeymind\"}[$__range]))",
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range"
         }
       ]
     },
@@ -71,8 +75,8 @@
         "y": 0
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "options": {
         "reduceOptions": {
@@ -99,9 +103,13 @@
       },
       "targets": [
         {
-          "expr": "sum(honeymind_unique_ips)",
-          "legendFormat": "IPs",
-          "refId": "A"
+          "expr": "count(count by (client_ip) ({job=\"honeymind\", client_ip!=\"\"}[$__range]))",
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range"
         }
       ]
     },
@@ -116,8 +124,8 @@
         "y": 0
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "options": {
         "reduceOptions": {
@@ -144,9 +152,13 @@
       },
       "targets": [
         {
-          "expr": "sum(honeymind_sessions_total)",
-          "legendFormat": "Sessions",
-          "refId": "A"
+          "expr": "sum(count_over_time({job=\"honeymind\", event_type=\"session_start\"}[$__range]))",
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range"
         }
       ]
     },
@@ -210,8 +222,8 @@
         "y": 0
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "options": {
         "reduceOptions": {
@@ -238,9 +250,13 @@
       },
       "targets": [
         {
-          "expr": "sum(honeymind_auth_attempts_total)",
-          "legendFormat": "Auth",
-          "refId": "A"
+          "expr": "sum(count_over_time({job=\"honeymind\", event_type=\"auth_attempt\"}[$__range]))",
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range"
         }
       ]
     },
@@ -255,8 +271,8 @@
         "y": 0
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "options": {
         "reduceOptions": {
@@ -283,9 +299,13 @@
       },
       "targets": [
         {
-          "expr": "count(count by (country_code) (honeymind_country_events_total))",
-          "legendFormat": "Countries",
-          "refId": "A"
+          "expr": "count(count by (country_code) ({job=\"honeymind\", country_code!=\"\", country_code!=\"unknown\"}[$__range]))",
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range"
         }
       ]
     },
