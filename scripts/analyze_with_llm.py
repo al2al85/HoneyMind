@@ -36,62 +36,63 @@ from analysis.bot_human_analyzer import analyze as analyze_bot_human
 from analysis.campaign_detector import detect_campaigns
 from analysis.attacker_profiler import profile as build_profile
 
-_SYSTEM_PROMPT = """You are a cybersecurity expert analyzing honeypot attack logs.
-You will receive compressed session data. Each session contains:
-- IP, protocol, timing
-- auth: authentication attempts summary (count, passwords tried, success)
-- commands: deduplicated list of commands with counts
-- phases: MITRE ATT&CK-inspired attack phases observed
-- files_accessed: files the attacker read
-- tools_detected: known attack tools identified
+_SYSTEM_PROMPT = """Tu es un expert en cybersécurité qui analyse des logs d'attaques honeypot.
+Tu recevras des données de session compressées. Chaque session contient :
+- IP, protocole, timing
+- auth : résumé des tentatives d'authentification (nombre, mots de passe essayés, succès)
+- commands : liste dédupliquée des commandes avec compteurs
+- phases : phases d'attaque inspirées de MITRE ATT&CK
+- files_accessed : fichiers lus par l'attaquant
+- tools_detected : outils d'attaque identifiés
 
-Your task:
-1. Identify what the attacker was looking for
-2. Assess sophistication level (script kiddie / opportunist / targeted / APT)
-3. Detect if this is part of a coordinated campaign
-4. Flag any particularly dangerous actions
-5. Give a concise summary in 3-5 sentences
+Ta mission :
+1. Identifier ce que cherchait l'attaquant
+2. Évaluer le niveau de sophistication (script kiddie / opportuniste / ciblé / APT)
+3. Détecter si c'est une campagne coordonnée
+4. Signaler les actions particulièrement dangereuses
+5. Donner un résumé concis en 3-5 phrases
 
-Be concise. Focus on what's unusual or dangerous. Skip obvious observations."""
+Sois concis. Concentre-toi sur ce qui est inhabituel ou dangereux. Évite les observations évidentes.
+Réponds exclusivement en français."""
 
-_SESSION_PROMPT = """Analyze this attack session:
-
-{condensed}
-
-Provide:
-- What the attacker was looking for
-- Sophistication level
-- Most dangerous action
-- One-sentence summary"""
-
-_GLOBAL_PROMPT = """Analyze these honeypot attack sessions:
+_SESSION_PROMPT = """Analyse cette session d'attaque :
 
 {condensed}
 
-Provide:
-- Overall threat landscape (what attackers are targeting)
-- Signs of coordinated campaigns
-- Most sophisticated attack observed
-- Recommended defensive actions
-- Executive summary (3 sentences max)"""
+Fournis :
+- Ce que cherchait l'attaquant
+- Niveau de sophistication
+- Action la plus dangereuse
+- Résumé en une phrase"""
 
-_MULTIDIM_PROMPT = """You are analyzing a compressed multidimensional view of honeypot logs.
+_GLOBAL_PROMPT = """Analyse ces sessions d'attaques honeypot :
 
 {condensed}
 
-Dimensions covered:
-- behavior: bot/human/AI agent distribution + sophistication levels
-- technique: tools used, attack phases, protocols, success rates
-- network: campaigns detected, countries, anonymization methods
-- temporal: timing patterns, peak hours, slow vs fast attacks
-- content: files targeted, commands used, AI traps triggered
+Fournis :
+- Paysage global des menaces (ce que ciblent les attaquants)
+- Signes de campagnes coordonnées
+- Attaque la plus sophistiquée observée
+- Actions défensives recommandées
+- Résumé exécutif (3 phrases max)"""
 
-Provide a concise threat intelligence report:
-1. Main threat actors and their objectives
-2. Most dangerous campaign or session
-3. Attack patterns and trends
-4. 2-3 concrete defensive recommendations
-5. Executive summary (2 sentences)"""
+_MULTIDIM_PROMPT = """Tu analyses une vue multidimensionnelle compressée de logs honeypot.
+
+{condensed}
+
+Dimensions couvertes :
+- behavior : distribution bot/humain/agent IA + niveaux de sophistication
+- technique : outils utilisés, phases d'attaque, protocoles, taux de succès
+- network : campagnes détectées, pays, méthodes d'anonymisation
+- temporal : patterns temporels, heures de pointe, attaques lentes vs rapides
+- content : fichiers ciblés, commandes utilisées, pièges IA déclenchés
+
+Fournis un rapport de threat intelligence concis :
+1. Principaux acteurs malveillants et leurs objectifs
+2. Campagne ou session la plus dangereuse
+3. Patterns d'attaque et tendances
+4. 2-3 recommandations défensives concrètes
+5. Résumé exécutif (2 phrases)"""
 
 
 # ── Log loading ───────────────────────────────────────────────────────────────
