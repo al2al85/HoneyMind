@@ -23,6 +23,9 @@ from paramiko.ssh_exception import SSHException
 
 from honeypots.base_honeypot import BaseHoneypot, HoneypotSession
 from infra.interfaces import HoneypotAction
+from logging_pipeline.canonical_log_utils import (
+    build_event, build_command_payload, client_identity, write_and_print_event,
+)
 from infra.prompt_utils import render_prompt
 from analysis.ssh_fingerprint import FingerprintingTransport
 
@@ -233,6 +236,23 @@ class SSHServerInterface(paramiko.ServerInterface):
             with open(file_path, "wb") as f:
                 f.write(file_data)
             logging.info(f"File {filename} saved to {file_path}")
+
+            # Log canonical event so ioc_writer can hash the file
+            if self.session is not None:
+                try:
+                    event = build_event(
+                        session=self.session,
+                        event_type="command",
+                        service="ssh",
+                        config=getattr(self.honeypot, "config", None),
+                        port=getattr(self.honeypot, "port", None),
+                        client=client_identity(session=self.session),
+                        command=build_command_payload(command_str, parser_action="scp_upload"),
+                        details={"event": "scp_upload", "filename": filename},
+                    )
+                    write_and_print_event(event, getattr(self.honeypot, "config", None))
+                except Exception as exc:
+                    logging.warning("Failed to log SCP upload event: %s", exc)
 
             # Step 7: Final ACK to sender
             channel.sendall(b"\x00")
