@@ -21,6 +21,9 @@ GET /api/v1/iocs/campaigns
 GET /api/v1/iocs/commands
     Top commands observed across tracked sessions.
 
+GET /api/v1/iocs/activity
+    Per-day local session activity for dashboard charts.
+
 Usage
 -----
     python src/api/ioc_server.py [--db /data/honeypot/iocs.db] [--port 5000]
@@ -36,7 +39,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from flask import Flask, Response, g, jsonify, request
 
 from api.ioc_extractor import row_to_ioc
-from api.ioc_store import open_db, query_campaigns, query_commands, query_iocs, query_ips
+from api.ioc_store import (
+    open_db,
+    query_activity,
+    query_campaigns,
+    query_commands,
+    query_iocs,
+    query_ips,
+)
 from api.stix_builder import build_bundle
 
 logger = logging.getLogger(__name__)
@@ -95,6 +105,16 @@ def get_commands():
     except (TypeError, ValueError):
         limit = 25
     result = query_commands(_db(), limit=max(1, min(limit, 100)))
+    return jsonify(result)
+
+
+@app.get("/api/v1/iocs/activity")
+def get_activity():
+    try:
+        days = int(request.args.get("days", 30))
+    except (TypeError, ValueError):
+        days = 30
+    result = query_activity(_db(), days=max(1, min(days, 365)))
     return jsonify(result)
 
 

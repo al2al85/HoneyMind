@@ -75,9 +75,12 @@ function formatVerdict(v) {
 }
 
 function campaignStatus(c) {
+  if (c.status === 'closed') return 'clôturée';
+  if (c.status === 'active') return 'active';
   if (!c.time_end) return 'active';
-  const daysSince = (Date.now() - new Date(c.time_end).getTime()) / 86400000;
-  return daysSince < 2 ? 'active' : 'clôturée';
+  const end = new Date(c.time_end).getTime();
+  if (!Number.isFinite(end)) return 'active';
+  return Date.now() - end < 60 * 60 * 1000 ? 'active' : 'clôturée';
 }
 
 function campaignSeverity(c) {
@@ -122,7 +125,7 @@ function buildIpDetails(ipAddr, allIpsMap, geoMap, campaign) {
     code:         code || '??',
     lat:          centroid.lat + ipJitter(ipAddr, 0),
     lon:          centroid.lon + ipJitter(ipAddr, 1),
-    connections:  campaign.session_count || 1,
+    connections:  (campaign.ip_session_counts || {})[ipAddr] || 1,
     success:      0,
     commands:     (ipInfo.ioc_counts || {}).url || 0,
     sampleCommands: ((campaign.observed_commands || []).map(item => item.command).filter(Boolean).length
@@ -228,6 +231,18 @@ function transformLokiTimeseries(lokiResp, days = 30) {
   return values.map((v, i) => ({ day: i + 1, attacks: parseInt(v[1]) || 0 }));
 }
 
+function transformLocalActivity(activityResp, days = 30) {
+  const rows = activityResp?.activity || [];
+  if (!rows.length) {
+    return Array.from({ length: days }, (_, i) => ({ day: i + 1, attacks: 0 }));
+  }
+  return rows.map((row, i) => ({
+    day: row.day || i + 1,
+    date: row.date,
+    attacks: row.attacks || 0,
+  }));
+}
+
 // ── DataProvider ──────────────────────────────────────────────────────────────
 
 function DataProvider({ children }) {
@@ -237,10 +252,11 @@ function DataProvider({ children }) {
     setState(s => ({ ...s, loading: true, error: null }));
     try {
       // Sources primaires (IOC API via proxy nginx)
-      const [campaignsRes, ipsRes, commandsRes] = await Promise.all([
+      const [campaignsRes, ipsRes, commandsRes, activityRes] = await Promise.all([
         fetchJson('/api/v1/iocs/campaigns'),
         fetchJson('/api/v1/iocs/ips'),
         fetchJson('/api/v1/iocs/commands?limit=25'),
+        fetchJson('/api/v1/iocs/activity?days=30'),
       ]);
 
       // Sources Loki (optionnelles — dégradées en silence si absentes)
@@ -285,7 +301,8 @@ function DataProvider({ children }) {
           stats:        computeStats(campaigns, rawIps, commandTotal),
           topCountries: computeTopCountries(rawIps, geoMap),
           topCommands:  computeTopCommands(rawCommands, rawCampaigns),
-          timeseries:   transformLokiTimeseries(lokiTs),
+          timeseries:   transformLocalActivity(activityRes),
+          lokiTimeseries: transformLokiTimeseries(lokiTs),
           mapPoints:    computeMapPoints(rawIps, geoMap),
           lastUpdated:  new Date().toISOString(),
         },
