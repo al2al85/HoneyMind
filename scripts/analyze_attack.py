@@ -18,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from attack_classifier import Category, classify_event, label, _extract_command
+from bot_human_analyzer import analyze as analyze_bot_human
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -99,11 +100,17 @@ def print_session_timeline(sid: str, events: list[dict]):
     for e in events:
         categories_seen.add(classify_event(e))
 
+    bh = analyze_bot_human(events)
+
     print(f"\n{'═'*70}")
     print(f"  Session : {sid}")
     print(f"  IP      : {ip}  |  protocol: {protocol}:{port}  |  user: {username}")
     print(f"  Start   : {time_start}  |  events: {len(events)}")
     print(f"  Phases  : {' → '.join(label(c) for c in _phase_order(categories_seen))}")
+    print(f"  Agent   : {bh.label()}  |  avg_delay: {bh.signals['avg_delay_ms']}ms  |  typos: {bh.signals['typo_corrections']}")
+    if bh.ai_trap_hits:
+        for hit in bh.ai_trap_hits:
+            print(f"  ⚠️  AI TRAP [{hit.trap_id}] {hit.description}")
     print(f"{'─'*70}")
 
     for event in events:

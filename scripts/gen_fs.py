@@ -8,7 +8,11 @@ Edit the output file to add lure content, then pack it with:
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+from ai_traps import trap_files_for_fs
 
 _D = True   # is_dir
 _F = False  # is_file
@@ -619,11 +623,13 @@ def main():
 
     os.makedirs(os.path.dirname(os.path.abspath(output)) or ".", exist_ok=True)
 
+    all_entries = DEBIAN_FS + trap_files_for_fs()
+
     with open(output, "w", encoding="utf-8") as f:
-        for entry in DEBIAN_FS:
+        for entry in all_entries:
             f.write(json.dumps(_enrich(entry), ensure_ascii=False) + "\n")
 
-    print(f"written {len(DEBIAN_FS)} entries to {output}")
+    print(f"written {len(all_entries)} entries to {output} ({len(trap_files_for_fs())} AI traps)")
     print(f"edit the file, then run: python scripts/pack_fs.py {output}")
 
 
