@@ -268,6 +268,33 @@ def record_llm_usage(
     if not db_path:
         return
 
+    try:
+        _record_llm_usage_inner(
+            db_path,
+            provider=provider,
+            model_id=model_id,
+            response_json=response_json,
+            model_prices=model_prices,
+            response_chars=response_chars,
+            user_prompt_chars=user_prompt_chars,
+            system_prompt_chars=system_prompt_chars,
+        )
+    except Exception as exc:
+        import logging as _logging
+        _logging.warning("LLM usage tracking failed (db=%s): %s", db_path, exc)
+
+
+def _record_llm_usage_inner(
+    db_path: str,
+    *,
+    provider: str,
+    model_id: str,
+    response_json: Optional[dict[str, Any]] = None,
+    model_prices: Optional[Iterable[dict[str, Any]]] = None,
+    response_chars: Optional[int] = None,
+    user_prompt_chars: Optional[int] = None,
+    system_prompt_chars: Optional[int] = None,
+) -> None:
     with _DB_LOCK:
         ensure_llm_usage_schema(db_path, model_prices=model_prices)
         usage = _extract_usage(provider, response_json or {}) if response_json else {

@@ -2,6 +2,7 @@ services:
   honeymind:
     image: honeymind:latest
     container_name: honeymind
+    user: "1000:1000"
     stdin_open: true
     tty: true
     ports:
@@ -22,6 +23,7 @@ services:
   ioc-writer:
     image: honeymind:latest
     container_name: ioc-writer
+    user: "1000:1000"
     entrypoint: ["python", "-u", "-m", "api.ioc_writer"]
     volumes:
       - ./honeypots:/data/honeypot
@@ -42,6 +44,7 @@ services:
   ioc-api:
     image: honeymind:latest
     container_name: ioc-api
+    user: "1000:1000"
     entrypoint: ["python", "-u", "-m", "api.ioc_server"]
     ports:
       - "5000:5000"
