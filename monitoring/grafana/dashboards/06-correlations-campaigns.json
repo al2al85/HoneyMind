@@ -50,7 +50,7 @@
               "isp": { "aggregations": ["lastNotNull"], "operation": "groupby" },
               "attack_category": { "aggregations": ["lastNotNull"], "operation": "groupby" },
               "bot_verdict": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-              "sophistication": { "aggregations": ["lastNotNull"], "operation": "groupby" },
+              "profile_type": { "aggregations": ["lastNotNull"], "operation": "groupby" },
               "tools": { "aggregations": ["lastNotNull"], "operation": "groupby" }
             }
           }

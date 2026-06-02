@@ -56,7 +56,7 @@
         "dedupStrategy": "none", "sortOrder": "Ascending"
       },
       "targets": [{
-        "expr": "{job=\"honeymind\", session_id=~\"$session_id\"} | json | event_type=~\"command|auth_attempt\" | line_format \"[{{.seq}}] +{{.since_previous_event_ms}}ms  [{{._attack_category}}]  {{.command_raw}}{{.auth_username}}:{{.auth_password}}\"",
+        "expr": "{job=\"honeymind\", session_id=~\"$session_id\"} | json since_previous_event_ms=\"timing.since_previous_event_ms\" | event_type=~\"command|auth_attempt\" | line_format \"[{{.seq}}] +{{.since_previous_event_ms}}ms  [{{._attack_category}}]  {{.command_raw}}{{._auth_username}}:{{._auth_password}}\"",
         "refId": "A"
       }]
     },
@@ -75,7 +75,7 @@
               "client_ip": { "aggregations": ["lastNotNull"], "operation": "groupby" },
               "country": { "aggregations": ["lastNotNull"], "operation": "groupby" },
               "bot_verdict": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-              "sophistication": { "aggregations": ["lastNotNull"], "operation": "groupby" },
+              "profile_type": { "aggregations": ["lastNotNull"], "operation": "groupby" },
               "attack_category": { "aggregations": ["lastNotNull"], "operation": "groupby" },
               "tools": { "aggregations": ["lastNotNull"], "operation": "groupby" }
             }

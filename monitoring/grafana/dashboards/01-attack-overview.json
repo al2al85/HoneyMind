@@ -145,7 +145,7 @@
               "isp": { "aggregations": ["lastNotNull"], "operation": "groupby" },
               "is_tor": { "aggregations": ["lastNotNull"], "operation": "groupby" },
               "bot_verdict": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-              "sophistication": { "aggregations": ["lastNotNull"], "operation": "groupby" }
+              "profile_type": { "aggregations": ["lastNotNull"], "operation": "groupby" }
             }
           }
         },
