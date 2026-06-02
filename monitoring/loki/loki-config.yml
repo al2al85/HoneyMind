@@ -34,6 +34,10 @@ limits_config:
   max_entries_limit_per_query: 100000
   retention_period: 720h   # 30 days
   max_global_streams_per_user: 100000
+  query_timeout: 5m
+
+query_range:
+  align_queries_with_step: true
 
 analytics:
   reporting_enabled: false
