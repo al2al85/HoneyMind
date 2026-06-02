@@ -89,7 +89,8 @@ function campaignSeverity(c) {
 
 function generateAiSummary(c, ipDetails) {
   const top = ipDetails.slice(0, 3);
-  const cmds = (c.shared_commands || []).slice(0, 5);
+  const observed = (c.observed_commands || []).map(item => item.command).filter(Boolean);
+  const cmds = (observed.length ? observed : (c.shared_commands || [])).slice(0, 5);
   return `# Analyse IA — ${c.campaign_id}
 
 > _Synthèse générée automatiquement par le module d'analyse HoneyMind._
@@ -97,8 +98,8 @@ function generateAiSummary(c, ipDetails) {
 ## Vue d'ensemble
 La campagne **${formatVerdict(c.verdict)}** a mobilisé **${c.ips.length} adresses IP** distinctes${c.time_start ? ` sur la période du **${c.time_start.split('T')[0]}**` : ''}${c.time_end ? ` au **${c.time_end.split('T')[0]}**` : ''}, totalisant **${(c.session_count || 0).toLocaleString('fr-FR')} sessions**. Niveau de confiance : **${((c.confidence || 0) * 100).toFixed(0)}%**.
 
-## Commandes partagées détectées
-${cmds.length > 0 ? cmds.map(cmd => `- \`${cmd}\``).join('\n') : '_(aucune commande partagée détectée)_'}
+## Commandes observées
+${cmds.length > 0 ? cmds.map(cmd => `- \`${cmd}\``).join('\n') : '_(aucune commande détectée)_'}
 
 ## Acteurs principaux
 ${top.length > 0 ? top.map((t, i) => `${i + 1}. \`${t.ip}\` — ${t.country} · ${t.asn}`).join('\n') : '_(aucune IP géolocalisée)_'}
@@ -124,7 +125,10 @@ function buildIpDetails(ipAddr, allIpsMap, geoMap, campaign) {
     connections:  campaign.session_count || 1,
     success:      0,
     commands:     (ipInfo.ioc_counts || {}).url || 0,
-    sampleCommands: (campaign.shared_commands || []).slice(0, 8),
+    sampleCommands: ((campaign.observed_commands || []).map(item => item.command).filter(Boolean).length
+      ? (campaign.observed_commands || []).map(item => item.command).filter(Boolean)
+      : (campaign.shared_commands || [])
+    ).slice(0, 8),
     asn:          geo.asn || '—',
     org:          geo.isp || '—',
     firstSeen:    (ipInfo.first_seen || campaign.time_start || '').split('T')[0] || '—',
@@ -146,7 +150,9 @@ function transformCampaigns(apiCampaigns, allIpsArr, geoMap) {
       attackingIps:         (c.ips || []).length,
       connectionAttempts:   c.session_count || 0,
       successfulConnections:0,
-      commandsRun:          (c.shared_commands || []).length,
+      commandsRun:          c.command_count || (c.observed_commands || []).reduce((s, item) => s + (item.count || 0), 0) || (c.shared_commands || []).length,
+      observedCommands:     c.observed_commands || [],
+      sharedCommands:       c.shared_commands || [],
       filesTransferred:     (c.ioc_counts || {})['file'] || 0,
       severity:             campaignSeverity(c),
       confidence:           c.confidence || 0,
@@ -156,13 +162,13 @@ function transformCampaigns(apiCampaigns, allIpsArr, geoMap) {
   });
 }
 
-function computeStats(campaigns, ipsArr) {
+function computeStats(campaigns, ipsArr, commandTotal = 0) {
   return {
     totalAttacks:     campaigns.reduce((s, c) => s + c.connectionAttempts, 0),
     uniqueIps:        ipsArr.length,
     activeCampaigns:  campaigns.filter(c => c.status === 'active').length,
     totalCampaigns:   campaigns.length,
-    totalCommands:    campaigns.reduce((s, c) => s + c.commandsRun, 0),
+    totalCommands:    commandTotal || campaigns.reduce((s, c) => s + c.commandsRun, 0),
     filesTransferred: campaigns.reduce((s, c) => s + c.filesTransferred, 0),
   };
 }
@@ -197,7 +203,12 @@ function computeMapPoints(ipsArr, geoMap) {
   }).filter(Boolean);
 }
 
-function computeTopCommands(campaigns) {
+function computeTopCommands(commandsArr, campaigns = []) {
+  if (commandsArr?.length) {
+    return commandsArr
+      .slice(0, 10)
+      .map(item => ({ label: item.command, count: item.count || 0 }));
+  }
   const counts = {};
   for (const c of campaigns)
     for (const cmd of (c.shared_commands || []))
@@ -226,9 +237,10 @@ function DataProvider({ children }) {
     setState(s => ({ ...s, loading: true, error: null }));
     try {
       // Sources primaires (IOC API via proxy nginx)
-      const [campaignsRes, ipsRes] = await Promise.all([
+      const [campaignsRes, ipsRes, commandsRes] = await Promise.all([
         fetchJson('/api/v1/iocs/campaigns'),
         fetchJson('/api/v1/iocs/ips'),
+        fetchJson('/api/v1/iocs/commands?limit=25'),
       ]);
 
       // Sources Loki (optionnelles — dégradées en silence si absentes)
@@ -261,6 +273,8 @@ function DataProvider({ children }) {
 
       const rawCampaigns = campaignsRes.campaigns || [];
       const rawIps       = ipsRes.ips              || [];
+      const rawCommands  = commandsRes.commands   || [];
+      const commandTotal = commandsRes.total       || 0;
       const campaigns    = transformCampaigns(rawCampaigns, rawIps, geoMap);
 
       setState({
@@ -268,9 +282,9 @@ function DataProvider({ children }) {
         error:   null,
         data: {
           campaigns,
-          stats:        computeStats(campaigns, rawIps),
+          stats:        computeStats(campaigns, rawIps, commandTotal),
           topCountries: computeTopCountries(rawIps, geoMap),
-          topCommands:  computeTopCommands(rawCampaigns),
+          topCommands:  computeTopCommands(rawCommands, rawCampaigns),
           timeseries:   transformLokiTimeseries(lokiTs),
           mapPoints:    computeMapPoints(rawIps, geoMap),
           lastUpdated:  new Date().toISOString(),

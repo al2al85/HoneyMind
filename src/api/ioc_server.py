@@ -18,6 +18,9 @@ GET /api/v1/iocs/ips
 GET /api/v1/iocs/campaigns
     All detected campaigns with IP members and per-type IOC counts.
 
+GET /api/v1/iocs/commands
+    Top commands observed across tracked sessions.
+
 Usage
 -----
     python src/api/ioc_server.py [--db /data/honeypot/iocs.db] [--port 5000]
@@ -33,7 +36,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from flask import Flask, Response, g, jsonify, request
 
 from api.ioc_extractor import row_to_ioc
-from api.ioc_store import open_db, query_campaigns, query_iocs, query_ips
+from api.ioc_store import open_db, query_campaigns, query_commands, query_iocs, query_ips
 from api.stix_builder import build_bundle
 
 logger = logging.getLogger(__name__)
@@ -83,6 +86,16 @@ def get_ips():
 def get_campaigns():
     camps = query_campaigns(_db())
     return jsonify({"campaigns": camps, "total": len(camps)})
+
+
+@app.get("/api/v1/iocs/commands")
+def get_commands():
+    try:
+        limit = int(request.args.get("limit", 25))
+    except (TypeError, ValueError):
+        limit = 25
+    result = query_commands(_db(), limit=max(1, min(limit, 100)))
+    return jsonify(result)
 
 
 def main():
