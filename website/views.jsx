@@ -135,6 +135,36 @@ function CampaignsView({ go, themeToggle }) {
     { k: 'severity',             label: 'Sévérité' },
   ];
 
+  const activeCampaigns = data.campaigns.filter(c => c.status === 'active');
+  const inactiveCampaigns = data.campaigns.filter(c => c.status !== 'active');
+
+  const renderCampaignTable = campaigns => (
+    <div className="card tbl-wrap">
+      <table className="tbl">
+        <thead>
+          <tr>{cols.map(c => <th key={c.k} className={c.num ? 'num' : ''}>{c.label}</th>)}<th></th></tr>
+        </thead>
+        <tbody>
+          {campaigns.map(c => (
+            <tr key={c.id} className="click" onClick={() => go({ name: 'campaign', id: c.id })}>
+              <td>
+                <div className="cid">{c.id}</div>
+                <div style={{ color:'var(--text-faint)', fontSize:12 }}>{c.name} · {c.start}</div>
+              </td>
+              <td><Status value={c.status} /></td>
+              <td className="num">{nf(c.attackingIps)}</td>
+              <td className="num">{nf(c.connectionAttempts)}</td>
+              <td className="num">{nf(c.commandsRun)}</td>
+              <td className="num">{nf(c.filesTransferred)}</td>
+              <td><Severity level={c.severity} /></td>
+              <td style={{ color:'var(--text-faint)' }}><Icon name="chev" style={{ width:16, height:16 }} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <div className="main">
       <PageHead crumb="HoneyMind · Analyse" title="Campagnes"
@@ -150,36 +180,23 @@ function CampaignsView({ go, themeToggle }) {
         }
       />
       <div className="content">
-        <SecH title={`${data.campaigns.length} campagne${data.campaigns.length !== 1 ? 's' : ''} détectée${data.campaigns.length !== 1 ? 's' : ''}`}
-          hint="Cliquez une ligne pour le détail" />
         {data.campaigns.length === 0
           ? <div className="card" style={{ padding:32, textAlign:'center' }}>
               <p className="empty-note">Aucune campagne détectée pour le moment.</p>
             </div>
-          : <div className="card tbl-wrap">
-              <table className="tbl">
-                <thead>
-                  <tr>{cols.map(c => <th key={c.k} className={c.num ? 'num' : ''}>{c.label}</th>)}<th></th></tr>
-                </thead>
-                <tbody>
-                  {data.campaigns.map(c => (
-                    <tr key={c.id} className="click" onClick={() => go({ name: 'campaign', id: c.id })}>
-                      <td>
-                        <div className="cid">{c.id}</div>
-                        <div style={{ color:'var(--text-faint)', fontSize:12 }}>{c.name} · {c.start}</div>
-                      </td>
-                      <td><Status value={c.status} /></td>
-                      <td className="num">{nf(c.attackingIps)}</td>
-                      <td className="num">{nf(c.connectionAttempts)}</td>
-                      <td className="num">{nf(c.commandsRun)}</td>
-                      <td className="num">{nf(c.filesTransferred)}</td>
-                      <td><Severity level={c.severity} /></td>
-                      <td style={{ color:'var(--text-faint)' }}><Icon name="chev" style={{ width:16, height:16 }} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          : <>
+              <SecH title={`Campagnes actives (${activeCampaigns.length})`} hint="Cliquez une ligne pour le détail" />
+              {activeCampaigns.length
+                ? renderCampaignTable(activeCampaigns)
+                : <div className="card" style={{ padding:24 }}><p className="empty-note">Aucune campagne active.</p></div>
+              }
+
+              <SecH title={`Campagnes inactives (${inactiveCampaigns.length})`} hint="tri conservé dans chaque section" />
+              {inactiveCampaigns.length
+                ? renderCampaignTable(inactiveCampaigns)
+                : <div className="card" style={{ padding:24 }}><p className="empty-note">Aucune campagne inactive.</p></div>
+              }
+            </>
         }
       </div>
     </div>

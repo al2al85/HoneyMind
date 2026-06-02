@@ -60,23 +60,28 @@ const HM_CSS = `
 .sec-h .hint { font-size: 12.5px; color: var(--text-faint); }
 
 /* Map */
-.map-wrap { padding: 18px; position: relative; overflow: hidden; }
-.map-svg { width: 100%; height: auto; display: block; cursor: grab; touch-action: none; }
+.map-wrap { padding: 0; position: relative; overflow: hidden; }
+.map-stage { position: relative; padding: 14px; background:
+  radial-gradient(900px 360px at 50% 35%, color-mix(in oklch, var(--honey) 8%, transparent), transparent 62%),
+  linear-gradient(180deg, color-mix(in oklch, var(--map-water) 96%, var(--surface)), var(--map-water));
+}
+.map-svg { width: 100%; display: block; cursor: grab; touch-action: none; border-radius: 10px; }
 .map-svg.dragging { cursor: grabbing; }
+.map-land-cell { fill: var(--map-land); opacity: .72; }
+.map-graticule { stroke: color-mix(in oklch, var(--text-faint) 23%, transparent); stroke-width: .35; vector-effect: non-scaling-stroke; }
+.map-frame { fill: none; stroke: color-mix(in oklch, var(--border) 80%, transparent); stroke-width: .8; vector-effect: non-scaling-stroke; }
 .atk { cursor: pointer; }
-.atk-core { transform-box: fill-box; transform-origin: center; }
-.map-controls { position: absolute; top: 14px; right: 14px; display: flex; flex-direction: column; gap: 4px; }
-.map-btn { width: 28px; height: 28px; border-radius: 7px; background: var(--surface-2);
-  border: 1px solid var(--border-soft); color: var(--text-dim); cursor: pointer;
-  display: grid; place-items: center; font-size: 15px; font-weight: 600; line-height: 1;
-  transition: background .12s, color .12s; }
-.map-btn:hover { background: var(--surface); color: var(--text); }
-.map-zoom-track { width: 3px; height: 44px; background: var(--border-soft); border-radius: 2px;
-  position: relative; overflow: hidden; margin: 2px auto; cursor: default; }
-.map-zoom-fill { position: absolute; bottom: 0; left: 0; width: 100%; min-height: 2px;
-  background: linear-gradient(to top, var(--honey-deep), var(--honey)); border-radius: 2px;
-  transition: height 0.08s linear; }
-.map-legend { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--text-dim); }
+.atk-core { transform-box: fill-box; transform-origin: center; filter: drop-shadow(0 2px 6px color-mix(in oklch, var(--honey) 34%, transparent)); }
+.map-controls { position: absolute; top: 18px; right: 18px; display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px; border-radius: 10px; background: color-mix(in oklch, var(--surface) 84%, transparent);
+  border: 1px solid var(--border-soft); box-shadow: var(--shadow); backdrop-filter: blur(8px); }
+.map-btn { width: 30px; height: 30px; border-radius: 7px; background: transparent;
+  border: 0; color: var(--text-dim); cursor: pointer; display: grid; place-items: center;
+  font-size: 15px; font-weight: 600; line-height: 1; transition: background .12s, color .12s; }
+.map-btn:hover { background: var(--surface-2); color: var(--text); }
+.map-zoom-pill { min-width: 48px; text-align: center; font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-faint); padding: 0 6px; }
+.map-legend { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; padding: 12px 16px 14px; font-size: 12px; color: var(--text-dim); border-top: 1px solid var(--border-soft); }
 .lg-dot { display: inline-flex; align-items: center; gap: 7px; }
 .map-tip { position: absolute; pointer-events: none; z-index: 30; background: var(--surface);
   border: 1px solid var(--border); border-radius: 9px; padding: 8px 11px; box-shadow: var(--shadow);
@@ -320,265 +325,256 @@ function Stat({ icon, label, value, sub, accent = 'var(--honey)' }) {
 
 /* ---- World map avec zoom/pan ---- */
 function WorldMap({ points, height = 360 }) {
-  // Espace de coordonnées SVG : 1 unité = 5° lon (W) ou 4° lat (H)
-  const VW = D.map.W * 5;   // 360
-  const VH = D.map.H * 4;   // 144
-  const MIN_W = 12;          // zoom max ≈ ×30 (zone ~6°×2.4°)
+  const VW = D.map.W * 5;
+  const VH = D.map.H * 4;
+  const MIN_W = 54;
   const INIT = { x: 0, y: 0, w: VW, h: VH };
 
-  const [vb, setVb_] = useState(INIT);
-  const [drag, setDrag] = useState(false);
-  const [tip, setTip]   = useState(null);
+  const [vb, setVbState] = useState(INIT);
+  const [dragging, setDragging] = useState(false);
+  const [tip, setTip] = useState(null);
+  const svgRef = useRef(null);
+  const wrapRef = useRef(null);
+  const vbRef = useRef(INIT);
+  const dragRef = useRef(null);
 
-  // vbR reflète toujours vb — permet aux handlers attachés une seule fois de lire
-  // l'état courant sans stale closure (useRef garde la même référence objet)
-  const vbR    = useRef(INIT);
-  const dragR  = useRef(null);
-  const touchR = useRef(null);
-  const animR  = useRef(null);
-  const svgR   = useRef(null);
-  const wrapR  = useRef(null);
-
-  // Mise à jour simultanée du ref et de l'état React
-  const setVb = v => { vbR.current = v; setVb_(v); };
-
-  // Dots de terre (calculés une seule fois)
-  const land = useMemo(() => {
-    const dots = [];
-    for (let r = 0; r < D.map.H; r++)
-      for (let c = 0; c < D.map.W; c++)
-        if (D.map.isLand(r, c)) dots.push({ x: c * 5 + 2.5, y: r * 4 + 2 });
-    return dots;
+  const setVb = useCallback(next => {
+    const clamped = clampViewBox(next);
+    vbRef.current = clamped;
+    setVbState(clamped);
   }, []);
 
-  // Étiquettes pays depuis D.centroids — projetées en coordonnées SVG
+  function clampViewBox(box) {
+    const w = Math.min(VW, Math.max(MIN_W, box.w));
+    const h = w * (VH / VW);
+    return {
+      x: Math.max(0, Math.min(VW - w, box.x)),
+      y: Math.max(0, Math.min(VH - h, box.y)),
+      w,
+      h,
+    };
+  }
+
+  const landCells = useMemo(() => {
+    const cells = [];
+    for (let r = 0; r < D.map.H; r++) {
+      for (let c = 0; c < D.map.W; c++) {
+        if (D.map.isLand(r, c)) cells.push({ x: c * 5, y: r * 4 });
+      }
+    }
+    return cells;
+  }, []);
+
+  const graticules = useMemo(() => {
+    const lines = [];
+    for (let lon = -150; lon <= 150; lon += 30) {
+      const x = ((lon + 180) / 360) * VW;
+      lines.push({ type: 'v', x });
+    }
+    for (let lat = -60; lat <= 60; lat += 30) {
+      const y = ((90 - lat) / 180) * VH;
+      lines.push({ type: 'h', y });
+    }
+    return lines;
+  }, []);
+
   const countryLabels = useMemo(() =>
     Object.entries(D.centroids).map(([iso, d]) => {
       const p = D.map.project(d.lat, d.lon);
-      return { iso, name: d.name, x: (p.x / 100) * VW, y: (p.y / 100) * VH };
+      return { iso, x: (p.x / 100) * VW, y: (p.y / 100) * VH };
     }), []);
 
-  const maxPt = useMemo(() => Math.max(...points.map(p => p.weight), 1), [points]);
-
-  // ── Zoom : calcule le nouveau viewbox en gardant le pivot fixe ──────────
-  // factor < 1 → zoom avant (viewbox plus petit = zone plus petite, plus de détail)
-  // factor > 1 → zoom arrière (viewbox plus grand = zone plus grande, moins de détail)
-  function zoomAt(base, factor, px, py) {
-    const w = Math.min(VW, Math.max(MIN_W, base.w * factor));
-    const h = w * (VH / VW), s = w / base.w;
+  const projectedPoints = useMemo(() => points.map((p, i) => {
+    const pos = D.map.project(p.lat, p.lon);
     return {
-      x: Math.max(0, Math.min(VW - w, px - (px - base.x) * s)),
-      y: Math.max(0, Math.min(VH - h, py - (py - base.y) * s)),
-      w, h,
+      ...p,
+      key: `${p.ip}-${i}`,
+      x: (pos.x / 100) * VW,
+      y: (pos.y / 100) * VH,
+    };
+  }), [points]);
+
+  const maxWeight = useMemo(() => Math.max(...points.map(p => p.weight), 1), [points]);
+
+  function svgPoint(clientX, clientY, box = vbRef.current) {
+    const rect = svgRef.current.getBoundingClientRect();
+    return {
+      x: box.x + ((clientX - rect.left) / rect.width) * box.w,
+      y: box.y + ((clientY - rect.top) / rect.height) * box.h,
     };
   }
 
-  // ── Animation fluide pour les boutons et le reset ──────────────────────
-  function animTo(to) {
-    if (animR.current) { cancelAnimationFrame(animR.current); animR.current = null; }
-    const from = { ...vbR.current };
-    const t0 = performance.now(), DUR = 300;
-    const ease = t => t < 0.5 ? 2*t*t : -1+(4-2*t)*t; // easeInOutQuad
-    const step = now => {
-      const p = Math.min(1, (now - t0) / DUR), e = ease(p);
-      const lp = (a, b) => a + (b - a) * e;
-      setVb({ x: lp(from.x, to.x), y: lp(from.y, to.y), w: lp(from.w, to.w), h: lp(from.h, to.h) });
-      animR.current = p < 1 ? requestAnimationFrame(step) : null;
-    };
-    animR.current = requestAnimationFrame(step);
+  function zoomAt(factor, pivot) {
+    const current = vbRef.current;
+    const w = Math.min(VW, Math.max(MIN_W, current.w * factor));
+    const h = w * (VH / VW);
+    const sx = w / current.w;
+    const sy = h / current.h;
+    setVb({
+      x: pivot.x - (pivot.x - current.x) * sx,
+      y: pivot.y - (pivot.y - current.y) * sy,
+      w,
+      h,
+    });
   }
 
-  // ── Molette : passive:false obligatoire ; tout via refs, pas de stale closure ──
+  const zoomCenter = factor => {
+    const c = vbRef.current;
+    zoomAt(factor, { x: c.x + c.w / 2, y: c.y + c.h / 2 });
+  };
+
   useEffect(() => {
-    const el = svgR.current;
+    const el = svgRef.current;
     if (!el) return;
     const onWheel = e => {
       e.preventDefault();
-      if (animR.current) { cancelAnimationFrame(animR.current); animR.current = null; }
-      const rect = el.getBoundingClientRect();
-      const c = vbR.current;
-      // Pivot = position du curseur en coordonnées SVG
-      const px = c.x + (e.clientX - rect.left) / rect.width  * c.w;
-      const py = c.y + (e.clientY - rect.top)  / rect.height * c.h;
-      // Normalise selon deltaMode (pixels=0, lignes=1, pages=2)
-      const d = e.deltaMode === 1 ? e.deltaY * 30 : e.deltaMode === 2 ? e.deltaY * 300 : e.deltaY;
-      // deltaY > 0 → scroll bas → zoom arrière (factor > 1 → viewbox s'agrandit)
-      // deltaY < 0 → scroll haut → zoom avant (factor < 1 → viewbox se réduit)
-      setVb(zoomAt(c, Math.pow(1.001, d), px, py));
+      const delta = e.deltaMode === 1 ? e.deltaY * 24 : e.deltaY;
+      const factor = Math.exp(delta * 0.0016);
+      zoomAt(factor, svgPoint(e.clientX, e.clientY));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, []); // VW,VH,MIN_W sont des constantes — closure de premier rendu toujours valide
-
-  // ── Touch : pan 1 doigt + pinch zoom 2 doigts ─────────────────────────
-  useEffect(() => {
-    const el = svgR.current;
-    if (!el) return;
-    const onTS = e => {
-      e.preventDefault();
-      if (animR.current) { cancelAnimationFrame(animR.current); animR.current = null; }
-      const c = vbR.current;
-      if (e.touches.length === 1) {
-        touchR.current = { type: 'pan', sx: e.touches[0].clientX, sy: e.touches[0].clientY,
-          vbx: c.x, vby: c.y, vbw: c.w, vbh: c.h };
-        setDrag(true);
-      } else if (e.touches.length === 2) {
-        const rect = el.getBoundingClientRect();
-        const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        touchR.current = {
-          type: 'pinch',
-          sd: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY),
-          sv: { ...c },
-          px: c.x + (mx - rect.left) / rect.width  * c.w,
-          py: c.y + (my - rect.top)  / rect.height * c.h,
-        };
-        setDrag(false);
-      }
-    };
-    const onTM = e => {
-      e.preventDefault();
-      const t = touchR.current;
-      if (!t) return;
-      const rect = el.getBoundingClientRect();
-      const c = vbR.current;
-      if (t.type === 'pan' && e.touches.length === 1) {
-        const dx = (e.touches[0].clientX - t.sx) / rect.width  * t.vbw;
-        const dy = (e.touches[0].clientY - t.sy) / rect.height * t.vbh;
-        setVb({ ...c, x: Math.max(0, Math.min(VW - c.w, t.vbx - dx)), y: Math.max(0, Math.min(VH - c.h, t.vby - dy)) });
-      } else if (t.type === 'pinch' && e.touches.length === 2) {
-        const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-        // doigts qui s'écartent (nd > sd) → factor < 1 → zoom avant ✓
-        setVb(zoomAt(t.sv, t.sd / nd, t.px, t.py));
-      }
-    };
-    const onTE = e => { if (e.touches.length === 0) { setDrag(false); touchR.current = null; } };
-    el.addEventListener('touchstart', onTS, { passive: false });
-    el.addEventListener('touchmove',  onTM, { passive: false });
-    el.addEventListener('touchend',   onTE);
-    return () => {
-      el.removeEventListener('touchstart', onTS);
-      el.removeEventListener('touchmove',  onTM);
-      el.removeEventListener('touchend',   onTE);
-    };
   }, []);
 
-  // ── Drag souris : listeners document pour survivre à la sortie du composant ──
-  useEffect(() => {
-    if (!drag) return;
-    const onMove = e => {
-      const d = dragR.current;
-      if (!d || !svgR.current) return;
-      const rect = svgR.current.getBoundingClientRect();
-      // Conversion pixels→SVG basée sur les dimensions AU MOMENT du mousedown (d.vbw/d.vbh)
-      const dx = (e.clientX - d.sx) / rect.width  * d.vbw;
-      const dy = (e.clientY - d.sy) / rect.height * d.vbh;
-      const c = vbR.current;
-      setVb({ ...c, x: Math.max(0, Math.min(VW - c.w, d.vbx - dx)), y: Math.max(0, Math.min(VH - c.h, d.vby - dy)) });
+  const onPointerDown = e => {
+    if (e.button !== undefined && e.button !== 0) return;
+    const current = vbRef.current;
+    dragRef.current = {
+      pointerId: e.pointerId,
+      sx: e.clientX,
+      sy: e.clientY,
+      x: current.x,
+      y: current.y,
+      w: current.w,
+      h: current.h,
     };
-    const onUp = () => { setDrag(false); dragR.current = null; };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup',   onUp);
-    return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-  }, [drag]);
-
-  const onMD = e => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    if (animR.current) { cancelAnimationFrame(animR.current); animR.current = null; }
-    const c = vbR.current;
-    dragR.current = { sx: e.clientX, sy: e.clientY, vbx: c.x, vby: c.y, vbw: c.w, vbh: c.h };
-    setDrag(true);
+    setTip(null);
+    setDragging(true);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
   };
 
-  // Boutons : zoom centré sur le milieu de la vue actuelle
-  const zIn  = () => { const c = vbR.current; animTo(zoomAt(c, 1/1.5, c.x + c.w/2, c.y + c.h/2)); };
-  const zOut = () => { const c = vbR.current; animTo(zoomAt(c, 1.5,   c.x + c.w/2, c.y + c.h/2)); };
-  const zRst = () => animTo(INIT);
+  const onPointerMove = e => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const dx = ((e.clientX - drag.sx) / rect.width) * drag.w;
+    const dy = ((e.clientY - drag.sy) / rect.height) * drag.h;
+    setVb({ x: drag.x - dx, y: drag.y - dy, w: drag.w, h: drag.h });
+  };
 
-  // ── Métriques d'affichage ──────────────────────────────────────────────
-  const zoomFactor = VW / vb.w;                                        // 1.0 = monde entier
-  const zoomPct    = Math.min(100, Math.round(((zoomFactor - 1) / (VW / MIN_W - 1)) * 100));
-  const showLabels = zoomFactor >= 2.5;  // étiquettes pays visibles dès ×2.5
+  const endDrag = e => {
+    if (dragRef.current && e?.currentTarget?.releasePointerCapture) {
+      try { e.currentTarget.releasePointerCapture(dragRef.current.pointerId); } catch {}
+    }
+    dragRef.current = null;
+    setDragging(false);
+  };
 
-  // Taille de police en unités SVG : constante en pixels quelle que soit le zoom
-  // car elle est divisée par la largeur du viewBox (même rapport que le rendu à l'écran)
-  const labelSize = vb.w / 55;
-
-  const viewBox = `${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`;
+  const viewBox = `${vb.x.toFixed(2)} ${vb.y.toFixed(2)} ${vb.w.toFixed(2)} ${vb.h.toFixed(2)}`;
+  const zoomFactor = VW / vb.w;
+  const showLabels = zoomFactor >= 2.2;
+  const labelSize = Math.max(2.1, vb.w / 72);
 
   return (
-    <div className="card map-wrap" ref={wrapR}>
-      <svg ref={svgR} className={`map-svg${drag ? ' dragging' : ''}`}
-        viewBox={viewBox} style={{ maxHeight: height }}
-        onMouseDown={onMD} tabIndex={0} aria-label="Carte des origines d'attaques">
+    <div className="card map-wrap" ref={wrapRef}>
+      <div className="map-stage">
+        <svg
+          ref={svgRef}
+          className={`map-svg${dragging ? ' dragging' : ''}`}
+          viewBox={viewBox}
+          style={{ maxHeight: height }}
+          preserveAspectRatio="xMidYMid meet"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onDoubleClick={e => zoomAt(0.55, svgPoint(e.clientX, e.clientY))}
+          aria-label="Carte des origines d'attaques"
+        >
+          <defs>
+            <radialGradient id="attackGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="var(--honey)" stopOpacity="0.38" />
+              <stop offset="72%" stopColor="var(--honey)" stopOpacity="0.10" />
+              <stop offset="100%" stopColor="var(--honey)" stopOpacity="0" />
+            </radialGradient>
+          </defs>
 
-        {/* Fond : dots de terre */}
-        {land.map((d, i) => (
-          <circle key={i} cx={d.x} cy={d.y} r={1.25} fill="var(--map-land)" />
-        ))}
+          {graticules.map((line, i) => line.type === 'v'
+            ? <line key={i} className="map-graticule" x1={line.x} x2={line.x} y1="0" y2={VH} />
+            : <line key={i} className="map-graticule" x1="0" x2={VW} y1={line.y} y2={line.y} />
+          )}
 
-        {/* Détail : codes pays — apparaissent à partir de ×2.5 zoom */}
-        {showLabels && countryLabels.map(({ iso, x, y }) => {
-          if (x < vb.x - 2 || x > vb.x + vb.w + 2 || y < vb.y - 2 || y > vb.y + vb.h + 2) return null;
-          return (
-            <text key={iso} x={x} y={y} fontSize={labelSize}
-              fill="var(--text-faint)" textAnchor="middle" dominantBaseline="middle"
-              style={{ pointerEvents: 'none', userSelect: 'none', fontFamily: 'var(--font-ui)' }}>
-              {iso}
-            </text>
-          );
-        })}
+          {landCells.map((cell, i) => (
+            <rect key={i} className="map-land-cell" x={cell.x + .45} y={cell.y + .45}
+              width="4.1" height="3.1" rx=".9" />
+          ))}
 
-        {/* Points d'attaque */}
-        {points.map((p, i) => {
-          const { x, y } = D.map.project(p.lat, p.lon);
-          const cx = (x / 100) * VW, cy = (y / 100) * VH;
-          const r  = 1.6 + (p.weight / maxPt) * 5.2;
-          return (
-            <g key={i} className="atk"
-              onMouseMove={e => {
-                const b = wrapR.current.getBoundingClientRect();
-                setTip({ x: e.clientX - b.left, y: e.clientY - b.top, below: (e.clientY - b.top) < 70, p });
-              }}
-              onMouseLeave={() => setTip(null)}>
-              <circle cx={cx} cy={cy} r={r * 2.2} fill="var(--honey)" opacity="0.12" />
-              <circle cx={cx} cy={cy} r={r} className="atk-core"
-                fill="var(--honey)" stroke="var(--honey-deep)" strokeWidth="0.4" opacity="0.92" />
-            </g>
-          );
-        })}
-      </svg>
+          {showLabels && countryLabels.map(({ iso, x, y }) => {
+            if (x < vb.x || x > vb.x + vb.w || y < vb.y || y > vb.y + vb.h) return null;
+            return (
+              <text key={iso} x={x} y={y} fontSize={labelSize} textAnchor="middle"
+                dominantBaseline="middle" fill="var(--text-faint)"
+                style={{ pointerEvents: 'none', fontFamily: 'var(--font-mono)', opacity: .82 }}>
+                {iso}
+              </text>
+            );
+          })}
 
-      {/* Contrôles zoom */}
-      <div className="map-controls">
-        <button className="map-btn" title="Zoom avant" onClick={zIn} aria-label="Zoom avant">+</button>
-        <div className="map-zoom-track" title={`Zoom ×${zoomFactor.toFixed(1)}`}>
-          <div className="map-zoom-fill" style={{ height: `${zoomPct}%` }} />
+          {projectedPoints.map(p => {
+            const r = 2 + Math.sqrt(p.weight / maxWeight) * 5.8;
+            return (
+              <g key={p.key} className="atk"
+                onPointerMove={e => {
+                  const rect = wrapRef.current.getBoundingClientRect();
+                  setTip({ x: e.clientX - rect.left, y: e.clientY - rect.top, p });
+                }}
+                onPointerLeave={() => setTip(null)}>
+                <circle cx={p.x} cy={p.y} r={r * 3.3} fill="url(#attackGlow)" />
+                <circle cx={p.x} cy={p.y} r={r} className="atk-core"
+                  fill="var(--honey)" stroke="var(--honey-deep)" strokeWidth=".75"
+                  vectorEffect="non-scaling-stroke" />
+                <circle cx={p.x} cy={p.y} r={r * .38} fill="white" opacity=".55" />
+              </g>
+            );
+          })}
+
+          <rect className="map-frame" x=".4" y=".4" width={VW - .8} height={VH - .8} rx="3" />
+        </svg>
+
+        <div className="map-controls">
+          <button className="map-btn" title="Zoom avant" onClick={() => zoomCenter(0.65)} aria-label="Zoom avant">
+            <Icon name="zoom_in" style={{ width:15, height:15 }} />
+          </button>
+          <span className="map-zoom-pill">x{zoomFactor.toFixed(1)}</span>
+          <button className="map-btn" title="Zoom arrière" onClick={() => zoomCenter(1.45)} aria-label="Zoom arrière">
+            <Icon name="zoom_out" style={{ width:15, height:15 }} />
+          </button>
+          <button className="map-btn" title="Réinitialiser" onClick={() => setVb(INIT)} aria-label="Réinitialiser">
+            <Icon name="zoom_reset" style={{ width:15, height:15 }} />
+          </button>
         </div>
-        <button className="map-btn" title="Zoom arrière" onClick={zOut} aria-label="Zoom arrière">−</button>
-        <button className="map-btn" title="Vue monde entier" onClick={zRst} style={{ fontSize: 11 }} aria-label="Réinitialiser">⌂</button>
+
+        {tip && (
+          <div className="map-tip" style={{
+            left: tip.x,
+            top: tip.y,
+            transform: tip.y < 72 ? 'translate(-50%, 14px)' : 'translate(-50%, -118%)',
+          }}>
+            <div className="ip">{tip.p.ip}</div>
+            <div style={{ color: 'var(--text-dim)' }}>{tip.p.country} · {tip.p.weight} connexions</div>
+          </div>
+        )}
       </div>
-
-      {tip && (
-        <div className="map-tip" style={{
-          left: tip.x, top: tip.y,
-          transform: tip.below ? 'translate(-50%, 12px)' : 'translate(-50%, -118%)',
-        }}>
-          <div className="ip">{tip.p.ip}</div>
-          <div style={{ color: 'var(--text-dim)' }}>{tip.p.country} · {tip.p.weight} connexions</div>
-        </div>
-      )}
 
       <div className="map-legend">
         <span className="lg-dot">
-          <span style={{ width:8,height:8,borderRadius:'50%',background:'var(--map-land)',display:'inline-block' }} /> Terres
+          <span style={{ width:9,height:9,borderRadius:3,background:'var(--map-land)',display:'inline-block' }} /> Terres
         </span>
         <span className="lg-dot">
-          <span style={{ width:10,height:10,borderRadius:'50%',background:'var(--honey)',display:'inline-block' }} /> IP attaquante (taille ∝ connexions)
+          <span style={{ width:10,height:10,borderRadius:'50%',background:'var(--honey)',display:'inline-block' }} /> Source d'attaque
         </span>
         <span style={{ marginLeft:'auto', color:'var(--text-faint)', fontSize: 11 }}>
-          Molette / pincer : zoom &nbsp;·&nbsp; Glisser : pan
+          Molette ou double-clic : zoom · Glisser : déplacer
         </span>
         <span style={{ color:'var(--text-faint)' }}>{points.length} sources</span>
       </div>
