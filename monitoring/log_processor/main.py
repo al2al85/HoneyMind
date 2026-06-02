@@ -59,6 +59,8 @@ def _build_labels(event: dict) -> dict[str, str]:
     anon = event.get("_anonymization") or []
     honeypot = event.get("honeypot") or {}
     profile_flags = event.get("_profile_flags") or []
+    command = event.get("command") or {}
+    parser_action = command.get("parser_action") if isinstance(command, dict) else ""
 
     return {
         "job": "honeymind",
@@ -81,6 +83,7 @@ def _build_labels(event: dict) -> dict[str, str]:
         "profile_type": str(event.get("_sophistication") or ""),
         "tools": ",".join(tools) if tools else "",
         "session_id": str(event.get("session_id") or ""),
+        "parser_action": str(parser_action or ""),
         "hassh": str(event.get("_hassh") or ""),
         "ssh_client": str(event.get("_ssh_client") or ""),
         "tool_match": str(event.get("_tool_match") or ""),

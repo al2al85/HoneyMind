@@ -16,7 +16,9 @@ WAL mode allows concurrent reads while the writer commits.
 import json
 import os
 import sqlite3
+from collections import Counter
 from contextlib import contextmanager
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -355,6 +357,120 @@ def query_ips(conn) -> list[dict]:
     return result
 
 
+def _read_session_commands(row) -> list[str]:
+    try:
+        commands = json.loads(row["commands"] or "[]")
+    except (json.JSONDecodeError, TypeError):
+        return []
+    return [str(cmd).strip() for cmd in commands if str(cmd).strip()]
+
+
+def _top_command_counts(rows, limit: int = 25) -> list[dict]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        counts.update(_read_session_commands(row))
+    return [
+        {"command": command, "count": count}
+        for command, count in counts.most_common(limit)
+    ]
+
+
+def query_commands(conn, limit: int = 25) -> dict:
+    """Return commands observed across all tracked sessions."""
+    rows = conn.execute("SELECT commands FROM sessions").fetchall()
+    all_commands = _top_command_counts(rows, limit=10_000)
+    top_commands = all_commands[:limit]
+    return {
+        "commands": top_commands,
+        "total": sum(item["count"] for item in all_commands),
+    }
+
+
+def _query_commands_for_ips(conn, ips: list[str], limit: int = 25) -> list[dict]:
+    if not ips:
+        return []
+    placeholders = ",".join("?" for _ in ips)
+    rows = conn.execute(
+        f"SELECT commands FROM sessions WHERE ip IN ({placeholders})",
+        ips,
+    ).fetchall()
+    return _top_command_counts(rows, limit=limit)
+
+
+def _query_session_counts_for_ips(
+    conn,
+    ips: list[str],
+    time_start: Optional[str] = None,
+    time_end: Optional[str] = None,
+) -> dict[str, int]:
+    if not ips:
+        return {}
+    placeholders = ",".join("?" for _ in ips)
+    where = [f"ip IN ({placeholders})"]
+    params: list[str] = list(ips)
+    if time_start:
+        where.append("(last_seen IS NULL OR last_seen >= ?)")
+        params.append(time_start)
+    if time_end:
+        where.append("(first_seen IS NULL OR first_seen <= ?)")
+        params.append(time_end)
+    rows = conn.execute(
+        f"SELECT ip, COUNT(*) AS cnt FROM sessions WHERE {' AND '.join(where)} GROUP BY ip",
+        params,
+    ).fetchall()
+    return {row["ip"]: row["cnt"] for row in rows}
+
+
+def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _campaign_status(time_end: Optional[str], inactive_after_minutes: int = 60) -> str:
+    end = _parse_iso_datetime(time_end)
+    if not end:
+        return "active"
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=inactive_after_minutes)
+    return "active" if end >= cutoff else "closed"
+
+
+def query_activity(conn, days: int = 30) -> dict:
+    """Return per-day session activity from the local sessions table."""
+    days = max(1, min(days, 365))
+    today = datetime.now(timezone.utc).date()
+    start = today - timedelta(days=days - 1)
+    counts = {start + timedelta(days=i): 0 for i in range(days)}
+
+    rows = conn.execute("""
+        SELECT substr(COALESCE(first_seen, last_seen, updated_at), 1, 10) AS day,
+               COUNT(*) AS sessions
+        FROM sessions
+        WHERE COALESCE(first_seen, last_seen, updated_at) IS NOT NULL
+          AND substr(COALESCE(first_seen, last_seen, updated_at), 1, 10) >= ?
+        GROUP BY day
+    """, (start.isoformat(),)).fetchall()
+
+    for row in rows:
+        try:
+            day = date.fromisoformat(row["day"])
+        except (TypeError, ValueError):
+            continue
+        if day in counts:
+            counts[day] = row["sessions"]
+
+    activity = [
+        {"day": index + 1, "date": day.isoformat(), "attacks": sessions}
+        for index, (day, sessions) in enumerate(counts.items())
+    ]
+    return {"activity": activity, "total": sum(item["attacks"] for item in activity)}
+
+
 def query_campaigns(conn) -> list[dict]:
     rows = conn.execute(
         "SELECT * FROM campaigns ORDER BY confidence DESC"
@@ -362,6 +478,14 @@ def query_campaigns(conn) -> list[dict]:
     result = []
     for row in rows:
         cid = row["campaign_id"]
+        ips = json.loads(row["ips"] or "[]")
+        observed_commands = _query_commands_for_ips(conn, ips)
+        ip_session_counts = _query_session_counts_for_ips(
+            conn,
+            ips,
+            time_start=row["time_start"],
+            time_end=row["time_end"],
+        )
         counts = conn.execute("""
             SELECT ioc_type, COUNT(*) AS cnt
             FROM iocs
@@ -377,13 +501,17 @@ def query_campaigns(conn) -> list[dict]:
             "campaign_id": cid,
             "verdict": row["verdict"],
             "confidence": row["confidence"],
-            "ips": json.loads(row["ips"] or "[]"),
+            "ips": ips,
             "subnet": row["subnet"],
             "asn": row["asn"],
             "session_count": row["session_count"],
             "time_start": row["time_start"],
             "time_end": row["time_end"],
+            "status": _campaign_status(row["time_end"]),
             "shared_commands": json.loads(row["shared_commands"] or "[]"),
+            "observed_commands": observed_commands,
+            "command_count": sum(item["count"] for item in observed_commands),
+            "ip_session_counts": ip_session_counts,
             "ioc_counts": {r["ioc_type"]: r["cnt"] for r in counts},
         })
     return result

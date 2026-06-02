@@ -73,7 +73,7 @@ function DashboardView({ themeToggle }) {
           <Stat icon="pulse"  label="Attaques totales"    value={nf(s.totalAttacks)}     sub="sessions enregistrées"   accent="var(--c-honey)" />
           <Stat icon="globe"  label="IP uniques"           value={nf(s.uniqueIps)}         sub="sources distinctes"      accent="var(--c-teal)" />
           <Stat icon="layers" label="Campagnes actives"    value={`${s.activeCampaigns} / ${s.totalCampaigns}`} sub="en cours de suivi" accent="var(--c-green)" />
-          <Stat icon="cmd"    label="Commandes partagées"  value={nf(s.totalCommands)}     sub="inter-campagnes"         accent="var(--c-violet)" />
+          <Stat icon="cmd"    label="Commandes observées"  value={nf(s.totalCommands)}     sub="sessions analysées"      accent="var(--c-violet)" />
           <Stat icon="file"   label="Fichiers transférés"  value={nf(s.filesTransferred)}  sub="détectés via IOC"        accent="var(--c-amber)" />
         </div>
 
@@ -94,7 +94,7 @@ function DashboardView({ themeToggle }) {
             </div>
           </div>
           <div>
-            <SecH title="Top commandes" hint="partagées entre campagnes" />
+            <SecH title="Top commandes" hint="observées dans les sessions" />
             <div className="card" style={{ padding:'16px 18px' }}>
               {cmdBar.length > 0
                 ? <BarList data={cmdBar} colors={CH} />
@@ -130,7 +130,7 @@ function CampaignsView({ go, themeToggle }) {
     { k: 'status',               label: 'Statut' },
     { k: 'attackingIps',         label: 'IP attaq.',   num: true },
     { k: 'connectionAttempts',   label: 'Sessions',    num: true },
-    { k: 'commandsRun',          label: 'Cmd. partagées', num: true },
+    { k: 'commandsRun',          label: 'Cmd. observées', num: true },
     { k: 'filesTransferred',     label: 'Fichiers',    num: true },
     { k: 'severity',             label: 'Sévérité' },
   ];
@@ -246,7 +246,7 @@ function CampaignDetailView({ id, go, themeToggle }) {
         <div className="stat-grid" style={{ marginBottom:4 }}>
           <Stat icon="globe"  label="IP attaquantes"   value={nf(c.attackingIps)}       accent="var(--c-teal)" />
           <Stat icon="pulse"  label="Sessions"          value={nf(c.connectionAttempts)} accent="var(--c-honey)" />
-          <Stat icon="cmd"    label="Cmd. partagées"    value={nf(c.commandsRun)}        accent="var(--c-violet)" />
+          <Stat icon="cmd"    label="Cmd. observées"    value={nf(c.commandsRun)}        accent="var(--c-violet)" />
           <Stat icon="file"   label="Fichiers IOC"      value={nf(c.filesTransferred)}   accent="var(--c-amber)" />
         </div>
 
