@@ -325,6 +325,20 @@ function AiReport({ campaignId }) {
               </svg>
               Plein écran
             </button>
+            <button onClick={() => {
+              const blob = new Blob([report.content || ''], { type: 'text/markdown' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `rapport-${campaignId}-${new Date().toISOString().slice(0,10)}.md`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }} style={btnStyle} title="Télécharger le rapport">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+              Télécharger
+            </button>
             <button onClick={onGenerate} style={btnStyle} title="Regénérer">
               <Icon name="refresh" style={{ width:12, height:12 }} /> Regénérer
             </button>
