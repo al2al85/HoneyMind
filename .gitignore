@@ -18,6 +18,8 @@ htmlcov/
 # Local IDE and OS files
 .idea/
 .DS_Store
+# Windows alternate data streams (WSL artifact)
+*:Zone.Identifier
 
 # Local GitHub/Codex helper files
 .github/copilot-instructions.md

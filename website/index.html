@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HoneyMind</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --honey:       oklch(0.82 0.15 80);
+    --honey-deep:  oklch(0.72 0.15 72);
+    --honey-soft:  oklch(0.88 0.10 84);
+    --font-ui: 'Space Grotesk', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+    /* graphes — même chroma/lightness, hue variable */
+    --c-honey:  oklch(0.80 0.14 80);
+    --c-amber:  oklch(0.74 0.14 55);
+    --c-teal:   oklch(0.74 0.10 195);
+    --c-violet: oklch(0.72 0.12 305);
+    --c-green:  oklch(0.76 0.12 150);
+    --c-red:    oklch(0.66 0.16 28);
+  }
+
+  /* ---------- THÈME SOMBRE ---------- */
+  [data-theme="dark"] {
+    --bg:        oklch(0.19 0.012 80);
+    --bg-2:      oklch(0.165 0.012 80);
+    --surface:   oklch(0.235 0.013 80);
+    --surface-2: oklch(0.275 0.014 80);
+    --border:    oklch(0.34 0.014 80);
+    --border-soft: oklch(0.30 0.013 80);
+    --text:      oklch(0.95 0.012 85);
+    --text-dim:  oklch(0.74 0.014 85);
+    --text-faint:oklch(0.58 0.013 85);
+    --hex-line:  oklch(0.30 0.02 82 / 0.55);
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.28);
+    --map-water: oklch(0.30 0.012 80);
+    --map-land:  oklch(0.42 0.03 82);
+  }
+  /* ---------- THÈME CLAIR ---------- */
+  [data-theme="light"] {
+    --bg:        oklch(0.985 0.012 88);
+    --bg-2:      oklch(0.965 0.014 86);
+    --surface:   oklch(0.998 0.005 90);
+    --surface-2: oklch(0.975 0.012 86);
+    --border:    oklch(0.90 0.016 84);
+    --border-soft: oklch(0.93 0.014 84);
+    --text:      oklch(0.26 0.018 75);
+    --text-dim:  oklch(0.46 0.02 75);
+    --text-faint:oklch(0.62 0.02 78);
+    --hex-line:  oklch(0.80 0.04 82 / 0.5);
+    --shadow:    0 1px 2px rgba(80,60,10,.06), 0 10px 26px rgba(120,90,20,.07);
+    --map-water: oklch(0.90 0.014 84);
+    --map-land:  oklch(0.80 0.07 82);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  html { background: var(--bg); }
+  body {
+    font-family: var(--font-ui);
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  /* lueur miel discrète en haut */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(1200px 700px at 80% -10%, var(--honey) 0%, transparent 55%);
+    opacity: .05;
+  }
+  #root { position: relative; z-index: 1; min-height: 100%; }
+
+  ::selection { background: var(--honey); color: #1a1505; }
+
+  /* fond rayon de miel (hexagones) sur toute la surface, coloré par le thème */
+  .hex-bg {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: var(--hex-line);
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='96' viewBox='0 0 56 96'%3E%3Cpath fill='none' stroke='%23000' stroke-width='1.6' d='M28 0 L56 16 L56 48 L28 64 L0 48 L0 16 Z M28 64 L56 80 L56 112 M28 64 L0 80 L0 112 M56 16 L84 0 M0 16 L-28 0'/%3E%3C/svg%3E");
+            mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='96' viewBox='0 0 56 96'%3E%3Cpath fill='none' stroke='%23000' stroke-width='1.6' d='M28 0 L56 16 L56 48 L28 64 L0 48 L0 16 Z M28 64 L56 80 L56 112 M28 64 L0 80 L0 112 M56 16 L84 0 M0 16 L-28 0'/%3E%3C/svg%3E");
+    -webkit-mask-size: 56px 96px; mask-size: 56px 96px;
+    -webkit-mask-repeat: repeat; mask-repeat: repeat;
+  }
+
+  a { color: inherit; }
+  ::-webkit-scrollbar { width: 11px; height: 11px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; border: 3px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+  /* utilitaires */
+  .mono { font-family: var(--font-mono); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+  }
+</style>
+</head>
+<body>
+  <div class="hex-bg"></div>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script src="data.js"></script>
+  <script type="text/babel" src="components.jsx"></script>
+  <script type="text/babel" src="views.jsx"></script>
+  <script type="text/babel" src="app.jsx"></script>
+</body>
+</html>

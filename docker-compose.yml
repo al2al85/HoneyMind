@@ -54,3 +54,12 @@ services:
     restart: unless-stopped
     depends_on:
       - ioc-writer
+
+  website:
+    image: nginx:alpine
+    container_name: honeymind-website
+    ports:
+      - "44806:80"
+    volumes:
+      - ./website:/usr/share/nginx/html:ro
+    restart: unless-stopped
