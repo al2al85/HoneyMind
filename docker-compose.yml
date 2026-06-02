@@ -17,7 +17,8 @@ services:
       HONEYPOT_DOWNLOAD_DIR: /data/honeypot/downloads
       HONEYPOT_UPLOAD_DIR: /data/honeypot/uploads
     env_file:
-      - config/llm.env.list
+      - path: config/llm.env.list
+        required: false
     restart: unless-stopped
 
   ioc-writer:
@@ -50,6 +51,7 @@ services:
       - "5000:5000"
     volumes:
       - ./honeypots:/data/honeypot
+      - ./logs:/data/honeypot/logs
     environment:
       IOC_DB: /data/honeypot/logs/iocs.db
       IOC_API_HOST: "0.0.0.0"

@@ -73,3 +73,31 @@ def test_gitignore_is_focused_on_local_artifacts():
     assert ".github/hooks/" in content
     assert "*.db" in content
     assert "logs/" in content
+
+
+def _compose_service_block(content, service_name):
+    match = re.search(
+        rf"^  {re.escape(service_name)}:\n(?P<body>(?:    .*\n|      .*\n|        .*\n|$)+)",
+        content,
+        re.MULTILINE,
+    )
+    assert match is not None, f"Missing compose service: {service_name}"
+    return match.group("body")
+
+
+def test_ioc_dashboard_services_share_the_same_local_db_volume():
+    content = (ROOT / "docker-compose.yml").read_text()
+    writer = _compose_service_block(content, "ioc-writer")
+    api = _compose_service_block(content, "ioc-api")
+
+    assert "IOC_DB: /data/honeypot/logs/iocs.db" in writer
+    assert "IOC_DB: /data/honeypot/logs/iocs.db" in api
+    assert "- ./logs:/data/honeypot/logs" in writer
+    assert "- ./logs:/data/honeypot/logs" in api
+
+
+def test_dashboard_nginx_proxies_ioc_api():
+    content = (ROOT / "website" / "nginx.conf").read_text()
+
+    assert "location /api/" in content
+    assert "proxy_pass         http://ioc-api:5000/api/;" in content

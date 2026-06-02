@@ -5,17 +5,25 @@ const D = window.HM_DATA;
 // ── Utilitaires ────────────────────────────────────────────────────────────────
 
 async function fetchSafe(url, fallback, timeoutMs = 12000) {
+  try {
+    return await fetchJson(url, timeoutMs);
+  } catch (e) {
+    console.warn(`[HM] fetch failed [${url}]:`, e.message);
+    return fallback;
+  }
+}
+
+async function fetchJson(url, timeoutMs = 12000) {
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const r = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(tid);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return await r.json();
   } catch (e) {
+    throw new Error(`Impossible de charger ${url}: ${e.message}`);
+  } finally {
     clearTimeout(tid);
-    console.warn(`[HM] fetch failed [${url}]:`, e.message);
-    return fallback;
   }
 }
 
@@ -219,8 +227,8 @@ function DataProvider({ children }) {
     try {
       // Sources primaires (IOC API via proxy nginx)
       const [campaignsRes, ipsRes] = await Promise.all([
-        fetchSafe('/api/v1/iocs/campaigns', { campaigns: [] }),
-        fetchSafe('/api/v1/iocs/ips',       { ips: [] }),
+        fetchJson('/api/v1/iocs/campaigns'),
+        fetchJson('/api/v1/iocs/ips'),
       ]);
 
       // Sources Loki (optionnelles — dégradées en silence si absentes)
