@@ -5,10 +5,14 @@ import os
 from typing import Any, Optional
 from collections import defaultdict
 
-_src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
-sys.path.insert(0, _src)
-sys.path.insert(0, os.path.join(_src, "analysis"))
-sys.path.insert(0, os.path.join(_src, "logging_pipeline"))
+# In Docker, src is mounted at /honeymind_src (docker-compose volume).
+# In dev, it sits at ../../src relative to this file.
+_here = os.path.dirname(os.path.abspath(__file__))
+for _src in ["/honeymind_src", os.path.abspath(os.path.join(_here, "..", "..", "src"))]:
+    if os.path.isdir(_src):
+        sys.path.insert(0, _src)
+        sys.path.insert(0, os.path.join(_src, "analysis"))
+        sys.path.insert(0, os.path.join(_src, "logging_pipeline"))
 
 from attack_classifier import classify_event, Category
 from ip_enricher import IPEnricher

@@ -27,12 +27,14 @@ schema_config:
         period: 24h
 
 limits_config:
-  ingestion_rate_mb: 16
-  ingestion_burst_size_mb: 32
+  ingestion_rate_mb: 32
+  ingestion_burst_size_mb: 64
   max_label_names_per_series: 30
   max_label_value_length: 4096
   max_entries_limit_per_query: 100000
   retention_period: 720h   # 30 days
+  max_streams_per_push: 10000
+  max_global_streams_per_user: 100000
 
 analytics:
   reporting_enabled: false
