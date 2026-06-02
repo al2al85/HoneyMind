@@ -122,16 +122,35 @@ def _load_sessions(log_dir: Path) -> dict[str, list[dict]]:
 
 # ── LLM call ─────────────────────────────────────────────────────────────────
 
-def _call_llm(user_prompt: str) -> str:
+def _call_llm(user_prompt: str, args=None) -> str:
     try:
         from llm_providers.llm_utils import invoke_llm
     except ImportError:
         return "[LLM not available — run with --dry-run to see condensed logs]"
 
-    model = os.environ.get("ANALYSIS_MODEL_ID") or os.environ.get("MODEL_ID") or "gpt-oss-20b"
-    provider = os.environ.get("ANALYSIS_LLM_PROVIDER") or os.environ.get("LLM_PROVIDER")
-    base_url = os.environ.get("ANALYSIS_LLM_BASE_URL") or os.environ.get("LLM_BASE_URL")
-    api_key_env = os.environ.get("ANALYSIS_LLM_API_KEY_ENV") or "LLM_API_KEY"
+    # Priority: CLI args > env vars > defaults
+    model = (
+        (args.model       if args else None)
+        or os.environ.get("ANALYSIS_MODEL_ID")
+        or os.environ.get("MODEL_ID")
+        or "gpt-oss-20b"
+    )
+    provider = (
+        (args.provider    if args else None)
+        or os.environ.get("ANALYSIS_LLM_PROVIDER")
+        or os.environ.get("LLM_PROVIDER")
+    )
+    base_url = (
+        (args.base_url    if args else None)
+        or os.environ.get("ANALYSIS_LLM_BASE_URL")
+        or os.environ.get("LLM_BASE_URL")
+    )
+    api_key_env = (
+        (args.api_key_env if args else None)
+        or os.environ.get("ANALYSIS_LLM_API_KEY_ENV")
+        or "LLM_API_KEY"
+    )
+    max_tokens = args.max_tokens if args else 600
 
     kwargs = {}
     if provider:
@@ -141,11 +160,13 @@ def _call_llm(user_prompt: str) -> str:
     if api_key_env:
         kwargs["llm_api_key_env"] = api_key_env
 
+    print(f"  model: {model}  provider: {provider or 'auto'}  max_tokens: {max_tokens}")
+
     return invoke_llm(
         system_prompt=_SYSTEM_PROMPT,
         user_prompt=user_prompt,
         model_id=model,
-        llm_max_tokens=600,
+        llm_max_tokens=max_tokens,
         **kwargs,
     )
 
@@ -192,6 +213,14 @@ def main():
         default=_ALL_DIMENSIONS,
         help=f"Dimensions to include. Choices: {', '.join(_ALL_DIMENSIONS)}",
     )
+
+    llm = parser.add_argument_group("LLM configuration")
+    llm.add_argument("--model",       default=None, help="Model ID (default: env MODEL_ID or gpt-oss-20b)")
+    llm.add_argument("--provider",    default=None, help="LLM provider: ollama, openai_compatible, openai, anthropic, bedrock")
+    llm.add_argument("--base-url",    default=None, help="LLM base URL (for openai_compatible / ollama)")
+    llm.add_argument("--api-key-env", default=None, help="Env var name holding the API key (default: LLM_API_KEY)")
+    llm.add_argument("--max-tokens",  type=int, default=600, help="Max tokens for LLM response (default: 600)")
+
     args = parser.parse_args()
 
     log_dir = Path(args.log_dir)
@@ -289,7 +318,7 @@ def main():
         if not args.dry_run:
             prompt = _MULTIDIM_PROMPT.format(condensed=condensed_str)
             print(f"\n── LLM Analysis (campaign {cid}) ──")
-            print(_call_llm(prompt))
+            print(_call_llm(prompt, args))
         return
 
     # Single session analysis
@@ -309,7 +338,7 @@ def main():
 
         if not args.dry_run:
             print(f"\n── LLM Analysis ──")
-            result = _call_llm(_SESSION_PROMPT.format(condensed=condensed_str))
+            result = _call_llm(_SESSION_PROMPT.format(condensed=condensed_str), args)
             print(result)
         return
 
@@ -346,7 +375,7 @@ def main():
 
     if not args.dry_run:
         print(f"\n── LLM Analysis ──")
-        result = _call_llm(_MULTIDIM_PROMPT.format(condensed=condensed_str))
+        result = _call_llm(_MULTIDIM_PROMPT.format(condensed=condensed_str), args)
         print(result)
 
 
