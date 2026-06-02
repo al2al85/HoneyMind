@@ -220,6 +220,37 @@ def test_system_artifacts_are_coherent(tmp_path):
     assert "sshd" in handler.query("ps -ef", session)
 
 
+def test_uname_uses_config_even_with_conflicting_data_file(tmp_path):
+    data_file = tmp_path / "data.jsonl"
+    data_file.write_text(
+        '{"input": "/bin/./uname -s -v -n -r -m", "response": "Linux alpine 5.10.0-0.rc4+ #1 SMP PREEMPT Thu Jan 14 12:34:56 UTC 2021 alpine 5.10.0-0.rc4+ #1 SMP PREEMPT Thu Jan 14 12:34:56 UTC 2021 x86_64\\n"}\n'
+    )
+
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    fs_path = os.path.join(base_dir, "test/honeypots/alpine/fs_alpine.jsonl.gz")
+
+    handler = FakeFSDataHandler(
+        data_file=str(data_file),
+        fs_file=fs_path,
+        config={
+            "hostname": "vps-b4c7a33e",
+            "distro": "Ubuntu 22.04.4 LTS",
+            "kernel": "5.15.0-119-generic",
+            "uname_release": "5.15.0-119-generic",
+            "uname_version": "#129-Ubuntu SMP Fri Aug 2 19:25:20 UTC 2024",
+            "arch": "x86_64",
+        },
+    )
+
+    session = handler.connect({})
+
+    response = handler.query("/bin/./uname -s -v -n -r -m", session)
+
+    assert "vps-b4c7a33e" in response
+    assert "5.15.0-119-generic" in response
+    assert "alpine" not in response.lower()
+
+
 def test_common_recon_commands_are_hardcoded_and_coherent(tmp_path):
     base_dir = os.path.dirname(os.path.dirname(__file__))
     fs_path = os.path.join(base_dir, "test/honeypots/alpine/fs_alpine.jsonl.gz")

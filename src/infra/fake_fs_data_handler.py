@@ -177,7 +177,7 @@ class FakeFSDataHandler(HoneypotAction):
         logging.info(f"FakeFSDataHandler.query: {query}")
         query = normalize_command_input(query)
 
-        if self._data_file.exists():
+        if not self._should_bypass_data_file(query) and self._data_file.exists():
             file_response = self.query_from_file(query)
             if file_response is not None:
                 session["_last_parser_action"] = "hardcoded"
@@ -221,6 +221,17 @@ class FakeFSDataHandler(HoneypotAction):
                 return "Usage: wget <url> or curl <url>"
         session["_last_parser_action"] = "unknown"
         return None
+
+    def _should_bypass_data_file(self, query: str) -> bool:
+        return self._primary_command_name(query) == "uname"
+
+    def _primary_command_name(self, query: str) -> str:
+        try:
+            command = shlex.split(query)[0]
+        except (ValueError, IndexError):
+            return ""
+
+        return Path(command).name
 
     def _handle_uname(self, query: str) -> str:
         parts = shlex.split(query)
@@ -302,7 +313,7 @@ class FakeFSDataHandler(HoneypotAction):
         if query == "which busybox":
             return "/bin/busybox\n"
 
-        if query == "uname" or query.startswith("uname "):
+        if self._primary_command_name(query) == "uname":
             return self._handle_uname(query)
 
         if query in ("cat /etc/os-release", "cat /etc/*release"):
