@@ -35,30 +35,31 @@ function DashboardView({ themeToggle, go }) {
   const peak = data.timeseries.length ? Math.max(...data.timeseries.map(d => d.attacks)) : 0;
 
   const handleMapClick = point => {
-    // Cherche l'objet IP complet (avec ASN, org, commandes) dans les campagnes déjà enrichies
-    let rich = null;
-    for (const camp of (data.campaigns || [])) {
-      rich = camp.ips.find(i => i.ip === point.ip);
-      if (rich) break;
-    }
-
-    const ipData    = (data.ips || []).find(i => i.ip === point.ip) || {};
+    const geo     = (data.geoMap || {})[point.ip] || {};
+    const ipData  = (data.ips   || []).find(i => i.ip === point.ip) || {};
     const campaigns = (ipData.campaign_ids || [])
       .map(id => data.campaigns.find(c => c.id === id))
       .filter(Boolean);
 
+    // Cherche aussi dans camp.ips pour avoir sampleCommands
+    let rich = null;
+    for (const camp of (data.campaigns || [])) {
+      rich = (camp.ips || []).find(i => i.ip === point.ip);
+      if (rich) break;
+    }
+
     setSheetIp({
       ip:               point.ip,
-      country:          rich?.country  || point.country || 'Inconnu',
-      code:             rich?.code     || '',
-      lat:              rich?.lat      ?? point.lat,
-      lon:              rich?.lon      ?? point.lon,
-      connections:      rich?.connections ?? point.weight ?? 0,
+      country:          geo.country      || point.country || 'Inconnu',
+      code:             geo.country_code || rich?.code    || '',
+      lat:              point.lat,
+      lon:              point.lon,
+      connections:      rich?.connections ?? ipData.ioc_counts?.['ipv4-addr'] ?? point.weight ?? 0,
       success:          rich?.success  ?? 0,
       commands:         rich?.commands ?? 0,
-      asn:              rich?.asn      || '—',
-      org:              rich?.org      || '—',
-      firstSeen:        rich?.firstSeen || (ipData.first_seen || '').slice(0, 10) || '—',
+      asn:              geo.asn        || rich?.asn || '—',
+      org:              geo.isp        || geo.org   || rich?.org || '—',
+      firstSeen:        (ipData.first_seen || '').slice(0, 10) || rich?.firstSeen || '—',
       sampleCommands:   rich?.sampleCommands || [],
       campaigns,
       attackCategories: ipData.attack_categories || [],

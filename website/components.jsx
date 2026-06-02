@@ -543,39 +543,7 @@ function IpSheet({ ip, onClose, go }) {
             {ip.success > 0 && <><dt>Réussies</dt><dd>{ip.success}</dd></>}
           </dl>
 
-          {/* Catégories d'attaque */}
-          {cats.length > 0 && (
-            <div style={{ marginBottom:18 }}>
-              <div className="crumb" style={{ marginBottom:8 }}>Tactiques observées</div>
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                {cats.map(c => (
-                  <span key={c} style={{ fontSize:11.5, padding:'3px 9px', borderRadius:999,
-                    background:'color-mix(in oklch,var(--honey) 14%,transparent)',
-                    color:'var(--honey-deep)', fontFamily:'var(--font-mono)' }}>
-                    {c.replace(/_/g,'-').toLowerCase()}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {/* IOC counts */}
-          {Object.keys(iocCnts).some(k => iocCnts[k] > 0) && (
-            <div style={{ marginBottom:18 }}>
-              <div className="crumb" style={{ marginBottom:8 }}>Indicateurs (IOC)</div>
-              <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
-                {[['ipv4-addr','IP'],['url','URL'],['domain-name','Domaines'],['file','Fichiers']].map(([k,lbl]) =>
-                  iocCnts[k] > 0 ? (
-                    <div key={k} style={{ textAlign:'center', padding:'6px 14px',
-                      background:'var(--surface-2)', borderRadius:9, border:'1px solid var(--border-soft)' }}>
-                      <div style={{ fontSize:18, fontWeight:600 }}>{iocCnts[k]}</div>
-                      <div style={{ fontSize:11, color:'var(--text-faint)', marginTop:2 }}>{lbl}</div>
-                    </div>
-                  ) : null
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Campagnes */}
           {camps.length > 0 && (
