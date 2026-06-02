@@ -716,7 +716,7 @@
     },
     {
       "id": 31,
-      "type": "bar",
+      "type": "barchart",
       "title": "Top Commands",
       "gridPos": {
         "h": 10,
