@@ -19,6 +19,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from attack_classifier import Category, classify_event, label, _extract_command
 from bot_human_analyzer import analyze as analyze_bot_human
+from ip_enricher import IPEnricher, format_ip_line
+from attacker_profiler import profile as build_profile, score_icon
+from campaign_detector import detect_campaigns, format_campaign
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -85,7 +88,7 @@ def build_sessions(log_dir: Path) -> dict[str, list[dict]]:
     return sessions
 
 
-def print_session_timeline(sid: str, events: list[dict]):
+def print_session_timeline(sid: str, events: list[dict], enricher: IPEnricher = None):
     if not events:
         return
 
@@ -102,12 +105,24 @@ def print_session_timeline(sid: str, events: list[dict]):
 
     bh = analyze_bot_human(events)
 
+    # IP enrichment + profiling
+    ip_data = enricher.enrich(ip) if enricher and ip and ip != "?" else {}
+    local_h = None
+    if enricher and ip_data.get("timezone"):
+        from datetime import datetime, timezone
+        local_h = enricher.local_hour(ip_data, datetime.now(timezone.utc).hour)
+    attacker = build_profile(ip_data, bh, categories_seen, local_h) if ip_data else {}
+
     print(f"\n{'═'*70}")
     print(f"  Session : {sid}")
-    print(f"  IP      : {ip}  |  protocol: {protocol}:{port}  |  user: {username}")
-    print(f"  Start   : {time_start}  |  events: {len(events)}")
+    ip_line = format_ip_line(ip_data) if ip_data else ip
+    print(f"  IP      : {ip}  {ip_line}")
+    print(f"  Proto   : {protocol}:{port}  |  user: {username}  |  start: {time_start}  |  events: {len(events)}")
     print(f"  Phases  : {' → '.join(label(c) for c in _phase_order(categories_seen))}")
     print(f"  Agent   : {bh.label()}  |  avg_delay: {bh.signals['avg_delay_ms']}ms  |  typos: {bh.signals['typo_corrections']}")
+    if attacker:
+        sc = attacker['sophistication_score']
+        print(f"  Profil  : {score_icon(sc)} {attacker['profile_label']} ({sc}/10)  —  {attacker['narrative']}")
     if bh.ai_trap_hits:
         for hit in bh.ai_trap_hits:
             print(f"  ⚠️  AI TRAP [{hit.trap_id}] {hit.description}")
@@ -204,6 +219,10 @@ def main():
                         help="Show all sessions from a given IP")
     parser.add_argument("--summary", action="store_true",
                         help="Show global summary only (no timelines)")
+    parser.add_argument("--no-geoip", action="store_true",
+                        help="Disable IP geolocation (faster, offline)")
+    parser.add_argument("--cache", default="/data/honeypot/logs/ip_cache.db",
+                        help="Path to IP cache database")
     args = parser.parse_args()
 
     log_dir = Path(args.log_dir)
@@ -211,10 +230,33 @@ def main():
         print(f"error: log directory not found: {log_dir}", file=sys.stderr)
         sys.exit(1)
 
+    enricher = None if args.no_geoip else IPEnricher(args.cache)
+
     sessions = build_sessions(log_dir)
     if not sessions:
         print("no events found.")
         return
+
+    # Detect campaigns across all sessions
+    ip_cache = {}
+    if enricher:
+        all_ips = {
+            _client_ip(e)
+            for evts in sessions.values()
+            for e in evts
+            if _client_ip(e)
+        }
+        for ip in all_ips:
+            ip_cache[ip] = enricher.enrich(ip)
+
+    campaigns = detect_campaigns(sessions, ip_cache)
+    if campaigns:
+        print(f"\n{'═'*70}")
+        print(f"  CAMPAGNES DÉTECTÉES ({len(campaigns)})")
+        print(f"{'─'*70}")
+        for c in campaigns:
+            print(format_campaign(c))
+        print(f"{'═'*70}")
 
     if args.summary:
         print_summary(sessions)
@@ -225,7 +267,7 @@ def main():
         if sid not in sessions:
             print(f"session not found: {sid}", file=sys.stderr)
             sys.exit(1)
-        print_session_timeline(sid, sessions[sid])
+        print_session_timeline(sid, sessions[sid], enricher)
         return
 
     if args.ip:
@@ -237,13 +279,13 @@ def main():
             print(f"no sessions found for IP: {args.ip}", file=sys.stderr)
             sys.exit(1)
         for sid, events in matched.items():
-            print_session_timeline(sid, events)
+            print_session_timeline(sid, events, enricher)
         print_summary({k: v for k, v in matched.items()})
         return
 
     # Default: print all timelines + summary
     for sid, events in sessions.items():
-        print_session_timeline(sid, events)
+        print_session_timeline(sid, events, enricher)
     print_summary(sessions)
 
 
