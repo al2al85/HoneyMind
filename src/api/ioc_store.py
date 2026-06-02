@@ -582,3 +582,33 @@ def upsert_report(conn, campaign_id: str, content: Optional[str],
             error=excluded.error, generated_at=excluded.generated_at
     """, (campaign_id, content, status, error, now))
     conn.commit()
+
+
+def query_campaign_commands(conn, campaign_id: str, limit: int = 100) -> list[dict]:
+    """All commands observed in sessions whose IP belongs to this campaign, grouped by count."""
+    row = conn.execute(
+        "SELECT ips FROM campaigns WHERE campaign_id=?", (campaign_id,)
+    ).fetchone()
+    if not row:
+        return []
+    ips = json.loads(row["ips"] or "[]")
+    if not ips:
+        return []
+
+    placeholders = ",".join("?" * len(ips))
+    rows = conn.execute(
+        f"SELECT commands FROM sessions WHERE ip IN ({placeholders})", ips
+    ).fetchall()
+
+    from collections import Counter
+    counts: Counter = Counter()
+    for r in rows:
+        for cmd in json.loads(r["commands"] or "[]"):
+            cmd = cmd.strip()
+            if cmd:
+                counts[cmd] += 1
+
+    return [
+        {"command": cmd, "count": cnt}
+        for cmd, cnt in counts.most_common(limit)
+    ]

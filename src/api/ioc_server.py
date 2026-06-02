@@ -52,6 +52,7 @@ from api.ioc_store import (
     get_report,
     open_db,
     query_activity,
+    query_campaign_commands,
     query_campaigns,
     query_commands,
     query_iocs,
@@ -236,6 +237,12 @@ def get_activity():
 
 
 # ── Report endpoints ──────────────────────────────────────────────────────────
+
+@app.get("/api/v1/iocs/campaigns/<campaign_id>/commands")
+def get_campaign_commands_endpoint(campaign_id):
+    cmds = query_campaign_commands(_db(), campaign_id.upper())
+    return jsonify({"commands": cmds, "total": len(cmds)})
+
 
 @app.get("/api/v1/reports/campaign/<campaign_id>")
 def get_campaign_report(campaign_id):

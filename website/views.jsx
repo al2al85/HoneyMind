@@ -536,15 +536,11 @@ function AiReport({ campaignId }) {
 /* ============ DÉTAIL D'UNE CAMPAGNE ============ */
 function CampaignDetailView({ id, go, themeToggle }) {
   const { data, loading, error, reload, fetchCampaignIOCs } = useHM();
-  const [sheetIp, setSheetIp] = useState(null);
-  const [ioc, setIoc] = useState(null);
+  const [sheetIp, setSheetIp]       = useState(null);
+  const [ioc, setIoc]               = useState(null);
   const [iocLoading, setIocLoading] = useState(false);
-
-  if (loading) return <LoadingView themeToggle={themeToggle} />;
-  if (error || !data) return <ErrorView message={error} onRetry={reload} themeToggle={themeToggle} />;
-
-  const c = data.campaigns.find(x => x.id === id);
-  if (!c) return <div className="main"><div className="content">Campagne introuvable.</div></div>;
+  const [cmds, setCmds]             = useState(null);
+  const [cmdsLoading, setCmdsLoading] = useState(false);
 
   // Charger les IOC STIX au montage
   useEffect(() => {
@@ -555,6 +551,21 @@ function CampaignDetailView({ id, go, themeToggle }) {
       setIocLoading(false);
     }).catch(() => setIocLoading(false));
   }, [id]);
+
+  // Charger les commandes de la campagne
+  useEffect(() => {
+    setCmdsLoading(true);
+    fetch(`/api/v1/iocs/campaigns/${encodeURIComponent(id)}/commands`)
+      .then(r => r.ok ? r.json() : { commands: [] })
+      .then(d => { setCmds(d.commands || []); setCmdsLoading(false); })
+      .catch(() => setCmdsLoading(false));
+  }, [id]);
+
+  if (loading) return <LoadingView themeToggle={themeToggle} />;
+  if (error || !data) return <ErrorView message={error} onRetry={reload} themeToggle={themeToggle} />;
+
+  const c = data.campaigns.find(x => x.id === id);
+  if (!c) return <div className="main"><div className="content">Campagne introuvable.</div></div>;
 
   const displayIoc = ioc || {
     ips: c.ips.slice(0, 6).map(ip => ip.ip),
@@ -636,6 +647,39 @@ function CampaignDetailView({ id, go, themeToggle }) {
 
         <SecH title="Analyse IA" />
         <AiReport campaignId={c.id} />
+
+        {/* Commandes observées */}
+        <SecH title="Commandes observées" hint={cmdsLoading ? 'chargement…' : cmds ? `${cmds.length} distinctes` : ''} />
+        {cmdsLoading
+          ? <div style={{ display:'flex', justifyContent:'center', padding:24 }}><div className="spinner"></div></div>
+          : (!cmds || cmds.length === 0)
+            ? <div className="card" style={{ padding:24 }}><p className="empty-note">Aucune commande enregistrée.</p></div>
+            : <div className="card tbl-wrap">
+                <table className="tbl">
+                  <thead><tr>
+                    <th>Commande</th>
+                    <th className="num">Occurrences</th>
+                  </tr></thead>
+                  <tbody>
+                    {cmds.map((r, i) => (
+                      <tr key={i}>
+                        <td style={{ fontFamily:'var(--font-mono)', fontSize:12.5, maxWidth:640,
+                          wordBreak:'break-all', color:'var(--text-dim)' }}
+                          title={r.command}>
+                          {r.command.length > 120 ? r.command.slice(0, 120) + '…' : r.command}
+                        </td>
+                        <td className="num">
+                          <span style={{ fontFamily:'var(--font-mono)', fontWeight:600,
+                            color: r.count > 10 ? 'var(--c-red)' : r.count > 3 ? 'var(--c-amber)' : 'var(--text-dim)' }}>
+                            {r.count}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+        }
 
         {/* IOC */}
         <SecH title="Indicateurs de compromission (IOC)"
