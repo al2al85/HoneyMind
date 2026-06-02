@@ -280,8 +280,9 @@ function ThemeToggle({ theme, setTheme }) {
 /* ---- Sidebar ---- */
 function Sidebar({ route, go }) {
   const items = [
-    { id: 'dashboard', label: 'Dashboard', ic: 'grid' },
-    { id: 'campaigns', label: 'Campagnes', ic: 'layers' },
+    { id: 'dashboard', label: 'Dashboard',  ic: 'grid'   },
+    { id: 'campaigns', label: 'Campagnes',  ic: 'layers' },
+    { id: 'iocs',      label: 'IOC',        ic: 'shield' },
   ];
   const active = route.name === 'campaign' ? 'campaigns' : route.name;
   return (

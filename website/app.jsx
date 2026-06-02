@@ -375,6 +375,7 @@ function App() {
   let view;
   if      (route.name === 'campaigns') view = <CampaignsView go={go} themeToggle={themeToggle} />;
   else if (route.name === 'campaign')  view = <CampaignDetailView id={route.id} go={go} themeToggle={themeToggle} />;
+  else if (route.name === 'iocs')      view = <IocView themeToggle={themeToggle} />;
   else                                  view = <DashboardView themeToggle={themeToggle} />;
 
   return (

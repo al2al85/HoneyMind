@@ -502,4 +502,304 @@ function IocCard({ title, icon, items, vt, truncate }) {
   );
 }
 
-Object.assign(window, { DashboardView, CampaignsView, CampaignDetailView });
+/* ============ IOC VIEW ============ */
+
+const IOC_TYPES = [
+  { id: 'ipv4-addr',   label: 'Adresses IP',  icon: 'globe' },
+  { id: 'url',         label: 'URL',           icon: 'ext'   },
+  { id: 'domain-name', label: 'Domaines',      icon: 'globe' },
+  { id: 'file',        label: 'Fichiers',      icon: 'file'  },
+];
+
+function parseStixIndicators(bundle) {
+  const out = { 'ipv4-addr': [], url: [], 'domain-name': [], file: [] };
+  if (!bundle?.objects) return out;
+  for (const obj of bundle.objects) {
+    if (obj.type !== 'indicator') continue;
+    const type = obj.x_honeymind_ioc_type;
+    if (!(type in out)) continue;
+    // Extract value: last quoted token in pattern (avoids matching key names like 'SHA-256')
+    const matches = [...(obj.pattern || '').matchAll(/'([^']+)'/g)];
+    const value = matches.length ? matches[matches.length - 1][1] : '';
+    if (!value) continue;
+    out[type].push({
+      value,
+      confidence:        obj.confidence ?? 0,
+      first_seen:        obj.x_honeymind_first_seen,
+      last_seen:         obj.x_honeymind_last_seen,
+      source_ips:        obj.x_honeymind_source_ips || [],
+      campaign_ids:      obj.x_honeymind_campaign_ids || [],
+      attack_categories: (obj.labels || []).filter(l => l !== 'honeypot'),
+      context:           obj.x_honeymind_context || {},
+    });
+  }
+  return out;
+}
+
+function IocView({ themeToggle }) {
+  const [raw, setRaw]       = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError]   = React.useState(null);
+  const [tab, setTab]       = React.useState('ipv4-addr');
+  const [search, setSearch] = React.useState('');
+
+  useEffect(() => {
+    fetch('/api/v1/iocs')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(b => { setRaw(b); setLoading(false); })
+      .catch(e => { setError(e.message); setLoading(false); });
+  }, []);
+
+  const indicators = React.useMemo(() => parseStixIndicators(raw), [raw]);
+
+  const filtered = React.useMemo(() => {
+    const list = indicators[tab] || [];
+    if (!search.trim()) return list;
+    const q = search.toLowerCase();
+    return list.filter(ioc =>
+      ioc.value.toLowerCase().includes(q) ||
+      ioc.source_ips.some(ip => ip.includes(q)) ||
+      ioc.campaign_ids.some(c => c.toLowerCase().includes(q)) ||
+      (ioc.context.filename || '').toLowerCase().includes(q) ||
+      ioc.attack_categories.some(c => c.includes(q))
+    );
+  }, [indicators, tab, search]);
+
+  if (loading) return <LoadingView themeToggle={themeToggle} />;
+  if (error)   return <ErrorView message={error} onRetry={() => { setLoading(true); setError(null); fetch('/api/v1/iocs').then(r=>r.json()).then(b=>{setRaw(b);setLoading(false);}).catch(e=>{setError(e.message);setLoading(false);}); }} themeToggle={themeToggle} />;
+
+  const total = Object.values(indicators).reduce((s, a) => s + a.length, 0);
+
+  return (
+    <div className="main">
+      <PageHead crumb="HoneyMind · Menaces" title="Indicateurs de compromission"
+        right={
+          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+            <span style={{ fontSize:11.5, color:'var(--text-faint)' }}>{nf(total)} IOC</span>
+            {themeToggle}
+          </div>
+        }
+      />
+      <div className="content">
+
+        {/* Stats */}
+        <div className="stat-grid" style={{ marginBottom:24 }}>
+          {IOC_TYPES.map(t => (
+            <div key={t.id} className="card stat" style={{ cursor:'pointer', outline: tab===t.id ? '2px solid var(--honey)' : 'none' }}
+              onClick={() => setTab(t.id)}>
+              <div className="lbl">
+                <Icon name={t.icon} className="nav-ic" style={{ color: tab===t.id ? 'var(--honey-deep)' : undefined }} />
+                {t.label}
+              </div>
+              <div className="val">{nf(indicators[t.id].length)}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tab bar + search */}
+        <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:16, flexWrap:'wrap' }}>
+          <div className="tg">
+            {IOC_TYPES.map(t => (
+              <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
+                <Icon name={t.icon} style={{ width:14, height:14 }} /> {t.label}
+              </button>
+            ))}
+          </div>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Filtrer…"
+            style={{
+              padding:'7px 13px', borderRadius:8, border:'1px solid var(--border-soft)',
+              background:'var(--surface-2)', color:'var(--text)', font:'inherit', fontSize:13,
+              outline:'none', minWidth:200,
+            }}
+          />
+          {search && (
+            <span style={{ fontSize:12.5, color:'var(--text-faint)' }}>
+              {filtered.length} résultat{filtered.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {/* Table */}
+        {filtered.length === 0
+          ? <div className="card" style={{ padding:32, textAlign:'center' }}>
+              <p className="empty-note">Aucun IOC{search ? ' correspondant à la recherche' : ''}.</p>
+            </div>
+          : <div className="card tbl-wrap">
+              {tab === 'ipv4-addr' && <IocTableIp rows={filtered} />}
+              {tab === 'url'       && <IocTableUrl rows={filtered} />}
+              {tab === 'domain-name' && <IocTableDomain rows={filtered} />}
+              {tab === 'file'      && <IocTableFile rows={filtered} />}
+            </div>
+        }
+
+      </div>
+    </div>
+  );
+}
+
+/* ── IOC sub-tables ─────────────────────────────────────────────────────────── */
+
+function ConfBadge({ v }) {
+  const c = v >= 90 ? 'var(--c-red)' : v >= 70 ? 'var(--c-amber)' : 'var(--c-green)';
+  return <span style={{ fontFamily:'var(--font-mono)', fontSize:12, color:c }}>{v}%</span>;
+}
+
+function CampList({ ids }) {
+  if (!ids.length) return <span style={{ color:'var(--text-faint)', fontSize:12 }}>—</span>;
+  return (
+    <span style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+      {ids.map(id => <span key={id} className="cid" style={{ fontSize:11.5 }}>{id}</span>)}
+    </span>
+  );
+}
+
+function CatList({ cats }) {
+  if (!cats.length) return <span style={{ color:'var(--text-faint)', fontSize:12 }}>—</span>;
+  return (
+    <span style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+      {cats.map(c => (
+        <span key={c} style={{ fontSize:11, padding:'2px 7px', borderRadius:999,
+          background:'var(--surface-2)', color:'var(--text-dim)', fontFamily:'var(--font-mono)' }}>
+          {c.replace(/_/g,'-').toLowerCase()}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function FmtDate({ iso }) {
+  if (!iso) return <span style={{ color:'var(--text-faint)' }}>—</span>;
+  return <span style={{ fontSize:12, color:'var(--text-faint)', fontFamily:'var(--font-mono)' }}>{iso.slice(0,10)}</span>;
+}
+
+function IocTableIp({ rows }) {
+  return (
+    <table className="tbl">
+      <thead><tr>
+        <th>Adresse IP</th><th>Campagnes</th><th>Catégories</th>
+        <th>Première vue</th><th>Dernière vue</th><th className="num">Conf.</th><th></th>
+      </tr></thead>
+      <tbody>
+        {rows.map((r,i) => (
+          <tr key={i}>
+            <td className="ipcell" style={{ color:'var(--honey-deep)', fontWeight:600 }}>{r.value}</td>
+            <td><CampList ids={r.campaign_ids} /></td>
+            <td><CatList cats={r.attack_categories} /></td>
+            <td><FmtDate iso={r.first_seen} /></td>
+            <td><FmtDate iso={r.last_seen} /></td>
+            <td className="num"><ConfBadge v={r.confidence} /></td>
+            <td>
+              <span style={{ display:'flex', gap:6 }}>
+                <CopyBtn text={r.value} />
+                <a href={D.vtIpUrl(r.value)} target="_blank" rel="noopener" className="mini-act" title="VirusTotal">
+                  <Icon name="ext" style={{ width:13, height:13 }} />
+                </a>
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function IocTableUrl({ rows }) {
+  return (
+    <table className="tbl">
+      <thead><tr>
+        <th>URL</th><th>Source IPs</th><th>Campagnes</th><th>Première vue</th><th className="num">Conf.</th><th></th>
+      </tr></thead>
+      <tbody>
+        {rows.map((r,i) => (
+          <tr key={i}>
+            <td style={{ fontFamily:'var(--font-mono)', fontSize:12, maxWidth:320, wordBreak:'break-all' }}>
+              {r.value}
+            </td>
+            <td style={{ fontSize:12, color:'var(--text-faint)' }}>{r.source_ips.join(', ') || '—'}</td>
+            <td><CampList ids={r.campaign_ids} /></td>
+            <td><FmtDate iso={r.first_seen} /></td>
+            <td className="num"><ConfBadge v={r.confidence} /></td>
+            <td>
+              <span style={{ display:'flex', gap:6 }}>
+                <CopyBtn text={r.value} />
+                <a href={r.value} target="_blank" rel="noopener" className="mini-act" title="Ouvrir (dangereux)">
+                  <Icon name="ext" style={{ width:13, height:13 }} />
+                </a>
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function IocTableDomain({ rows }) {
+  return (
+    <table className="tbl">
+      <thead><tr>
+        <th>Domaine</th><th>Source IPs</th><th>Campagnes</th><th>Première vue</th><th className="num">Conf.</th><th></th>
+      </tr></thead>
+      <tbody>
+        {rows.map((r,i) => (
+          <tr key={i}>
+            <td style={{ fontFamily:'var(--font-mono)', fontWeight:600, color:'var(--honey-deep)' }}>{r.value}</td>
+            <td style={{ fontSize:12, color:'var(--text-faint)' }}>{r.source_ips.join(', ') || '—'}</td>
+            <td><CampList ids={r.campaign_ids} /></td>
+            <td><FmtDate iso={r.first_seen} /></td>
+            <td className="num"><ConfBadge v={r.confidence} /></td>
+            <td>
+              <span style={{ display:'flex', gap:6 }}>
+                <CopyBtn text={r.value} />
+                <a href={D.vtDomainUrl(r.value)} target="_blank" rel="noopener" className="mini-act" title="VirusTotal">
+                  <Icon name="ext" style={{ width:13, height:13 }} />
+                </a>
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function IocTableFile({ rows }) {
+  return (
+    <table className="tbl">
+      <thead><tr>
+        <th>SHA-256</th><th>Fichier</th><th>Méthode</th><th>Source IPs</th><th>Campagnes</th><th>Première vue</th><th></th>
+      </tr></thead>
+      <tbody>
+        {rows.map((r,i) => (
+          <tr key={i}>
+            <td style={{ fontFamily:'var(--font-mono)', fontSize:11.5, color:'var(--text-dim)' }}
+              title={r.value}>
+              {r.value.slice(0,12)}…{r.value.slice(-8)}
+            </td>
+            <td style={{ fontFamily:'var(--font-mono)', fontSize:12 }}>{r.context.filename || '—'}</td>
+            <td>
+              <span style={{ fontSize:11.5, padding:'2px 8px', borderRadius:999,
+                background:'var(--surface-2)', color:'var(--text-dim)' }}>
+                {r.context.transfer_method || '—'}
+              </span>
+            </td>
+            <td style={{ fontSize:12, color:'var(--text-faint)' }}>{r.source_ips.join(', ') || '—'}</td>
+            <td><CampList ids={r.campaign_ids} /></td>
+            <td><FmtDate iso={r.first_seen} /></td>
+            <td>
+              <span style={{ display:'flex', gap:6 }}>
+                <CopyBtn text={r.value} />
+                <a href={D.vtHashUrl(r.value)} target="_blank" rel="noopener" className="mini-act" title="VirusTotal">
+                  <Icon name="ext" style={{ width:13, height:13 }} />
+                </a>
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+Object.assign(window, { DashboardView, CampaignsView, CampaignDetailView, IocView });
