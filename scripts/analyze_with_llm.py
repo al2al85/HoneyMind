@@ -111,8 +111,7 @@ Analyse l’attaque selon les objectifs suivants :
    - Classer le niveau comme : très faible, faible, moyen, élevé ou très élevé
 
 9. Mapper les actions observées avec MITRE ATT&CK lorsque c’est possible.
-
-La sortie doit être uniquement un schéma Mermaid représentant le mapping MITRE ATT&CK de l’attaque.
+    - La sortie de ce point doit être uniquement un schéma Mermaid représentant le mapping MITRE ATT&CK de l’attaque.
 
 Règles importantes :
 - Ne fais aucune hallucination.
