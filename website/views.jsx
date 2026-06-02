@@ -53,6 +53,7 @@ function DashboardView({ themeToggle }) {
   };
 
   return (
+    <>
     <div className="main">
       <PageHead crumb="HoneyMind · Supervision" title="Dashboard"
         right={
@@ -135,6 +136,7 @@ function DashboardView({ themeToggle }) {
       </div>
     </div>
     {sheetIp && <IpSheet ip={sheetIp} onClose={() => setSheetIp(null)} />}
+    </>
   );
 }
 
