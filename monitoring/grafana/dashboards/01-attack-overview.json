@@ -103,7 +103,7 @@
       },
       "targets": [
         {
-          "expr": "count(count by (client_ip) ({job=\"honeymind\", client_ip!=\"\"}[$__range]))",
+          "expr": "count(sum by (client_ip) (count_over_time({job=\"honeymind\", client_ip!=\"\"}[$__range])))",
           "refId": "A",
           "datasource": {
             "type": "loki",
@@ -299,7 +299,7 @@
       },
       "targets": [
         {
-          "expr": "count(count by (country_code) ({job=\"honeymind\", country_code!=\"\", country_code!=\"unknown\"}[$__range]))",
+          "expr": "count(sum by (country_code) (count_over_time({job=\"honeymind\", country_code!=\"\", country_code!=\"unknown\"}[$__range])))",
           "refId": "A",
           "datasource": {
             "type": "loki",
