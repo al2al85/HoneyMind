@@ -186,6 +186,124 @@ function CampaignsView({ go, themeToggle }) {
   );
 }
 
+/* ============ RAPPORT IA ============ */
+function AiReport({ campaignId }) {
+  const { fetchReport, generateReport } = useHM();
+  const [report, setReport] = React.useState(null);
+  const [polling, setPolling] = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    const r = await fetchReport(campaignId);
+    setReport(r);
+    setPolling(r.status === 'generating');
+  }, [campaignId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!polling) return;
+    const tid = setInterval(load, 4000);
+    return () => clearInterval(tid);
+  }, [polling, load]);
+
+  const onGenerate = async () => {
+    setReport({ status: 'generating' });
+    setPolling(true);
+    try { await generateReport(campaignId); } catch (e) {
+      setReport({ status: 'error', error: e.message });
+      setPolling(false);
+    }
+  };
+
+  const bar = (right) => (
+    <div className="ai-bar">
+      <span className="t">
+        <Icon name="brain" style={{ width:16, height:16, color:'var(--honey-deep)' }} /> Rapport IA
+      </span>
+      {right}
+    </div>
+  );
+
+  if (!report) return (
+    <div className="card ai-card">
+      {bar(null)}
+      <div style={{ display:'flex', justifyContent:'center', padding:36 }}>
+        <div className="spinner"></div>
+      </div>
+    </div>
+  );
+
+  if (report.status === 'not_found') return (
+    <div className="card ai-card">
+      {bar(<span className="ai-pending"><span className="dot-live" style={{ background:'var(--border)' }}></span>Non généré</span>)}
+      <div style={{ padding:'36px 24px', display:'flex', flexDirection:'column', alignItems:'center', gap:16, textAlign:'center' }}>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--border)" strokeWidth="1.5">
+          <path d="M9.663 17h4.673M12 3v1m6.364 1.636-.707.707M21 12h-1M4 12H3m3.343-5.657-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+        </svg>
+        <p style={{ color:'var(--text-faint)', fontSize:13.5, margin:0, maxWidth:280 }}>
+          Aucun rapport d'analyse IA disponible pour cette campagne.
+        </p>
+        <button onClick={onGenerate} style={{
+          display:'inline-flex', alignItems:'center', gap:8, padding:'10px 22px',
+          background:'var(--honey)', color:'#fff', border:'none', borderRadius:9,
+          cursor:'pointer', fontSize:13.5, fontWeight:600,
+        }}>
+          <Icon name="brain" style={{ width:15, height:15 }} /> Générer le rapport
+        </button>
+      </div>
+    </div>
+  );
+
+  if (report.status === 'generating') return (
+    <div className="card ai-card">
+      {bar(<span className="ai-pending"><span className="dot-live" style={{ background:'var(--c-amber)' }}></span>Analyse en cours…</span>)}
+      <div style={{ padding:'32px 24px', display:'flex', flexDirection:'column', alignItems:'center', gap:14 }}>
+        <div className="spinner"></div>
+        <p style={{ color:'var(--text-faint)', fontSize:13, margin:0, textAlign:'center', maxWidth:300 }}>
+          Le modèle analyse les sessions de la campagne.<br/>Cela peut prendre 30 à 60 secondes.
+        </p>
+      </div>
+    </div>
+  );
+
+  if (report.status === 'error') return (
+    <div className="card ai-card">
+      {bar(<span className="ai-pending" style={{ color:'var(--c-red)' }}>Échec</span>)}
+      <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:12 }}>
+        <p style={{ color:'var(--c-red)', fontSize:12.5, margin:0, fontFamily:'var(--font-mono)', wordBreak:'break-all' }}>
+          {report.error || 'Erreur inconnue'}
+        </p>
+        <button onClick={onGenerate} style={{
+          alignSelf:'flex-start', display:'inline-flex', alignItems:'center', gap:7,
+          padding:'7px 16px', background:'var(--surface-2)', border:'1px solid var(--border-soft)',
+          color:'var(--text-dim)', borderRadius:8, cursor:'pointer', fontSize:13,
+        }}>
+          <Icon name="refresh" style={{ width:13, height:13 }} /> Réessayer
+        </button>
+      </div>
+    </div>
+  );
+
+  const ts = report.generated_at ? new Date(report.generated_at).toLocaleString('fr-FR') : '';
+  return (
+    <div className="card ai-card">
+      {bar(
+        <span style={{ display:'flex', alignItems:'center', gap:10 }}>
+          {ts && <span style={{ fontSize:11.5, color:'var(--text-faint)' }}>{ts}</span>}
+          <button onClick={onGenerate} title="Regénérer" style={{
+            display:'inline-flex', alignItems:'center', gap:6, padding:'4px 11px',
+            background:'var(--surface-2)', border:'1px solid var(--border-soft)',
+            color:'var(--text-faint)', borderRadius:7, cursor:'pointer', fontSize:12,
+          }}>
+            <Icon name="refresh" style={{ width:12, height:12 }} /> Regénérer
+          </button>
+        </span>
+      )}
+      <div className="md" dangerouslySetInnerHTML={{ __html: D.mdToHtml(report.content || '') }} />
+    </div>
+  );
+}
+
 /* ============ DÉTAIL D'UNE CAMPAGNE ============ */
 function CampaignDetailView({ id, go, themeToggle }) {
   const { data, loading, error, reload, fetchCampaignIOCs } = useHM();
@@ -288,20 +406,10 @@ function CampaignDetailView({ id, go, themeToggle }) {
             </div>
           </div>
 
-          {/* Résumé IA */}
+          {/* Rapport IA */}
           <div>
-            <SecH title="Synthèse IA" hint="rapport généré" />
-            <div className="card ai-card">
-              <div className="ai-bar">
-                <span className="t">
-                  <Icon name="brain" style={{ width:16, height:16, color:'var(--honey-deep)' }} /> Analyse automatisée
-                </span>
-                <span className="ai-pending">
-                  <span className="dot-live" style={{ background:'var(--c-amber)' }}></span> aperçu — rapport à venir
-                </span>
-              </div>
-              <div className="md" dangerouslySetInnerHTML={{ __html: D.mdToHtml(c.aiSummary) }} />
-            </div>
+            <SecH title="Analyse IA" hint="rapport généré par le LLM" />
+            <AiReport campaignId={c.id} />
           </div>
         </div>
 

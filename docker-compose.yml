@@ -52,10 +52,16 @@ services:
     volumes:
       - ./honeypots:/data/honeypot
       - ./logs:/data/honeypot/logs
+      - ./scripts:/scripts:ro
     environment:
       IOC_DB: /data/honeypot/logs/iocs.db
+      LOG_DIR: /data/honeypot/logs
+      SCRIPT_PATH: /scripts/analyze_with_llm.py
       IOC_API_HOST: "0.0.0.0"
       IOC_API_PORT: "5000"
+    env_file:
+      - path: config/llm.env.list
+        required: false
     restart: unless-stopped
     depends_on:
       - ioc-writer

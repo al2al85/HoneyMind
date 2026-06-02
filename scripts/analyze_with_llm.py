@@ -21,6 +21,12 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+_quiet = False
+
+def _log(*args, **kwargs):
+    if not _quiet:
+        print(*args, **kwargs)
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from core.honeypot_utils import _load_env_file
@@ -175,7 +181,7 @@ def _call_llm(user_prompt: str, args=None, log_dir: Path = None, system_prompt: 
     if usage_db:
         kwargs["llm_usage_db_path"] = usage_db
 
-    print(f"  model: {model}  provider: {provider or 'auto'}  max_tokens: {max_tokens}")
+    _log(f"  model: {model}  provider: {provider or 'auto'}  max_tokens: {max_tokens}")
 
     return invoke_llm(
         system_prompt=system_prompt or _SYSTEM_PROMPT_DEEP,
@@ -206,7 +212,7 @@ def _resolve_env_file(env_file: str = None) -> None:
         p = Path(path)
         if p.exists():
             _load_env_file(str(p))
-            print(f"  loaded env: {p}")
+            _log(f"  loaded env: {p}")
             return
 
     if env_file:
@@ -339,8 +345,12 @@ def main():
     llm.add_argument("--base-url",    default=None, help="LLM base URL (for openai_compatible / ollama)")
     llm.add_argument("--api-key-env", default=None, help="Env var name holding the API key (default: LLM_API_KEY)")
     llm.add_argument("--max-tokens",  type=int, default=None, help="Max tokens for LLM response (default: env LLM_MAX_TOKENS or 600)")
+    parser.add_argument("--quiet", action="store_true", help="Output only the LLM report, suppress all debug info")
 
     args = parser.parse_args()
+
+    global _quiet
+    _quiet = args.quiet
 
     # Load .env file — CLI arg > default locations
     _resolve_env_file(args.env_file)
@@ -436,14 +446,14 @@ def main():
 
         condensed_str = json.dumps(condensed_global, indent=2, ensure_ascii=False)
         n_events = sum(len(e) for e in campaign_sessions.values())
-        print(f"\n── Campaign {cid} — {len(campaign_sessions)} sessions, {n_events} events ──")
-        print(condensed_str)
+        _log(f"\n── Campaign {cid} — {len(campaign_sessions)} sessions, {n_events} events ──")
+        _log(condensed_str)
 
         if args.show_ratio:
-            print(f"\n── Compression: {compression_ratio(n_events, condensed_str)} ──")
+            _log(f"\n── Compression: {compression_ratio(n_events, condensed_str)} ──")
 
         if not args.dry_run:
-            print(f"\n── LLM Analysis (campaign {cid}) ──")
+            _log(f"\n── LLM Analysis (campaign {cid}) ──")
             print(_call_llm(
                 _CAMPAIGN_PROMPT.format(condensed=condensed_str),
                 args, log_dir,
@@ -460,14 +470,14 @@ def main():
         condensed = condense_session(sessions[args.session])
         condensed_str = json.dumps(condensed, indent=2, ensure_ascii=False)
 
-        print(f"\n── Condensed session ({args.session[:8]}...) ──")
-        print(condensed_str)
+        _log(f"\n── Condensed session ({args.session[:8]}...) ──")
+        _log(condensed_str)
 
         if args.show_ratio:
-            print(f"\n── Compression: {compression_ratio(len(sessions[args.session]), condensed_str)} ──")
+            _log(f"\n── Compression: {compression_ratio(len(sessions[args.session]), condensed_str)} ──")
 
         if not args.dry_run:
-            print(f"\n── LLM Analysis ──")
+            _log(f"\n── LLM Analysis ──")
             print(_call_llm(
                 _SESSION_PROMPT.format(condensed=condensed_str),
                 args, log_dir,
@@ -506,14 +516,14 @@ def main():
     condensed_str = json.dumps(condensed_global, indent=2, ensure_ascii=False)
     dims_label = ", ".join(args.by)
 
-    print(f"\n── Condensed [{dims_label}] ({len(sessions)} sessions, {total_events} events) ──")
-    print(condensed_str)
+    _log(f"\n── Condensed [{dims_label}] ({len(sessions)} sessions, {total_events} events) ──")
+    _log(condensed_str)
 
     if args.show_ratio:
-        print(f"\n── Compression: {compression_ratio(total_events, condensed_str)} ──")
+        _log(f"\n── Compression: {compression_ratio(total_events, condensed_str)} ──")
 
     if not args.dry_run:
-        print(f"\n── LLM Analysis ──")
+        _log(f"\n── LLM Analysis ──")
         print(_call_llm(
             _GLOBAL_PROMPT.format(condensed=condensed_str),
             args, log_dir,

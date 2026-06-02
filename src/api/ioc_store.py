@@ -86,6 +86,14 @@ CREATE TABLE IF NOT EXISTS log_cursors (
     offset     INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS reports (
+    campaign_id  TEXT PRIMARY KEY,
+    content      TEXT,
+    status       TEXT NOT NULL DEFAULT 'generating',
+    error        TEXT,
+    generated_at TEXT NOT NULL
+);
 """
 
 _MAX_SESSION_IDS = 20
@@ -544,3 +552,33 @@ def load_sessions_for_campaign_detection(conn) -> dict[str, list[dict]]:
             })
         sessions[row["session_id"]] = fake_events
     return sessions
+
+
+# ── Reports ───────────────────────────────────────────────────────────────────
+
+def get_report(conn, campaign_id: str) -> Optional[dict]:
+    row = conn.execute(
+        "SELECT campaign_id, content, status, error, generated_at FROM reports WHERE campaign_id=?",
+        (campaign_id,)
+    ).fetchone()
+    if not row:
+        return None
+    return {
+        "campaign_id": row["campaign_id"],
+        "content": row["content"],
+        "status": row["status"],
+        "error": row["error"],
+        "generated_at": row["generated_at"],
+    }
+
+
+def upsert_report(conn, campaign_id: str, content: Optional[str],
+                  status: str, error: Optional[str], now: str) -> None:
+    conn.execute("""
+        INSERT INTO reports (campaign_id, content, status, error, generated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(campaign_id) DO UPDATE SET
+            content=excluded.content, status=excluded.status,
+            error=excluded.error, generated_at=excluded.generated_at
+    """, (campaign_id, content, status, error, now))
+    conn.commit()

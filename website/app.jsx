@@ -322,8 +322,27 @@ function DataProvider({ children }) {
     return bundle ? parseStixBundle(bundle) : { ips: [], domains: [], urls: [], hashes: [] };
   }
 
+  async function fetchReport(campaignId) {
+    try {
+      const r = await fetch(`/api/v1/reports/campaign/${encodeURIComponent(campaignId)}`);
+      if (r.status === 404) return { status: 'not_found' };
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
+    } catch (e) {
+      return { status: 'error', error: e.message };
+    }
+  }
+
+  async function generateReport(campaignId) {
+    const r = await fetch(`/api/v1/reports/campaign/${encodeURIComponent(campaignId)}/generate`, {
+      method: 'POST',
+    });
+    if (!r.ok && r.status !== 202) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  }
+
   return (
-    <window.HMContext.Provider value={{ ...state, reload: load, fetchCampaignIOCs }}>
+    <window.HMContext.Provider value={{ ...state, reload: load, fetchCampaignIOCs, fetchReport, generateReport }}>
       {children}
     </window.HMContext.Provider>
   );
