@@ -1,0 +1,184 @@
+{
+  "uid": "attack-overview",
+  "title": "HoneyMind — Attack Overview",
+  "description": "Global view: attack categories, timelines, top IPs, protocols",
+  "tags": ["honeymind", "overview"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Total Events",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": null }] } } },
+      "targets": [{ "expr": "sum(honeymind_events_total)", "legendFormat": "Events", "refId": "A" }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Unique Attacker IPs",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "orange", "value": null }] } } },
+      "targets": [{ "expr": "sum(honeymind_unique_ips)", "legendFormat": "IPs", "refId": "A" }]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Total Sessions",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "purple", "value": null }] } } },
+      "targets": [{ "expr": "sum(honeymind_sessions_total)", "legendFormat": "Sessions", "refId": "A" }]
+    },
+    {
+      "id": 4, "type": "stat", "title": "Active Sessions",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 10 }] } } },
+      "targets": [{ "expr": "sum(honeymind_active_sessions)", "legendFormat": "Active", "refId": "A" }]
+    },
+    {
+      "id": 5, "type": "stat", "title": "Auth Attempts",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "red", "value": null }] } } },
+      "targets": [{ "expr": "sum(honeymind_auth_attempts_total)", "legendFormat": "Auth", "refId": "A" }]
+    },
+    {
+      "id": 6, "type": "stat", "title": "Countries",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "semi-dark-yellow", "value": null }] } } },
+      "targets": [{ "expr": "count(count by (country_code) (honeymind_country_events_total))", "legendFormat": "Countries", "refId": "A" }]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Events / minute by Category",
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10, "stacking": { "mode": "normal" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "RECON" }, "properties": [{ "id": "color", "value": { "fixedColor": "#73BF69", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "EXECUTION" }, "properties": [{ "id": "color", "value": { "fixedColor": "#F2CC0C", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "PRIVILEGE_ESCALATION" }, "properties": [{ "id": "color", "value": { "fixedColor": "#FF780A", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "EXFILTRATION" }, "properties": [{ "id": "color", "value": { "fixedColor": "#F2495C", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "LATERAL_MOVEMENT" }, "properties": [{ "id": "color", "value": { "fixedColor": "#8AB8FF", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "PERSISTENCE" }, "properties": [{ "id": "color", "value": { "fixedColor": "#B877D9", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "IMPACT" }, "properties": [{ "id": "color", "value": { "fixedColor": "#C4162A", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "LOGIN" }, "properties": [{ "id": "color", "value": { "fixedColor": "#5794F2", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [{
+        "expr": "sum by (attack_category) (rate(honeymind_events_total[2m]) * 60)",
+        "legendFormat": "{{attack_category}}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 11, "type": "piechart", "title": "Attack Categories",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] } },
+      "targets": [{
+        "expr": "sum by (attack_category) (honeymind_events_total)",
+        "legendFormat": "{{attack_category}}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Auth Attempts / minute (Brute-Force)",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 15 } } },
+      "targets": [
+        { "expr": "sum by (success) (rate(honeymind_auth_attempts_total[2m]) * 60)", "legendFormat": "success={{success}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 21, "type": "piechart", "title": "Protocol Distribution",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "pieType": "pie", "legend": { "displayMode": "list", "placement": "right" } },
+      "targets": [{
+        "expr": "sum by (service) (honeymind_events_total)",
+        "legendFormat": "{{service}}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 22, "type": "piechart", "title": "Bot vs Human",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "pieType": "donut", "legend": { "displayMode": "list", "placement": "right" } },
+      "fieldConfig": {
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "bot" }, "properties": [{ "id": "color", "value": { "fixedColor": "#F2495C", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "human" }, "properties": [{ "id": "color", "value": { "fixedColor": "#73BF69", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [{
+        "expr": "sum by (verdict) (honeymind_sessions_total)",
+        "legendFormat": "{{verdict}}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 30, "type": "table", "title": "Top Attacker IPs",
+      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 18 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "sortBy": [{ "displayName": "Count", "desc": true }], "footer": { "show": false } },
+      "transformations": [
+        { "id": "extractFields", "options": { "source": "labels" } },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "client_ip": { "aggregations": ["count"], "operation": "groupby" },
+              "country": { "aggregations": ["lastNotNull"], "operation": "groupby" },
+              "isp": { "aggregations": ["lastNotNull"], "operation": "groupby" },
+              "is_tor": { "aggregations": ["lastNotNull"], "operation": "groupby" },
+              "bot_verdict": { "aggregations": ["lastNotNull"], "operation": "groupby" },
+              "sophistication": { "aggregations": ["lastNotNull"], "operation": "groupby" }
+            }
+          }
+        },
+        { "id": "sortBy", "options": { "fields": [{ "desc": true, "displayName": "client_ip Count" }] } },
+        { "id": "limit", "options": { "limitField": 50 } }
+      ],
+      "targets": [{
+        "expr": "{job=\"honeymind\"}",
+        "queryType": "range",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 31, "type": "bar", "title": "Top Commands",
+      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 18 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "orientation": "horizontal", "xTickLabelRotation": 0, "legend": { "displayMode": "hidden" } },
+      "targets": [{
+        "expr": "topk(15, sum by (command_raw) (count_over_time({job=\"honeymind\", event_type=\"command\"} | json | __error__=\"\" [$__range])))",
+        "legendFormat": "{{command_raw}}",
+        "refId": "A",
+        "queryType": "range"
+      }]
+    },
+    {
+      "id": 40, "type": "logs", "title": "Recent Events",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 28 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "showTime": true, "showLabels": true, "wrapLogMessage": false, "prettifyLogMessage": true, "dedupStrategy": "none" },
+      "targets": [{
+        "expr": "{job=\"honeymind\"} | json | line_format \"[{{.event_type}}] {{.service}} | {{.client_ip}} ({{.country}}) | {{.attack_category}} | {{.command_raw}}\"",
+        "refId": "A"
+      }]
+    }
+  ]
+}

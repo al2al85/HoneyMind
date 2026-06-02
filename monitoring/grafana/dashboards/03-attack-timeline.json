@@ -1,0 +1,109 @@
+{
+  "uid": "attack-timeline",
+  "title": "HoneyMind — Attack Timeline & Path",
+  "description": "Session timeline, attack phase progression, chemin d'attaque",
+  "tags": ["honeymind", "timeline"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "name": "session_id",
+        "type": "query",
+        "label": "Session ID",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values({job=\"honeymind\"}, session_id)",
+        "query": { "label": "session_id", "stream": "{job=\"honeymind\"}", "type": "1" },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": false,
+        "allValue": ".*"
+      },
+      {
+        "name": "ip_filter",
+        "type": "textbox",
+        "label": "Filter by IP",
+        "query": ""
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Attack Phase Activity over Time",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 8 } }
+      },
+      "targets": [
+        { "expr": "sum by (from_phase, to_phase) (rate(honeymind_attack_phase_transitions_total[$__rate_interval]) * 60)", "legendFormat": "{{from_phase}} → {{to_phase}}", "refId": "A" },
+        { "expr": "sum by (attack_category) (rate(honeymind_commands_total[$__rate_interval]) * 60)", "legendFormat": "{{attack_category}}", "refId": "B" }
+      ]
+    },
+    {
+      "id": 10, "type": "logs", "title": "Session Command Timeline",
+      "gridPos": { "h": 14, "w": 16, "x": 0, "y": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true, "showLabels": false, "wrapLogMessage": false,
+        "prettifyLogMessage": false, "enableLogDetails": true,
+        "dedupStrategy": "none", "sortOrder": "Ascending"
+      },
+      "targets": [{
+        "expr": "{job=\"honeymind\", session_id=~\"$session_id\"} | json | event_type=~\"command|auth_attempt\" | line_format \"[{{.seq}}] +{{.since_previous_event_ms}}ms  [{{._attack_category}}]  {{.command_raw}}{{.auth_username}}:{{.auth_password}}\"",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 11, "type": "table", "title": "Session Summary",
+      "gridPos": { "h": 14, "w": 8, "x": 16, "y": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "sortBy": [{ "displayName": "Time", "desc": true }] },
+      "transformations": [
+        { "id": "extractFields", "options": { "source": "labels" } },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "session_id": { "aggregations": ["count"], "operation": "groupby" },
+              "client_ip": { "aggregations": ["lastNotNull"], "operation": "groupby" },
+              "country": { "aggregations": ["lastNotNull"], "operation": "groupby" },
+              "bot_verdict": { "aggregations": ["lastNotNull"], "operation": "groupby" },
+              "sophistication": { "aggregations": ["lastNotNull"], "operation": "groupby" },
+              "attack_category": { "aggregations": ["lastNotNull"], "operation": "groupby" },
+              "tools": { "aggregations": ["lastNotNull"], "operation": "groupby" }
+            }
+          }
+        },
+        { "id": "sortBy", "options": { "fields": [{ "desc": true, "displayName": "session_id Count" }] } },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": { "session_id Count": "Events", "session_id": "Session" }
+          }
+        }
+      ],
+      "targets": [{ "expr": "{job=\"honeymind\"}", "queryType": "range", "refId": "A" }]
+    },
+    {
+      "id": 20, "type": "logs", "title": "Complete Session Log (selected session)",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 22 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true, "showLabels": true, "wrapLogMessage": true,
+        "prettifyLogMessage": true, "enableLogDetails": true,
+        "dedupStrategy": "none", "sortOrder": "Ascending"
+      },
+      "targets": [{
+        "expr": "{job=\"honeymind\", session_id=~\"$session_id\"}",
+        "refId": "A"
+      }]
+    }
+  ]
+}
