@@ -1,0 +1,198 @@
+{
+  "uid": "llm-ecology",
+  "title": "HoneyMind — LLM Usage & Ecology",
+  "description": "Token consumption, cost tracking, CO2 and energy impact",
+  "tags": ["honeymind", "llm", "ecology"],
+  "timezone": "browser",
+  "refresh": "2m",
+  "time": { "from": "now-7d", "to": "now" },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Total Tokens Used",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "blue", "value": null }] }
+        }
+      },
+      "targets": [{ "expr": "sum(honeymind_llm_tokens_total)", "legendFormat": "Total Tokens", "refId": "A" }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Total LLM Cost",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 10 }] }
+        }
+      },
+      "targets": [{ "expr": "sum(honeymind_llm_cost_total)", "legendFormat": "USD", "refId": "A" }]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Estimated CO2 (grams)",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 1000 }] }
+        }
+      },
+      "targets": [{ "expr": "sum(honeymind_llm_co2_grams_total)", "legendFormat": "gCO2", "refId": "A" }]
+    },
+    {
+      "id": 4, "type": "stat", "title": "Energy Consumed (Wh)",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watth",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 5 }] }
+        }
+      },
+      "targets": [{ "expr": "sum(honeymind_llm_energy_wh_total)", "legendFormat": "Wh", "refId": "A" }]
+    },
+    {
+      "id": 5, "type": "stat", "title": "Prompt Tokens",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "targets": [{ "expr": "sum(honeymind_llm_tokens_total{token_type=\"prompt\"})", "legendFormat": "Prompt", "refId": "A" }]
+    },
+    {
+      "id": 6, "type": "stat", "title": "Completion Tokens",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "targets": [{ "expr": "sum(honeymind_llm_tokens_total{token_type=\"completion\"})", "legendFormat": "Completion", "refId": "A" }]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Token Usage over Time",
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10 } } },
+      "targets": [
+        { "expr": "sum by (provider, model_id, token_type) (rate(honeymind_llm_tokens_total[$__rate_interval]) * 3600)", "legendFormat": "{{provider}}/{{model_id}} ({{token_type}})", "refId": "A" }
+      ]
+    },
+    {
+      "id": 11, "type": "piechart", "title": "Token Split by Provider",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] } },
+      "targets": [{
+        "expr": "sum by (provider) (honeymind_llm_tokens_total)",
+        "legendFormat": "{{provider}}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "CO2 Emissions over Time (cumulative g)",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "displayName": "gCO2 eq",
+          "custom": { "lineWidth": 2, "fillOpacity": 20 },
+          "color": { "mode": "fixed", "fixedColor": "#73BF69" }
+        }
+      },
+      "targets": [{
+        "expr": "sum(honeymind_llm_co2_grams_total)",
+        "legendFormat": "Cumulative CO2 (g)",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "LLM Cost over Time (cumulative $)",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": { "lineWidth": 2, "fillOpacity": 20 },
+          "color": { "mode": "fixed", "fixedColor": "#F2CC0C" }
+        }
+      },
+      "targets": [{
+        "expr": "sum(honeymind_llm_cost_total)",
+        "legendFormat": "Cumulative cost (USD)",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 30, "type": "table", "title": "Per-Model Usage Breakdown",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 19 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "sortBy": [{ "displayName": "total_tokens", "desc": true }] },
+      "targets": [
+        {
+          "expr": "sum by (provider, model_id) (honeymind_llm_tokens_total{token_type=\"prompt\"})",
+          "legendFormat": "{{provider}} / {{model_id}}",
+          "refId": "prompt",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (provider, model_id) (honeymind_llm_tokens_total{token_type=\"completion\"})",
+          "legendFormat": "{{provider}} / {{model_id}}",
+          "refId": "completion",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (provider, model_id) (honeymind_llm_cost_total)",
+          "legendFormat": "{{provider}} / {{model_id}}",
+          "refId": "cost",
+          "instant": true,
+          "format": "table"
+        },
+        {
+          "expr": "sum by (provider, model_id) (honeymind_llm_co2_grams_total)",
+          "legendFormat": "{{provider}} / {{model_id}}",
+          "refId": "co2",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Value #prompt": "Prompt Tokens",
+              "Value #completion": "Completion Tokens",
+              "Value #cost": "Cost (USD)",
+              "Value #co2": "CO2 (g)"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 40, "type": "text", "title": "Ecological Impact Context",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 27 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Methodology\n\n| Metric | Estimation basis |\n|--------|------------------|\n| **Energy (Wh)** | ~0.003 Wh per 1k tokens (hosted), ~0.001 Wh (local Ollama) |\n| **CO2 (g)** | Energy × 0.486 gCO₂/Wh (EU average grid mix, 2023) |\n| **Prompt tokens** | Weighted 0.5× (typically cheaper compute) |\n\n**Reference points** — 1 kg CO₂ ≈ 6 km by car ≈ 4 kWh electricity. A typical ChatGPT session ≈ 0.001–0.01 kWh.\n\nSources: IEA 2023, Luccioni et al. \"Power Hungry Processing\" (2023)."
+      }
+    }
+  ]
+}
