@@ -32,7 +32,7 @@ services:
       - ./uploads:/data/honeypot/uploads
     environment:
       LOG_DIR: /data/honeypot/logs
-      IOC_DB: /data/honeypot/iocs.db
+      IOC_DB: /data/honeypot/logs/iocs.db
       HONEYPOT_DOWNLOAD_DIR: /data/honeypot/downloads
       HONEYPOT_UPLOAD_DIR: /data/honeypot/uploads
       IOC_POLL_INTERVAL: "15"
@@ -51,7 +51,7 @@ services:
     volumes:
       - ./honeypots:/data/honeypot
     environment:
-      IOC_DB: /data/honeypot/iocs.db
+      IOC_DB: /data/honeypot/logs/iocs.db
       IOC_API_HOST: "0.0.0.0"
       IOC_API_PORT: "5000"
     restart: unless-stopped
