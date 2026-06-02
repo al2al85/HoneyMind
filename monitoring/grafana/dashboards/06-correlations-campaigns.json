@@ -2,139 +2,421 @@
   "uid": "correlations",
   "title": "HoneyMind — Correlations & Campaigns",
   "description": "IP clustering, recurring patterns, campaign detection, attack similarity",
-  "tags": ["honeymind", "correlation"],
+  "tags": [
+    "honeymind",
+    "correlation"
+  ],
   "timezone": "browser",
   "refresh": "5m",
-  "time": { "from": "now-7d", "to": "now" },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
   "schemaVersion": 39,
   "panels": [
     {
-      "id": 1, "type": "timeseries", "title": "Attack Waves — Events/hour (detect campaign bursts)",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "id": 1,
+      "type": "timeseries",
+      "title": "Attack Waves — Events/hour (detect campaign bursts)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "options": {
-        "tooltip": { "mode": "multi" },
-        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
         "thresholds": {
           "mode": "line",
           "steps": [
-            { "color": "transparent", "value": null },
-            { "color": "orange", "value": 100 },
-            { "color": "red", "value": 500 }
+            {
+              "color": "transparent",
+              "value": null
+            },
+            {
+              "color": "orange",
+              "value": 100
+            },
+            {
+              "color": "red",
+              "value": 500
+            }
           ]
         }
       },
       "fieldConfig": {
         "defaults": {
-          "custom": { "lineWidth": 2, "fillOpacity": 12 }
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 12
+          }
         }
       },
       "targets": [
-        { "expr": "sum by (service) (rate(honeymind_events_total[5m]) * 3600)", "legendFormat": "{{service}}", "refId": "A" },
-        { "expr": "sum by (country_code) (topk(5, rate(honeymind_country_events_total[5m]) * 3600))", "legendFormat": "Country: {{country_code}}", "refId": "B" }
+        {
+          "expr": "sum by (service) (rate(honeymind_events_total[5m]) * 3600)",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (country_code) (topk(5, rate(honeymind_country_events_total[5m]) * 3600))",
+          "legendFormat": "Country: {{country_code}}",
+          "refId": "B"
+        }
       ]
     },
     {
-      "id": 10, "type": "table", "title": "Recurring IP Patterns (same IP, multiple sessions)",
-      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 8 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "sortBy": [{ "displayName": "Sessions", "desc": true }] },
+      "id": 10,
+      "type": "table",
+      "title": "Recurring IP Patterns (same IP, multiple sessions)",
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "Sessions",
+            "desc": true
+          }
+        ]
+      },
       "transformations": [
-        { "id": "extractFields", "options": { "source": "labels" } },
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "labels"
+          }
+        },
         {
           "id": "groupBy",
           "options": {
             "fields": {
-              "client_ip": { "aggregations": ["count", "uniqueValues"], "operation": "groupby" },
-              "country": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-              "isp": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-              "attack_category": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-              "bot_verdict": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-              "profile_type": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-              "tools": { "aggregations": ["lastNotNull"], "operation": "groupby" }
+              "client_ip": {
+                "aggregations": [
+                  "count",
+                  "uniqueValues"
+                ],
+                "operation": "groupby"
+              },
+              "country": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
+              "isp": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
+              "country_code": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              }
             }
           }
         },
-        { "id": "sortBy", "options": { "fields": [{ "desc": true, "displayName": "client_ip Count" }] } },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": [
+              {
+                "desc": true,
+                "displayName": "client_ip Count"
+              }
+            ]
+          }
+        },
         {
           "id": "organize",
           "options": {
             "renameByName": {
               "client_ip Count": "Events",
-              "client_ip (uniqueValues)": "Unique Sessions"
+              "client_ip (uniqueValues)": "Sessions"
             }
           }
         }
       ],
-      "targets": [{ "expr": "{job=\"honeymind\"}", "queryType": "range", "refId": "A" }]
+      "targets": [
+        {
+          "expr": "{job=\"honeymind\", event_type=\"session_start\"}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 11, "type": "table", "title": "Coordinated Activity (same country/ISP burst)",
-      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "sortBy": [{ "displayName": "Value", "desc": true }] },
-      "targets": [{
-        "expr": "topk(20, sum by (country_code, country) (rate(honeymind_country_events_total[1h]) * 3600))",
-        "legendFormat": "{{country_code}} — {{country}}",
-        "refId": "A",
-        "instant": true,
-        "format": "table"
-      }]
-    },
-    {
-      "id": 20, "type": "timeseries", "title": "Attack Phase Transitions (kill chain progression)",
-      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 18 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": {
-        "tooltip": { "mode": "multi" },
-        "legend": { "displayMode": "list", "placement": "bottom" }
+      "id": 11,
+      "type": "table",
+      "title": "Coordinated Activity (same country/ISP burst)",
+      "gridPos": {
+        "h": 10,
+        "w": 10,
+        "x": 14,
+        "y": 8
       },
-      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 5 } } },
-      "targets": [{
-        "expr": "sum by (from_phase, to_phase) (rate(honeymind_attack_phase_transitions_total[10m]) * 600)",
-        "legendFormat": "{{from_phase}} → {{to_phase}}",
-        "refId": "A"
-      }]
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "topk(20, sum by (country_code, country) (rate(honeymind_country_events_total[1h]) * 3600))",
+          "legendFormat": "{{country_code}} — {{country}}",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ]
     },
     {
-      "id": 21, "type": "stat", "title": "High-Sophistication Attacks",
-      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 18 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
-      "targets": [{ "expr": "sum(honeymind_sophistication_total{profile_type=~\"targeted|nation_state\"})", "legendFormat": "High", "refId": "A" }]
+      "id": 20,
+      "type": "timeseries",
+      "title": "Attack Phase Transitions (kill chain progression)",
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 18
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 5
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (from_phase, to_phase) (rate(honeymind_attack_phase_transitions_total[10m]) * 600)",
+          "legendFormat": "{{from_phase}} → {{to_phase}}",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 22, "type": "stat", "title": "Multi-Phase Attacks (≥3 phases)",
-      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 22 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }] } } },
-      "targets": [{ "expr": "sum(honeymind_attack_phase_transitions_total)", "legendFormat": "Transitions", "refId": "A" }]
+      "id": 21,
+      "type": "stat",
+      "title": "High-Sophistication Attacks",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 18
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(honeymind_sophistication_total{profile_type=~\"targeted|nation_state\"})",
+          "legendFormat": "High",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 30, "type": "logs", "title": "Obfuscated Commands (potential evasion)",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "showTime": true, "showLabels": true, "wrapLogMessage": true },
-      "targets": [{
-        "expr": "{job=\"honeymind\"} | json | _obfuscated=\"true\" | line_format \"[OBFUSCATED] {{.client_ip}} ({{.country}}, {{.isp}}) | {{.attack_category}} | {{.command_raw}}\"",
-        "refId": "A"
-      }]
+      "id": 22,
+      "type": "stat",
+      "title": "Multi-Phase Attacks (≥3 phases)",
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
+        "y": 22
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(honeymind_attack_phase_transitions_total)",
+          "legendFormat": "Transitions",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 40, "type": "table", "title": "Auth Brute-Force (>20 attempts same IP)",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "sortBy": [{ "displayName": "Value", "desc": true }] },
-      "fieldConfig": { "overrides": [{ "matcher": { "id": "byName", "options": "Value" }, "properties": [{ "id": "displayName", "value": "Auth Attempts" }, { "id": "custom.displayMode", "value": "lcd-gauge" }, { "id": "color", "value": { "mode": "continuous-RdYlGr" } }] }] },
-      "targets": [{
-        "expr": "sort_desc(sum by (username) (honeymind_auth_attempts_total{success=\"false\"})) > 20",
-        "legendFormat": "{{username}}",
-        "refId": "A",
-        "instant": true,
-        "format": "table"
-      }]
+      "id": 30,
+      "type": "logs",
+      "title": "Obfuscated Commands (potential evasion)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "expr": "{job=\"honeymind\"} | json | _obfuscated=\"true\" | line_format \"[OBFUSCATED] {{.client_ip}} ({{.country}}, {{.isp}}) | {{.attack_category}} | {{.command_raw}}\"",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "type": "table",
+      "title": "Auth Brute-Force (>20 attempts same IP)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Auth Attempts"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "lcd-gauge"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sort_desc(sum by (username) (honeymind_auth_attempts_total{success=\"false\"})) > 20",
+          "legendFormat": "{{username}}",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ]
     }
   ]
 }

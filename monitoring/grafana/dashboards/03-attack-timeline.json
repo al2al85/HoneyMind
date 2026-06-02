@@ -168,6 +168,12 @@
                 ],
                 "operation": "groupby"
               },
+              "attack_category": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
               "bot_verdict": {
                 "aggregations": [
                   "lastNotNull"
@@ -175,18 +181,6 @@
                 "operation": "groupby"
               },
               "profile_type": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "groupby"
-              },
-              "attack_category": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "groupby"
-              },
-              "tools": {
                 "aggregations": [
                   "lastNotNull"
                 ],
@@ -218,7 +212,7 @@
       ],
       "targets": [
         {
-          "expr": "{job=\"honeymind\"}",
+          "expr": "{job=\"honeymind\", event_type=\"session_end\"}",
           "queryType": "range",
           "refId": "A"
         }

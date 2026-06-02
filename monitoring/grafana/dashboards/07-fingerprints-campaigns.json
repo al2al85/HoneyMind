@@ -2,140 +2,690 @@
   "uid": "fingerprints",
   "title": "HoneyMind — Fingerprints & Campagnes",
   "description": "HASSH, sequence hash, campagnes détectées, corrélations cross-sessions",
-  "tags": ["honeymind", "fingerprint", "campaign"],
+  "tags": [
+    "honeymind",
+    "fingerprint",
+    "campaign"
+  ],
   "timezone": "browser",
   "refresh": "5m",
-  "time": { "from": "now-7d", "to": "now" },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
   "schemaVersion": 39,
   "panels": [
     {
-      "id": 1, "type": "stat", "title": "Fingerprints uniques",
-      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": null }] } } },
-      "targets": [{ "expr": "count(count by (hassh) (honeymind_hassh_detections_total))", "refId": "A" }]
+      "id": 1,
+      "type": "stat",
+      "title": "Fingerprints uniques",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(count by (hassh) (honeymind_hassh_detections_total))",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 2, "type": "stat", "title": "Outils identifiés (HASSH/UA)",
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "orange", "value": null }] } } },
-      "targets": [{ "expr": "count(count by (ssh_client) (honeymind_hassh_detections_total))", "refId": "A" }]
+      "id": 2,
+      "type": "stat",
+      "title": "Outils identifiés (HASSH/UA)",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(count by (ssh_client) (honeymind_hassh_detections_total))",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 3, "type": "stat", "title": "AI Traps déclenchés",
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "purple", "value": 1 }] } } },
-      "targets": [{ "expr": "sum(honeymind_ai_trap_hits_total)", "refId": "A" }]
+      "id": 3,
+      "type": "stat",
+      "title": "AI Traps déclenchés",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "purple",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(honeymind_ai_trap_hits_total)",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 4, "type": "stat", "title": "Attaques ciblées (score ≥ 6)",
-      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
-      "targets": [{ "expr": "sum(honeymind_profile_type_total{profile_type=~\"targeted|nation_state\"})", "refId": "A" }]
+      "id": 4,
+      "type": "stat",
+      "title": "Attaques ciblées (score ≥ 6)",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(honeymind_profile_type_total{profile_type=~\"targeted|nation_state\"})",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 5, "type": "stat", "title": "Attaques business hours",
-      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }] } } },
-      "targets": [{ "expr": "sum(count_over_time({job=\"honeymind\", business_hours=\"true\"} [$__range]))", "refId": "A" }]
+      "id": 5,
+      "type": "stat",
+      "title": "Attaques business hours",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({job=\"honeymind\", business_hours=\"true\"} [$__range]))",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 6, "type": "stat", "title": "Résidentiel (botnet ?)",
-      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background" },
-      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 5 }] } } },
-      "targets": [{ "expr": "sum(count_over_time({job=\"honeymind\", is_residential=\"true\"} [$__range]))", "refId": "A" }]
+      "id": 6,
+      "type": "stat",
+      "title": "Résidentiel (botnet ?)",
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "sum"
+          ]
+        },
+        "colorMode": "background"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({job=\"honeymind\", is_residential=\"true\"} [$__range]))",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 10, "type": "table", "title": "HASSH — Empreintes SSH (outil identifié)",
-      "gridPos": { "h": 10, "w": 14, "x": 0, "y": 4 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "sortBy": [{ "displayName": "Count", "desc": true }] },
-      "transformations": [
-        { "id": "extractFields", "options": { "source": "labels" } },
-        { "id": "groupBy", "options": { "fields": {
-          "hassh": { "aggregations": ["count"], "operation": "groupby" },
-          "ssh_client": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-          "tool_match": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-          "country": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-          "client_ip": { "aggregations": ["lastNotNull"], "operation": "groupby" }
-        }}},
-        { "id": "sortBy", "options": { "fields": [{ "desc": true, "displayName": "hassh Count" }] } },
-        { "id": "limit", "options": { "limitField": 30 } }
-      ],
-      "targets": [{ "expr": "{job=\"honeymind\", hassh!=\"\"}", "queryType": "range", "refId": "A" }]
-    },
-    {
-      "id": 11, "type": "barchart", "title": "Clients SSH par outil",
-      "gridPos": { "h": 10, "w": 10, "x": 14, "y": 4 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "orientation": "horizontal", "legend": { "displayMode": "hidden" } },
-      "targets": [{ "expr": "sort_desc(sum by (ssh_client) (honeymind_hassh_detections_total))", "legendFormat": "{{ssh_client}}", "refId": "A", "instant": true, "format": "table" }]
-    },
-    {
-      "id": 20, "type": "table", "title": "Sessions avec tool_match (signature connue)",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 14 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "sortBy": [{ "displayName": "Count", "desc": true }] },
-      "transformations": [
-        { "id": "extractFields", "options": { "source": "labels" } },
-        { "id": "groupBy", "options": { "fields": {
-          "tool_match": { "aggregations": ["count"], "operation": "groupby" },
-          "client_ip": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-          "country": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-          "isp": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-          "anonymization_type": { "aggregations": ["lastNotNull"], "operation": "groupby" },
-          "session_id": { "aggregations": ["lastNotNull"], "operation": "groupby" }
-        }}},
-        { "id": "sortBy", "options": { "fields": [{ "desc": true, "displayName": "tool_match Count" }] } }
-      ],
-      "targets": [{ "expr": "{job=\"honeymind\", tool_match!=\"\"}", "queryType": "range", "refId": "A" }]
-    },
-    {
-      "id": 30, "type": "timeseries", "title": "Profils d'attaquants dans le temps",
-      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 24 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
-      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10, "stacking": { "mode": "normal" } } },
-        "overrides": [
-          { "matcher": { "id": "byName", "options": "nation_state" }, "properties": [{ "id": "color", "value": { "fixedColor": "#C4162A", "mode": "fixed" } }] },
-          { "matcher": { "id": "byName", "options": "targeted" }, "properties": [{ "id": "color", "value": { "fixedColor": "#FF780A", "mode": "fixed" } }] },
-          { "matcher": { "id": "byName", "options": "opportunist" }, "properties": [{ "id": "color", "value": { "fixedColor": "#F2CC0C", "mode": "fixed" } }] },
-          { "matcher": { "id": "byName", "options": "script_kiddie" }, "properties": [{ "id": "color", "value": { "fixedColor": "#73BF69", "mode": "fixed" } }] }
+      "id": 10,
+      "type": "table",
+      "title": "HASSH — Empreintes SSH (outil identifié)",
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "Count",
+            "desc": true
+          }
         ]
       },
-      "targets": [{ "expr": "sum by (profile_type) (rate(honeymind_profile_type_total[$__rate_interval]) * 60)", "legendFormat": "{{profile_type}}", "refId": "A" }]
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "labels"
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "hassh": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "groupby"
+              },
+              "ssh_client": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
+              "tool_match": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
+              "client_ip": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
+              "country": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": [
+              {
+                "desc": true,
+                "displayName": "hassh Count"
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 30
+          }
+        }
+      ],
+      "targets": [
+        {
+          "expr": "{job=\"honeymind\", event_type=\"session_start\", hassh!=\"\"}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 31, "type": "piechart", "title": "Distribution AI traps",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] } },
-      "targets": [{ "expr": "sum by (trap_id) (honeymind_ai_trap_hits_total)", "legendFormat": "{{trap_id}}", "refId": "A" }]
+      "id": 11,
+      "type": "barchart",
+      "title": "Clients SSH par outil",
+      "gridPos": {
+        "h": 10,
+        "w": 10,
+        "x": 14,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "orientation": "horizontal",
+        "legend": {
+          "displayMode": "hidden"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sort_desc(sum by (ssh_client) (honeymind_hassh_detections_total))",
+          "legendFormat": "{{ssh_client}}",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ]
     },
     {
-      "id": 40, "type": "logs", "title": "Agents IA (AI trap hits)",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "showTime": true, "showLabels": true, "wrapLogMessage": false, "dedupStrategy": "none" },
-      "targets": [{ "expr": "{job=\"honeymind\", ai_trap=\"true\"} | json | line_format \"[AI AGENT 🤖] {{.client_ip}} ({{.country}}) | {{._profile_label}} | traps={{._ai_trap_ids}} | cmd: {{.command_raw}}\"", "refId": "A" }]
+      "id": 20,
+      "type": "table",
+      "title": "Sessions avec tool_match (signature connue)",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "Count",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "labels"
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "tool_match": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "groupby"
+              },
+              "client_ip": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
+              "country": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
+              "isp": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": [
+              {
+                "desc": true,
+                "displayName": "tool_match Count"
+              }
+            ]
+          }
+        }
+      ],
+      "targets": [
+        {
+          "expr": "{job=\"honeymind\", event_type=\"session_start\", tool_match!=\"\"}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 41, "type": "logs", "title": "Attaquants sophistiqués (score ≥ 6)",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 40 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "showTime": true, "showLabels": true, "wrapLogMessage": true },
-      "targets": [{ "expr": "{job=\"honeymind\", profile_type=~\"targeted|nation_state\"} | json | line_format \"[{{.profile_type}}] {{.client_ip}} ({{.country}}) score={{._sophistication_score}}/10 | {{._narrative}}\"", "refId": "A" }]
+      "id": 30,
+      "type": "timeseries",
+      "title": "Profils d'attaquants dans le temps",
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "nation_state"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4162A",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "targeted"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF780A",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "opportunist"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#F2CC0C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "script_kiddie"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#73BF69",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum by (profile_type) (rate(honeymind_profile_type_total[$__rate_interval]) * 60)",
+          "legendFormat": "{{profile_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "type": "piechart",
+      "title": "Distribution AI traps",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (trap_id) (honeymind_ai_trap_hits_total)",
+          "legendFormat": "{{trap_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "type": "logs",
+      "title": "Agents IA (AI trap hits)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": false,
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "expr": "{job=\"honeymind\", ai_trap=\"true\"} | json | line_format \"[AI AGENT 🤖] {{.client_ip}} ({{.country}}) | {{._profile_label}} | traps={{._ai_trap_ids}} | cmd: {{.command_raw}}\"",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "type": "logs",
+      "title": "Attaquants sophistiqués (score ≥ 6)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "expr": "{job=\"honeymind\", profile_type=~\"targeted|nation_state\"} | json | line_format \"[{{.profile_type}}] {{.client_ip}} ({{.country}}) score={{._sophistication_score}}/10 | {{._narrative}}\"",
+          "refId": "A"
+        }
+      ]
     }
   ]
 }
