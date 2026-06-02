@@ -190,6 +190,12 @@ function CampaignsView({ go, themeToggle }) {
                 ? renderCampaignTable(activeCampaigns)
                 : <div className="card" style={{ padding:24 }}><p className="empty-note">Aucune campagne active.</p></div>
               }
+              <p style={{ fontSize:12, color:'var(--text-faint)', margin:'8px 0 24px', display:'flex', alignItems:'center', gap:6 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink:0, color:'var(--c-amber)' }}>
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                Une campagne est considérée comme active si sa dernière activité a eu lieu il y a moins d'une heure.
+              </p>
 
               <SecH title={`Campagnes inactives (${inactiveCampaigns.length})`} hint="tri conservé dans chaque section" />
               {inactiveCampaigns.length
