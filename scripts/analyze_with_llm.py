@@ -36,129 +36,65 @@ from analysis.bot_human_analyzer import analyze as analyze_bot_human
 from analysis.campaign_detector import detect_campaigns
 from analysis.attacker_profiler import profile as build_profile
 
-_SYSTEM_PROMPT = """Tu es un analyste cybersécurité spécialisé dans la télémétrie de honeypots, l’analyse d’intrusions SSH, le profilage d’attaquants et la corrélation de campagnes d’attaque.
+# ── System prompts ────────────────────────────────────────────────────────────
+# Deep : analyse complète session / campagne
+# Overview : synthèse globale multi-sessions
 
-Ta mission est d’analyser les logs de honeypot fournis et de produire un rapport de renseignement structuré.
+_SYSTEM_PROMPT_DEEP = """Tu es un analyste cybersécurité spécialisé dans la télémétrie honeypot, le profilage d'attaquants et la corrélation de campagnes.
 
-Tu ne dois pas inventer d’informations. Si une information est absente, indique "inconnu" ou "non observé". Chaque conclusion doit être basée sur des éléments observables dans les logs. Lorsqu’une conclusion est une hypothèse, indique clairement qu’il s’agit d’une inférence et associe-lui un niveau de confiance : faible, moyen ou élevé.
+Règles absolues :
+- Ne jamais inventer d'informations. Si une donnée est absente : "inconnu" ou "non observé".
+- Toute hypothèse doit être explicitement marquée avec un niveau de confiance (faible / moyen / élevé).
+- Chaque conclusion doit citer la preuve issue des logs.
+- Pas d'attribution formelle sans preuve forte.
+- Sortie en français, format markdown."""
 
-Analyse l’attaque selon les objectifs suivants :
+_SYSTEM_PROMPT_OVERVIEW = """Tu es un analyste cybersécurité. Tu reçois une vue agrégée de logs honeypot couvrant plusieurs sessions et campagnes.
+Produis une synthèse de threat intelligence en français, format markdown. Sois synthétique. Ne jamais inventer."""
 
-1. Classifier les phases de l’attaque :
-   - Reconnaissance
-   - Accès initial
-   - Exécution
-   - Persistance
-   - Escalade de privilèges
-   - Mouvement latéral
-   - Exfiltration
-   - Dépôt de fichiers et accès aux fichiers
 
-2. Reconstruire le chemin d’attaque :
-   - Construire une timeline chronologique
-   - Identifier la séquence logique des actions
-   - Expliquer le processus de décision probable de l’attaquant
-   - Produire une représentation compatible avec un graphe
-
-3. Identifier les outils utilisés :
-   - Commandes Linux natives
-   - Outils de téléchargement
-   - Outils réseau
-   - Malware ou scripts
-   - Scanners
-   - Frameworks d’automatisation
-
-4. Identifier le type d’agent :
-   - Déterminer si le comportement ressemble à celui d’un bot, d’un humain ou d’un opérateur semi-automatisé
-   - Analyser le délai moyen entre les commandes
-   - Détecter les comportements de copier-coller
-   - Détecter les fautes de frappe ou les commandes corrigées
-   - Détecter les séquences de commandes répétées
-   - Déterminer si l’attaquant s’adapte aux réponses du système
-
-5. Profiler l’attaquant :
-   - Adresse IP
-   - Pays ou localisation approximative si disponible
-   - ASN
-   - FAI ou fournisseur d’hébergement
-   - VPN, proxy, Tor, cloud, datacenter, résidentiel ou inconnu
-   - Activité précédente observée dans le honeypot si disponible
-   - Liens avec des attaques précédentes, payloads, commandes, identifiants ou infrastructures
-   - Méthodes d’anonymisation possibles
-
-6. Déterminer l’objectif probable de l’attaquant :
-   - Reconnaissance système
-   - Déploiement de malware
-   - Enrôlement dans un botnet
-   - Cryptomining
-   - Vol d’identifiants
-   - Persistance
-   - Mouvement latéral
-   - Exfiltration
-   - Utilisation comme proxy ou relais
-   - Autre
-
-7. Analyser l’interaction avec les fausses informations du honeypot :
-   - L’attaquant a-t-il interagi avec de faux fichiers ?
-   - L’attaquant semble-t-il avoir cru à l’environnement ?
-   - L’attaquant montre-t-il des signes de détection du honeypot ?
-   - Quelles fausses données ont attiré son attention ?
-   - Quelles fausses données manquantes devraient être ajoutées pour améliorer le réalisme ?
-
-8. Évaluer le niveau de sophistication :
-   - Attribuer un score de sophistication de 0 à 100
-   - Expliquer ce score
-   - Classer le niveau comme : très faible, faible, moyen, élevé ou très élevé
-
-9. Mapper les actions observées avec MITRE ATT&CK lorsque c’est possible.
-    - La sortie de ce point doit être uniquement un schéma Mermaid représentant le mapping MITRE ATT&CK de l’attaque.
-
-Règles importantes :
-- Ne fais aucune hallucination.
-- Ne fais aucune attribution formelle sauf si elle est fortement démontrée.
-- Utilise les termes “probable”, “vraisemblable”, “suspecté” ou “inconnu” lorsque les preuves sont incomplètes.
-- Chaque conclusion doit inclure une preuve issue des logs.
-- Sois concis : la sortie ne doit pas être trop longue.
-- Tout doit être rédigé en français et au format markdown."""
+# ── User prompts ──────────────────────────────────────────────────────────────
 
 _SESSION_PROMPT = """Analyse cette session d'attaque :
 
 {condensed}
 
-Fournis :
-- Ce que cherchait l'attaquant
-- Niveau de sophistication
-- Action la plus dangereuse
-- Résumé en une phrase"""
+Produis un rapport structuré couvrant :
+1. **Phases de l'attaque** — classifier chaque phase observée (recon, accès initial, exécution, persistance, privesc, latéral, exfiltration, dépôt de fichiers)
+2. **Chemin d'attaque** — timeline chronologique + séquence logique des actions
+3. **Outils identifiés** — commandes natives, outils de téléchargement, malware, scanners
+4. **Type d'agent** — bot / humain / semi-automatisé, avec justification comportementale
+5. **Profil attaquant** — IP, pays, ASN, FAI, anonymisation (VPN/Tor/datacenter/résidentiel)
+6. **Objectif probable** — avec niveau de confiance
+7. **Interaction honeypot** — a-t-il cru à l'environnement ? faux fichiers consultés ?
+8. **Score de sophistication** — 0-100, justification, niveau (très faible → très élevé)
+9. **Mapping MITRE ATT&CK** — uniquement un diagramme Mermaid"""
 
-_GLOBAL_PROMPT = """Analyse ces sessions d'attaques honeypot :
-
-{condensed}
-
-Fournis :
-- Paysage global des menaces (ce que ciblent les attaquants)
-- Signes de campagnes coordonnées
-- Attaque la plus sophistiquée observée
-- Actions défensives recommandées
-- Résumé exécutif (3 phrases max)"""
-
-_MULTIDIM_PROMPT = """Tu analyses une vue multidimensionnelle compressée de logs honeypot.
+_CAMPAIGN_PROMPT = """Analyse cette campagne d'attaque :
 
 {condensed}
 
-Dimensions couvertes :
-- behavior : distribution bot/humain/agent IA + niveaux de sophistication
-- technique : outils utilisés, phases d'attaque, protocoles, taux de succès
-- network : campagnes détectées, pays, méthodes d'anonymisation
-- temporal : patterns temporels, heures de pointe, attaques lentes vs rapides
-- content : fichiers ciblés, commandes utilisées, pièges IA déclenchés
+Produis un rapport structuré couvrant :
+1. **Phases de l'attaque** — phases observées sur l'ensemble des sessions de la campagne
+2. **Chemin d'attaque** — timeline et séquence logique commune aux sessions
+3. **Outils identifiés** — outils partagés entre sessions, infrastructure commune
+4. **Type d'agent** — bot / humain / semi-automatisé, cohérence inter-sessions
+5. **Profil attaquant** — IPs impliquées, pays, ASN, anonymisation, corrélations
+6. **Objectif probable** — avec niveau de confiance
+7. **Interaction honeypot** — réactions aux leurres, signes de détection du honeypot
+8. **Score de sophistication** — 0-100, justification, niveau (très faible → très élevé)
+9. **Mapping MITRE ATT&CK** — uniquement un diagramme Mermaid"""
 
-Fournis un rapport de threat intelligence concis :
-1. Principaux acteurs malveillants et leurs objectifs
-2. Campagne ou session la plus dangereuse
-3. Patterns d'attaque et tendances
-4. 2-3 recommandations défensives concrètes
-5. Résumé exécutif (2 phrases)"""
+_GLOBAL_PROMPT = """Vue agrégée des sessions honeypot :
+
+{condensed}
+
+Produis une synthèse threat intelligence :
+1. **Paysage des menaces** — qui attaque, quels objectifs, quels patterns dominants
+2. **Campagne la plus dangereuse** — pourquoi, indicateurs clés
+3. **Tendances** — outils, techniques, timing, évolution
+4. **Recommandations défensives** — 3 actions prioritaires et concrètes
+5. **Résumé exécutif** — 2-3 phrases"""
 
 
 # ── Log loading ───────────────────────────────────────────────────────────────
@@ -191,7 +127,7 @@ def _load_sessions(log_dir: Path) -> dict[str, list[dict]]:
 
 # ── LLM call ─────────────────────────────────────────────────────────────────
 
-def _call_llm(user_prompt: str, args=None, log_dir: Path = None) -> str:
+def _call_llm(user_prompt: str, args=None, log_dir: Path = None, system_prompt: str = None) -> str:
     try:
         from llm_providers.llm_utils import invoke_llm
     except ImportError:
@@ -242,7 +178,7 @@ def _call_llm(user_prompt: str, args=None, log_dir: Path = None) -> str:
     print(f"  model: {model}  provider: {provider or 'auto'}  max_tokens: {max_tokens}")
 
     return invoke_llm(
-        system_prompt=_SYSTEM_PROMPT,
+        system_prompt=system_prompt or _SYSTEM_PROMPT_DEEP,
         user_prompt=user_prompt,
         model_id=model,
         llm_max_tokens=max_tokens,
@@ -507,9 +443,12 @@ def main():
             print(f"\n── Compression: {compression_ratio(n_events, condensed_str)} ──")
 
         if not args.dry_run:
-            prompt = _MULTIDIM_PROMPT.format(condensed=condensed_str)
             print(f"\n── LLM Analysis (campaign {cid}) ──")
-            print(_call_llm(prompt, args, log_dir))
+            print(_call_llm(
+                _CAMPAIGN_PROMPT.format(condensed=condensed_str),
+                args, log_dir,
+                system_prompt=_SYSTEM_PROMPT_DEEP,
+            ))
         return
 
     # Single session analysis
@@ -529,8 +468,11 @@ def main():
 
         if not args.dry_run:
             print(f"\n── LLM Analysis ──")
-            result = _call_llm(_SESSION_PROMPT.format(condensed=condensed_str), args, log_dir)
-            print(result)
+            print(_call_llm(
+                _SESSION_PROMPT.format(condensed=condensed_str),
+                args, log_dir,
+                system_prompt=_SYSTEM_PROMPT_DEEP,
+            ))
         return
 
     # Compute attacker profiles (bot_human_results + campaigns already computed above)
@@ -572,8 +514,11 @@ def main():
 
     if not args.dry_run:
         print(f"\n── LLM Analysis ──")
-        result = _call_llm(_MULTIDIM_PROMPT.format(condensed=condensed_str), args, log_dir)
-        print(result)
+        print(_call_llm(
+            _GLOBAL_PROMPT.format(condensed=condensed_str),
+            args, log_dir,
+            system_prompt=_SYSTEM_PROMPT_OVERVIEW,
+        ))
 
 
 if __name__ == "__main__":
