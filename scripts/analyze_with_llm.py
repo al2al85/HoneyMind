@@ -303,13 +303,17 @@ def _build_ip_cache(sessions: dict, log_dir: Path) -> dict:
     return result
 
 
-def _build_session_timeline(sessions: dict, max_per_session: int = 30) -> dict:
-    """Per-session ordered command list with timestamp and MITRE category."""
+def _build_session_timeline(sessions: dict, max_per_session: int = 20, cmd_max_len: int = 120) -> dict:
+    """
+    Compact per-session command timeline for LLM context.
+    Format: ["HH:MM:SS CAT: cmd..."] — deduped, truncated, one string per entry.
+    """
     from analysis.attack_classifier import classify_command
 
     timeline = {}
     for sid, events in sessions.items():
         entries = []
+        seen = set()
         for e in events:
             cmd = e.get("command")
             if isinstance(cmd, dict):
@@ -320,9 +324,17 @@ def _build_session_timeline(sessions: dict, max_per_session: int = 30) -> dict:
                 continue
             if not raw:
                 continue
-            ts = (e.get("timestamp") or e.get("time") or "")[:19]
+            # Deduplicate within session
+            key = raw[:60]
+            if key in seen:
+                continue
+            seen.add(key)
+
+            ts = (e.get("timestamp") or e.get("time") or "")[11:19]  # HH:MM:SS only
             cat = classify_command(raw).value
-            entries.append({"ts": ts, "cmd": raw, "cat": cat})
+            truncated = raw[:cmd_max_len] + ("…" if len(raw) > cmd_max_len else "")
+            entries.append(f"{ts} {cat}: {truncated}")
+
         if entries:
             timeline[sid[:8]] = entries[:max_per_session]
     return timeline
