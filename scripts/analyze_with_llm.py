@@ -150,15 +150,48 @@ def _call_llm(user_prompt: str) -> str:
     )
 
 
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _sessions_for_campaign(campaign, sessions: dict) -> dict:
+    """Return the subset of sessions belonging to a campaign, matched by IP."""
+    campaign_ips = set(campaign.ips)
+    result = {}
+    for sid, events in sessions.items():
+        for e in events:
+            client = e.get("client") or {}
+            ip = client.get("ip") or e.get("client_ip")
+            if ip and ip in campaign_ips:
+                result[sid] = events
+                break
+    return result
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+_ALL_DIMENSIONS = ["behavior", "technique", "network", "temporal", "content"]
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Analyze honeypot logs with LLM (token-efficient)")
+    parser = argparse.ArgumentParser(
+        description="Analyze honeypot logs with LLM (token-efficient)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f"Available dimensions: {', '.join(_ALL_DIMENSIONS)}",
+    )
     parser.add_argument("log_dir", nargs="?", default="/data/honeypot/logs")
     parser.add_argument("--session", metavar="ID", help="Analyze a single session")
+    parser.add_argument("--campaign", metavar="ID", help="Analyze a specific campaign (e.g. C001). Use --list-campaigns to see available ones")
+    parser.add_argument("--list-campaigns", action="store_true", help="List detected campaigns and exit")
     parser.add_argument("--dry-run", action="store_true", help="Show condensed logs without calling LLM")
     parser.add_argument("--show-ratio", action="store_true", help="Show compression ratio stats")
     parser.add_argument("--top", type=int, default=10, help="Max sessions to analyze globally (default: 10)")
+    parser.add_argument(
+        "--by",
+        nargs="+",
+        metavar="DIM",
+        choices=_ALL_DIMENSIONS,
+        default=_ALL_DIMENSIONS,
+        help=f"Dimensions to include. Choices: {', '.join(_ALL_DIMENSIONS)}",
+    )
     args = parser.parse_args()
 
     log_dir = Path(args.log_dir)
@@ -172,6 +205,92 @@ def main():
         return
 
     total_events = sum(len(e) for e in sessions.values())
+
+    # Always compute campaigns (needed for --list-campaigns and --campaign)
+    bot_human_results = {sid: analyze_bot_human(evts) for sid, evts in sessions.items()}
+    campaigns = detect_campaigns(sessions)
+    campaign_map = {c.campaign_id: c for c in campaigns}
+
+    # List campaigns and exit
+    if args.list_campaigns:
+        if not campaigns:
+            print("No campaigns detected.")
+            return
+        print(f"\n{'─'*60}")
+        print(f"  {'ID':<8} {'Verdict':<22} {'Sessions':>8} {'IPs':>5} {'Conf':>6}")
+        print(f"{'─'*60}")
+        for c in campaigns:
+            print(f"  {c.campaign_id:<8} {c.verdict:<22} {c.session_count:>8} {len(c.ips):>5} {int(c.confidence*100):>5}%")
+            if c.shared_commands:
+                tools = [x for x in c.shared_commands if x.startswith("[")]
+                cmds  = [x for x in c.shared_commands if not x.startswith("[")][:3]
+                if tools:
+                    print(f"           tool: {tools[0]}")
+                if cmds:
+                    print(f"           shared: {', '.join(cmds)}")
+        print(f"{'─'*60}")
+        return
+
+    # Campaign analysis
+    if args.campaign:
+        cid = args.campaign.upper()
+        if cid not in campaign_map:
+            available = ", ".join(campaign_map.keys()) or "none detected"
+            print(f"Campaign '{cid}' not found. Available: {available}", file=sys.stderr)
+            sys.exit(1)
+
+        campaign = campaign_map[cid]
+        # Resolve session IDs belonging to this campaign
+        campaign_sessions = _sessions_for_campaign(campaign, sessions)
+
+        if not campaign_sessions:
+            print(f"No sessions found for campaign {cid}", file=sys.stderr)
+            sys.exit(1)
+
+        bh_for_campaign = {sid: bot_human_results[sid] for sid in campaign_sessions if sid in bot_human_results}
+
+        attacker_profiles = {}
+        from analysis.attack_classifier import classify_event
+        for sid, evts in campaign_sessions.items():
+            bh = bh_for_campaign.get(sid)
+            if bh:
+                cats = {classify_event(e) for e in evts}
+                attacker_profiles[sid] = build_profile({}, bh, cats)
+
+        full = condense_multidimensional(
+            campaign_sessions,
+            bot_human_results=bh_for_campaign,
+            campaigns=[campaign],
+            attacker_profiles=attacker_profiles,
+        )
+        full["campaign"] = {
+            "id":       campaign.campaign_id,
+            "verdict":  campaign.verdict,
+            "sessions": campaign.session_count,
+            "ips":      campaign.ips,
+            "window":   f"{(campaign.time_start or '')[:16]} → {(campaign.time_end or '')[:16]}",
+            "shared_commands": campaign.shared_commands[:10],
+            "confidence": f"{int(campaign.confidence * 100)}%",
+        }
+
+        condensed_global = {"meta": full["meta"], "campaign": full["campaign"]}
+        for dim in args.by:
+            if dim in full:
+                condensed_global[dim] = full[dim]
+
+        condensed_str = json.dumps(condensed_global, indent=2, ensure_ascii=False)
+        n_events = sum(len(e) for e in campaign_sessions.values())
+        print(f"\n── Campaign {cid} — {len(campaign_sessions)} sessions, {n_events} events ──")
+        print(condensed_str)
+
+        if args.show_ratio:
+            print(f"\n── Compression: {compression_ratio(n_events, condensed_str)} ──")
+
+        if not args.dry_run:
+            prompt = _MULTIDIM_PROMPT.format(condensed=condensed_str)
+            print(f"\n── LLM Analysis (campaign {cid}) ──")
+            print(_call_llm(prompt))
+        return
 
     # Single session analysis
     if args.session:
@@ -194,27 +313,32 @@ def main():
             print(result)
         return
 
-    # Compute analysis results for all sessions
-    bot_human_results = {sid: analyze_bot_human(evts) for sid, evts in sessions.items()}
-    campaigns = detect_campaigns(sessions)
-
+    # Compute attacker profiles (bot_human_results + campaigns already computed above)
+    from analysis.attack_classifier import classify_event
     attacker_profiles = {}
     for sid, evts in sessions.items():
         bh = bot_human_results[sid]
-        from analysis.attack_classifier import classify_event
         cats = {classify_event(e) for e in evts}
         attacker_profiles[sid] = build_profile({}, bh, cats)
 
     # Build multidimensional condensed view
-    condensed_global = condense_multidimensional(
+    full = condense_multidimensional(
         sessions,
         bot_human_results=bot_human_results,
         campaigns=campaigns,
         attacker_profiles=attacker_profiles,
     )
-    condensed_str = json.dumps(condensed_global, indent=2, ensure_ascii=False)
 
-    print(f"\n── Multidimensional condensed view ({len(sessions)} sessions, {total_events} events) ──")
+    # Filter to selected dimensions only
+    condensed_global = {"meta": full["meta"]}
+    for dim in args.by:
+        if dim in full:
+            condensed_global[dim] = full[dim]
+
+    condensed_str = json.dumps(condensed_global, indent=2, ensure_ascii=False)
+    dims_label = ", ".join(args.by)
+
+    print(f"\n── Condensed [{dims_label}] ({len(sessions)} sessions, {total_events} events) ──")
     print(condensed_str)
 
     if args.show_ratio:
