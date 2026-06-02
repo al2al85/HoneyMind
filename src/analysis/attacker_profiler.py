@@ -2,7 +2,7 @@
 Attacker profiling: sophistication score + narrative from IP data + behavior.
 """
 from typing import Optional
-from attack_classifier import Category
+from analysis.attack_classifier import Category
 
 
 _PROFILE_TYPES = {

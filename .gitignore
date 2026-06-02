@@ -1,40 +1,55 @@
-# Environments
-.env
-.venv
+# Python environments and caches
+.venv/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
-### Python Patch ###
-.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+**/.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Local IDE and OS files
 .idea/
+.DS_Store
 
 # Local GitHub/Codex helper files
 .github/copilot-instructions.md
 .github/hooks/
 
-do-not-commit/*
-**/.pytest_cache
-aws/**/config
-**/__pycache__/
-host_key
-config/**
-logs
+# Secrets and local environment files
+.env
+config/.env
+config/*.env
+config/*.env.list
 **/aws.env.list
+aws/**/config
 
+# Runtime logs and captured artifacts
+logs/
+*.log
+test/test.log
 downloaded_files/
 uploaded_files/
 temp/
-*.log
+do-not-commit/
 
-test/test.log
-test/host.key
-host.key
-host.key.pub
-
-# macOS
-.DS_Store
+# Generated runtime databases
+*.db
+*.sqlite
+*.sqlite3
 honeypots/*/data_store.db
 test/honeypots/*/data_store.db
 test/honeypots/*/fs_*.db
+
+# Local SSH host keys
+host_key
+host.key
+host.key.pub
+test/host.key

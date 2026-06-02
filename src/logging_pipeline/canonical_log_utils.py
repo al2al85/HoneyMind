@@ -2,8 +2,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from input_normalizer import normalize_command_input
-from local_log_utils import write_local_event
+from core.input_normalizer import normalize_command_input
+from logging_pipeline.local_log_utils import write_local_event
 
 SCHEMA_VERSION = 1
 DEFAULT_SERVICE = "ssh"
@@ -141,7 +141,7 @@ def build_command_payload(
 
 def write_and_print_event(event: dict[str, Any], config: Optional[dict]) -> None:
     write_local_event(event, config)
-    from local_log_utils import event_to_json
+    from logging_pipeline.local_log_utils import event_to_json
 
     print(event_to_json(event))
 

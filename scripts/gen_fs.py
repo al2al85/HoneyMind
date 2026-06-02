@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from ai_traps import trap_files_for_fs
+from analysis.ai_traps import trap_files_for_fs
 
 _D = True   # is_dir
 _F = False  # is_file

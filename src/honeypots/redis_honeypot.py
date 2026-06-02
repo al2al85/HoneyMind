@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 from typing import Optional
 
-from base_honeypot import BaseHoneypot, HoneypotSession
+from honeypots.base_honeypot import BaseHoneypot, HoneypotSession
 from infra.interfaces import HoneypotAction
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ class RedisHoneypot(BaseHoneypot):
         # In-memory store: {db_index: {key: value}}
         self.data_store = defaultdict(dict)
         self.start_time = time.time()
-        from password_manager import PasswordManager
+        from core.password_manager import PasswordManager
         self._password_manager = PasswordManager(config)
 
     def start(self):

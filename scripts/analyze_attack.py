@@ -17,12 +17,12 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from attack_classifier import Category, classify_event, label, _extract_command
-from bot_human_analyzer import analyze as analyze_bot_human
-from ip_enricher import IPEnricher, format_ip_line
-from attacker_profiler import profile as build_profile, score_icon
-from campaign_detector import detect_campaigns, format_campaign
-from session_fingerprint import fingerprint_session
+from analysis.attack_classifier import Category, classify_event, label, _extract_command
+from analysis.bot_human_analyzer import analyze as analyze_bot_human
+from analysis.ip_enricher import IPEnricher, format_ip_line
+from analysis.attacker_profiler import profile as build_profile, score_icon
+from analysis.campaign_detector import detect_campaigns, format_campaign
+from analysis.session_fingerprint import fingerprint_session
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────

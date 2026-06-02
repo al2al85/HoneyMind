@@ -7,8 +7,8 @@ from typing import Optional
 import telnetlib3
 
 
-from base_honeypot import BaseHoneypot
-from honeypot_utils import wait_for_port
+from honeypots.base_honeypot import BaseHoneypot
+from core.honeypot_utils import wait_for_port
 from infra.interfaces import HoneypotAction
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class TelnetHoneypot(BaseHoneypot):
         self._action = action
         self._thread = None
         self._sessions = {}  # {client_ip: (session, created_at)}
-        from password_manager import PasswordManager
+        from core.password_manager import PasswordManager
         self._password_manager = PasswordManager(config)
 
     def honeypot_type(self) -> str:
@@ -153,7 +153,7 @@ class TelnetHoneypot(BaseHoneypot):
 
     @staticmethod
     def _get_base_honeypot_session():
-        from base_honeypot import HoneypotSession
+        from honeypots.base_honeypot import HoneypotSession
         return HoneypotSession()
 
     async def run_server(self):

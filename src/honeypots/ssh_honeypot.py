@@ -11,10 +11,10 @@ import paramiko
 from paramiko import Transport
 from paramiko.ssh_exception import SSHException
 
-from base_honeypot import BaseHoneypot, HoneypotSession
+from honeypots.base_honeypot import BaseHoneypot, HoneypotSession
 from infra.interfaces import HoneypotAction
 from infra.prompt_utils import render_prompt
-from ssh_fingerprint import FingerprintingTransport
+from analysis.ssh_fingerprint import FingerprintingTransport
 
 
 class EnhancedParamikoFilter(logging.Filter):
@@ -397,7 +397,7 @@ class SSHHoneypot(BaseHoneypot):
         self.session = {}
         self.host_key = self._load_host_key()
         self.action = action
-        from password_manager import PasswordManager
+        from core.password_manager import PasswordManager
         self._password_manager = PasswordManager(config)
 
     def _load_host_key(self):

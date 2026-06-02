@@ -5,13 +5,13 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
-from canonical_log_utils import (
+from logging_pipeline.canonical_log_utils import (
     build_command_payload,
     build_event,
     client_identity,
     write_and_print_event,
 )
-from honeypot_utils import allocate_port
+from core.honeypot_utils import allocate_port
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +316,7 @@ class BaseHoneypot(ABC):
             handler = BaseHoneypot.get_honeypot_by_name(backend_name)
             return handler.handle_request(ctx)
         except KeyError:
-            from honeypot_registry import get_honeypot_registry
+            from honeypots.honeypot_registry import get_honeypot_registry
 
             registry = get_honeypot_registry()
             names = registry.get_honeypot_names()
@@ -360,7 +360,7 @@ class BaseHoneypot(ABC):
         if pinned:
             return self.forward_to_backend(pinned, ctx)
 
-        from honeypot_registry import get_honeypot_registry
+        from honeypots.honeypot_registry import get_honeypot_registry
 
         registry = get_honeypot_registry()
         names = registry.get_honeypot_names()
@@ -373,7 +373,7 @@ class BaseHoneypot(ABC):
 
     @staticmethod
     def get_honeypot_by_name(name: str):
-        from honeypot_registry import get_honeypot_registry
+        from honeypots.honeypot_registry import get_honeypot_registry
 
         return get_honeypot_registry().get_honeypot(name)
 

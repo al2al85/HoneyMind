@@ -40,7 +40,7 @@ The current license remains unchanged; see [LICENSE.md](LICENSE.md).
 * LLM fallback for unknown requests via local Ollama, OpenAI-compatible APIs, OpenAI, Anthropic, or optional AWS Bedrock, with rate limiting per visitor
 * Dataset-first design: JSONL files with dynamic placeholders (`${user}`, `${host}`, etc.)
 * Dispatcher mode: routes connections to multiple backend honeypots on a single port ([docs](docs/dispatcher.md))
-* Fake filesystem: compressed JSONL definitions loaded into SQLite for shell commands (ls, cd, mkdir, wget)
+* Fake filesystem: compressed JSONL definitions loaded into SQLite, enriched with a HoneyMind Linux profile for shell commands and common file reconnaissance
 * Chained data handlers: file downloads → fake filesystem → dataset lookup → LLM fallback
 * Conservative input normalization for lookup/cache deduplication while preserving raw forensic logs
 * Session tracking with UUIDs, client IP logging, and per-session state
@@ -108,6 +108,30 @@ Normalization is intentionally conservative: it strips leading/trailing whitespa
 ```
 
 For more details on dataset formats, see [data usage](docs/data_usage.md) and [SQLite data handling](docs/sqlite_data_handling.md).
+
+## SSH Fake Filesystem
+
+SSH honeypots can use `fs_file` to load a compressed JSONL fake filesystem into SQLite. HoneyMind now enriches that filesystem with a coherent synthetic Linux server profile by default: Ubuntu-like `/etc` files, `/proc` artifacts, nginx web files under `/var/www/html`, an application under `/srv/app`, logs, cron scripts, backups, and fake sensitive-looking files.
+
+Known fake files and directories are handled locally before the LLM fallback. For example, these commands return deterministic FakeFS responses without sending the interaction to an LLM:
+
+```sh
+cat /etc/passwd
+cat /srv/app/.env
+cat       /srv/app/.env
+ls -la /var/www/html
+ls -la /srv/app
+find / -name "*.env" 2>/dev/null
+grep -R "DB_PASSWORD" /srv/app 2>/dev/null
+stat /srv/app/.env
+file /srv/app/.env
+head /srv/app/.env
+tail /srv/app/.env
+```
+
+The seeded files are synthetic and must stay that way. They may contain plausible placeholders such as `DB_PASSWORD=dev_password_123` or `API_KEY=sk-test-fake-honeymind-000000000000`, but they must never contain real host data, real private keys, real tokens, or personal information. Unknown paths keep the existing behavior instead of being invented automatically.
+
+To customize the base filesystem, provide your own `.jsonl.gz` via `fs_file`; HoneyMind keeps the existing format and layers the default profile into the same FakeFS store. For generation details, see [FakeFS JSON guide](docs/fakefs_json_guide.md).
 
 ---
 
@@ -436,6 +460,7 @@ Logs are always emitted locally by the honeypot process. Sending them to AWS Clo
 |-------|------|
 | Honeypot configuration schema | [docs/honeypot_configuration.md](docs/honeypot_configuration.md) |
 | Dispatcher (multi-honeypot routing) | [docs/dispatcher.md](docs/dispatcher.md) |
+| Project structure | [docs/project_structure.md](docs/project_structure.md) |
 | Fake filesystem guide | [docs/fakefs_json_guide.md](docs/fakefs_json_guide.md) |
 | Dataset usage | [docs/data_usage.md](docs/data_usage.md) |
 | SQLite data handling | [docs/sqlite_data_handling.md](docs/sqlite_data_handling.md) |

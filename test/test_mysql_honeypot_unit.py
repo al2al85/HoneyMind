@@ -7,9 +7,9 @@ import pytest
 from conftest import get_honeypot_main
 from infra.chain_honeypot_action import ChainedHoneypotAction
 from infra.data_handler import DataHandler
-from src.mysql_honeypot import MySQLHoneypot
-from base_honeypot import BaseHoneypot
-from sql_data_handler import SqlDataHandler
+from honeypots.mysql_honeypot import MySQLHoneypot
+from honeypots.base_honeypot import BaseHoneypot
+from honeypots.sql_data_handler import SqlDataHandler
 
 
 @pytest.fixture

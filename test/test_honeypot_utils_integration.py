@@ -2,8 +2,8 @@ import os
 
 import pytest
 
-from honeypot_utils import init_env_from_file
-from llm_utils import invoke_llm
+from core.honeypot_utils import init_env_from_file
+from llm_providers.llm_utils import invoke_llm
 
 
 @pytest.fixture(autouse=True, scope="module")

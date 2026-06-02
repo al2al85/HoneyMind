@@ -5,9 +5,9 @@ from typing import Generator
 
 import pytest
 
-from base_honeypot import HoneypotSession
+from honeypots.base_honeypot import HoneypotSession
 from infra.interfaces import HoneypotAction
-from telnet_honeypot import TelnetHoneypot
+from honeypots.telnet_honeypot import TelnetHoneypot
 
 logger = logging.getLogger(__name__)
 

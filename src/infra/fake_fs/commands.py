@@ -1,6 +1,7 @@
 import logging
 import os
 from datetime import datetime
+from typing import Optional
 
 from infra.fake_fs.filesystem import FakeFileSystem
 
@@ -25,30 +26,42 @@ def format_ls_l(entry: dict) -> str:
     return f"{permissions} {links:>2} {owner:<8} {group:<8} {size:>6} {date_str} {name}"
 
 
-def handle_ls(session: dict, flags: str = "") -> str:
+def has_ls_flag(flags: str, flag: str) -> bool:
+    for token in flags.split():
+        if token.startswith("--"):
+            continue
+        if token.startswith("-") and flag in token[1:]:
+            return True
+    return False
+
+
+def handle_ls(session: dict, flags: str = "", path: Optional[str] = None) -> str:
     fs: FakeFileSystem = session["fs"]
     cwd: str = session.get("cwd", "/")
-    logging.info(f"[handle_ls] Resolving path: {cwd}")
+    target = normalize_path(path, cwd) if path else cwd
+    logging.info(f"[handle_ls] Resolving path: {target}")
 
-    node = fs.resolve_path(cwd, "/")
+    node = fs.resolve_path(target, "/")
+    if not node:
+        return f"ls: cannot access '{path or target}': No such file or directory"
+
     logging.info(f"[handle_ls] Node resolved: path={node['path']} name={node['name']}")
 
-    if not node or not node["is_dir"]:
-        return f"ls: cannot access '{cwd}': No such directory"
+    if not node["is_dir"]:
+        return format_ls_l(node) if "-l" in flags else node["name"]
 
-    children = fs.list_children(cwd)
+    children = fs.list_children(target)
+    if not has_ls_flag(flags, "a"):
+        children = [child for child in children if not child["name"].startswith(".")]
     logging.info(f"[handle_ls] {len(children)} children found under {node['path']}")
 
-    if "-l" in flags:
-        return (
-            "\r\n".join(
-                format_ls_l(child)
-                for child in sorted(children, key=lambda c: c["name"])
-            )
-            + "\r\n"
+    if has_ls_flag(flags, "l"):
+        return "\r\n".join(
+            format_ls_l(child)
+            for child in sorted(children, key=lambda c: c["name"])
         )
-    else:
-        return "  ".join(sorted(child["name"] for child in children)) + "\r"
+
+    return "  ".join(sorted(child["name"] for child in children))
 
 
 def handle_cd(session: dict, path: str) -> str:

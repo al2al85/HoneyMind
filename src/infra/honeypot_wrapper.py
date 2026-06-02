@@ -2,16 +2,16 @@ import json
 import logging
 import os
 
-from base_honeypot import BaseHoneypot
-from http_data_handlers import HTTPDataHandler
-from http_honeypot import HTTPHoneypot
+from honeypots.base_honeypot import BaseHoneypot
+from honeypots.http_data_handlers import HTTPDataHandler
+from honeypots.http_honeypot import HTTPHoneypot
 from infra.file_download_handler import FileDownloadHandler
 from infra.chain_honeypot_action import ChainedHoneypotAction
 from infra.chained_data_handler import ChainedDataHandler
 from infra.data_handler import DataHandler
 from infra.fake_fs_data_handler import FakeFSDataHandler
-from sql_data_handler import SqlDataHandler
-from telnet_honeypot import TelnetHoneypot
+from honeypots.sql_data_handler import SqlDataHandler
+from honeypots.telnet_honeypot import TelnetHoneypot
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def create_honeypot(config: dict) -> BaseHoneypot:
     action = build_data_handler(config, log_callback=None)
 
     if honeypot_type == "ssh":
-        from ssh_honeypot import SSHHoneypot
+        from honeypots.ssh_honeypot import SSHHoneypot
 
         hp = SSHHoneypot(port=port, action=action, config=config)
         if isinstance(action, ChainedDataHandler):
@@ -103,7 +103,7 @@ def create_honeypot(config: dict) -> BaseHoneypot:
         return hp
 
     elif honeypot_type == "tcp":
-        from tcp_honeypot import TCPHoneypot
+        from honeypots.tcp_honeypot import TCPHoneypot
 
         hp = TCPHoneypot(port=port, action=action, config=config)
         return hp
@@ -114,8 +114,8 @@ def create_honeypot(config: dict) -> BaseHoneypot:
 
     elif honeypot_type in ("mysql", "postgres"):
 
-        from mysql_honeypot import MySQLHoneypot
-        from postgresql_honeypot import PostgresHoneypot
+        from honeypots.mysql_honeypot import MySQLHoneypot
+        from honeypots.postgresql_honeypot import PostgresHoneypot
 
         dialect = config.get("dialect", honeypot_type)
         sql_handler = SqlDataHandler(dialect=dialect)
@@ -125,7 +125,7 @@ def create_honeypot(config: dict) -> BaseHoneypot:
         hp = honeypot_cls(port=port, action=chained_action, config=config)
         return hp
     elif honeypot_type == "redis":
-        from redis_honeypot import RedisHoneypot
+        from honeypots.redis_honeypot import RedisHoneypot
 
         hp = RedisHoneypot(port=port, action=action, config=config)
         return hp

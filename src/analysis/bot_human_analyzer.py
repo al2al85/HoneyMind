@@ -5,7 +5,7 @@ Uses timing, typo correction, behavioral patterns and AI trap hits.
 from dataclasses import dataclass, field
 from typing import Optional
 
-from ai_traps import TrapHit, detect_traps
+from analysis.ai_traps import TrapHit, detect_traps
 
 
 @dataclass

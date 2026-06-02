@@ -5,7 +5,7 @@ import paramiko
 import pytest
 
 from conftest import get_honeypot_main
-from honeypot_utils import init_env_from_file
+from core.honeypot_utils import init_env_from_file
 
 
 @pytest.fixture(autouse=True, scope="module")

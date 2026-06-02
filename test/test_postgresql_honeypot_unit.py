@@ -9,9 +9,9 @@ import psycopg2
 
 import pytest
 
-from postgresql_honeypot import PostgresHoneypot
+from honeypots.postgresql_honeypot import PostgresHoneypot
 from infra.data_handler import DataHandler
-from sql_data_handler import SqlDataHandler
+from honeypots.sql_data_handler import SqlDataHandler
 from infra.chain_honeypot_action import ChainedHoneypotAction
 
 

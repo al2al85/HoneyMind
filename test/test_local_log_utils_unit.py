@@ -1,9 +1,9 @@
 import json
 from datetime import datetime
 
-from base_honeypot import BaseHoneypot, HoneypotSession
-from canonical_log_utils import build_event, client_identity
-from local_log_utils import local_log_path, write_local_event
+from honeypots.base_honeypot import BaseHoneypot, HoneypotSession
+from logging_pipeline.canonical_log_utils import build_event, client_identity
+from logging_pipeline.local_log_utils import local_log_path, write_local_event
 
 
 class LocalLogTestHoneypot(BaseHoneypot):

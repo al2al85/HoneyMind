@@ -5,11 +5,11 @@ import os
 from pathlib import Path
 from typing import List, Optional
 
-from honeypot_utils import normalize_backend_name
-from input_normalizer import input_normalization_enabled, normalize_lookup_key
+from core.honeypot_utils import normalize_backend_name
+from core.input_normalizer import input_normalization_enabled, normalize_lookup_key
 from infra.data_store import SqliteDataStore, DataStore
 from infra.interfaces import HoneypotAction, HoneypotSession
-from llm_utils import invoke_llm, InvokeLimiter
+from llm_providers.llm_utils import invoke_llm, InvokeLimiter
 
 
 class DataHandler(HoneypotAction):

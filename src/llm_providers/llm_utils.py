@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from llm_usage import record_llm_usage
+from llm_providers.llm_usage import record_llm_usage
 
 SUPPORTED_LLM_PROVIDERS = (
     "bedrock",

@@ -1,6 +1,6 @@
 from abc import ABC
 
-from base_honeypot import HoneypotSession
+from honeypots.base_honeypot import HoneypotSession
 
 
 class HoneypotAction(ABC):

@@ -9,11 +9,11 @@ from unittest.mock import patch
 import pytest
 import requests
 
-from base_honeypot import HoneypotSession, BaseHoneypot
+from honeypots.base_honeypot import HoneypotSession, BaseHoneypot
 from conftest import get_config, get_honeypots_folder
-from honeypot_main import start_dd_honeypot
-from honeypot_utils import init_env_from_file, allocate_port
-from http_honeypot import HTTPHoneypot, is_json
+from honeypots.honeypot_main import start_dd_honeypot
+from core.honeypot_utils import init_env_from_file, allocate_port
+from honeypots.http_honeypot import HTTPHoneypot, is_json
 from infra.honeypot_wrapper import create_honeypot
 from infra.interfaces import HoneypotAction
 

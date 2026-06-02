@@ -1,4 +1,4 @@
-from base_honeypot import HoneypotSession
+from honeypots.base_honeypot import HoneypotSession
 from infra.interfaces import HoneypotAction
 
 

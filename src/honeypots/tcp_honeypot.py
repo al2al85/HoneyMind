@@ -2,7 +2,7 @@ import logging
 import os
 import threading
 
-from base_honeypot import BaseHoneypot
+from honeypots.base_honeypot import BaseHoneypot
 from infra.interfaces import HoneypotAction
 import socket
 

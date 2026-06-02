@@ -1,6 +1,6 @@
 import pytest
 
-from input_normalizer import (
+from core.input_normalizer import (
     normalize_command_input,
     normalize_http_path_or_query,
     normalize_lookup_key,

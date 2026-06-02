@@ -1,3 +1,4 @@
+import fnmatch
 import json
 import logging
 import shlex
@@ -5,8 +6,15 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from input_normalizer import normalize_command_input
-from infra.fake_fs.commands import handle_ls, handle_cd, handle_mkdir, handle_download
+from core.input_normalizer import normalize_command_input
+from infra.fake_fs.commands import (
+    handle_ls,
+    handle_cd,
+    handle_mkdir,
+    handle_download,
+    normalize_path,
+)
+from infra.fake_fs.default_profile import build_honeymind_profile
 from infra.fake_fs.filesystem import FakeFileSystem
 from infra.fake_fs.fs_utils import create_db_from_jsonl_gz
 from infra.fake_fs_datastore import FakeFSDataStore
@@ -18,7 +26,7 @@ class FakeFSDataHandler(HoneypotAction):
         self._data_file = Path(data_file)
         self.config = config or {}
 
-        self.hostname = self.config.get("hostname", "ubuntu")
+        self.hostname = self.config.get("hostname", "web-prod-01")
         self.username = self.config.get(
             "simulated_user", self.config.get("username", "root")
         )
@@ -45,15 +53,16 @@ class FakeFSDataHandler(HoneypotAction):
         )
         self.mem_total_kb = int(self.config.get("mem_total_kb", 2 * 1024 * 1024))
         self.interface = self.config.get("interface", "eth0")
-        self.ip_address = self.config.get("ip_address", "172.31.42.15")
+        self.ip_address = self.config.get("ip_address", "172.31.16.42")
         self.netmask = self.config.get("netmask", "255.255.255.0")
         self.cidr_prefix = int(self.config.get("cidr_prefix", 24))
         self.mac_address = self.config.get("mac_address", "52:54:00:4a:8b:2c")
-        self.broadcast = self.config.get("broadcast", "172.31.42.255")
+        self.broadcast = self.config.get("broadcast", "172.31.16.255")
+        self.gateway = self.config.get("gateway", "172.31.16.1")
         self.root_device = self.config.get("root_device", "/dev/sda1")
         self.clocksource = self.config.get("clocksource", "tsc")
         self.distro_name = self.config.get(
-            "distro", self.config.get("name", "Ubuntu 22.04.3 LTS")
+            "distro", self.config.get("name", "Ubuntu 20.04.6 LTS")
         )
         self.dmesg_lines = self.config.get(
             "dmesg_lines",
@@ -119,6 +128,8 @@ class FakeFSDataHandler(HoneypotAction):
 
         store = FakeFSDataStore(str(fs_path))
         self.fakefs = FakeFileSystem(store)
+        if self.config.get("fakefs_seed_profile", True):
+            self._seed_default_profile()
 
     def _default_os_release(self) -> str:
         distro = self.distro_name.lower()
@@ -141,19 +152,47 @@ class FakeFSDataHandler(HoneypotAction):
                 'HOME_URL="https://www.debian.org/"\n'
             )
         return (
-            'PRETTY_NAME="Ubuntu 22.04.3 LTS"\n'
+            'PRETTY_NAME="Ubuntu 20.04.6 LTS"\n'
             'NAME="Ubuntu"\n'
-            'VERSION_ID="22.04"\n'
-            'VERSION="22.04.3 LTS (Jammy Jellyfish)"\n'
-            "VERSION_CODENAME=jammy\n"
+            'VERSION_ID="20.04"\n'
+            'VERSION="20.04.6 LTS (Focal Fossa)"\n'
+            "VERSION_CODENAME=focal\n"
             "ID=ubuntu\n"
             "ID_LIKE=debian\n"
             'HOME_URL="https://www.ubuntu.com/"\n'
             'SUPPORT_URL="https://help.ubuntu.com/"\n'
             'BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"\n'
             'PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"\n'
-            "UBUNTU_CODENAME=jammy\n"
+            "UBUNTU_CODENAME=focal\n"
         )
+
+    def _seed_default_profile(self) -> None:
+        entries = build_honeymind_profile(
+            {
+                "hostname": self.hostname,
+                "ip_address": self.ip_address,
+                "gateway": self.gateway,
+                "os_release": self.os_release_content,
+                "passwd": self._render_passwd(),
+                "cpuinfo": self._render_cpuinfo(),
+                "meminfo": self._render_meminfo(),
+                "proc_version": (
+                    f"Linux version {self.uname_kernel} (builder@host) "
+                    f"(gcc version 11.3.0) #1 SMP\n"
+                ),
+                "proc_route": self._render_proc_route(),
+            }
+        )
+        for entry in entries:
+            self.fakefs.store.upsert_node(
+                path=entry["path"],
+                is_dir=entry["is_dir"],
+                permissions=entry["permissions"],
+                owner=entry.get("owner", "root"),
+                size=entry.get("size"),
+                modified_at=entry.get("modified_at"),
+                content=entry.get("content"),
+            )
 
     def _proc_cmdline_from_dmesg(self, default_cmdline: str) -> str:
         for line in self.dmesg_lines:
@@ -189,36 +228,9 @@ class FakeFSDataHandler(HoneypotAction):
             return self._strip_terminal_trailing_newlines(system_response)
 
         if "fs" in session:
-            if query.startswith("ls"):
-                parts = query.strip().split()
-                flags = [p for p in parts if p.startswith("-")]
-                session["_last_parser_action"] = "builtin"
-                return handle_ls(session, flags=" ".join(flags))
-
-            elif query.startswith("cd "):
-                parts = query.split(maxsplit=1)
-                if len(parts) == 2:
-                    session["_last_parser_action"] = "builtin"
-                    return handle_cd(session, parts[1])
-                session["_last_parser_action"] = "blocked"
-                return "Usage: cd <dir>"
-            elif query.startswith("mkdir "):
-                parts = query.split(maxsplit=1)
-                if len(parts) == 2:
-                    session["_last_parser_action"] = "builtin"
-                    return handle_mkdir(session, parts[1])
-                session["_last_parser_action"] = "blocked"
-                return "Usage: mkdir <dir>"
-            elif "wget" in query.lower() or "curl" in query.lower():
-                parts = query.strip().split()
-                if len(parts) >= 2:
-                    url = parts[-1]
-                    logging.info(f"[FakeFSDataHandler] Handling download: {url}")
-                    session["_last_parser_action"] = "builtin"
-                    return handle_download(session, url)
-                logging.warning("[FakeFSDataHandler] Invalid wget/curl syntax")
-                session["_last_parser_action"] = "blocked"
-                return "Usage: wget <url> or curl <url>"
+            fs_response = self._handle_filesystem_command(query, session)
+            if fs_response is not None:
+                return self._strip_terminal_trailing_newlines(fs_response)
         session["_last_parser_action"] = "unknown"
         return None
 
@@ -232,6 +244,73 @@ class FakeFSDataHandler(HoneypotAction):
             return ""
 
         return Path(command).name
+
+    def _handle_filesystem_command(
+        self, query: str, session: HoneypotSession
+    ) -> Optional[str]:
+        try:
+            parts = shlex.split(query)
+        except ValueError:
+            parts = query.strip().split()
+
+        if not parts:
+            return None
+
+        command = parts[0]
+        if command == "ls":
+            flags = [part for part in parts[1:] if part.startswith("-")]
+            paths = [
+                part
+                for part in parts[1:]
+                if not part.startswith("-") and not self._is_redirection_token(part)
+            ]
+            session["_last_parser_action"] = "filesystem"
+            return handle_ls(session, flags=" ".join(flags), path=paths[-1] if paths else None)
+
+        if command == "cd":
+            if len(parts) >= 2:
+                session["_last_parser_action"] = "filesystem"
+                return handle_cd(session, " ".join(parts[1:]))
+            session["_last_parser_action"] = "blocked"
+            return "Usage: cd <dir>"
+
+        if command == "mkdir":
+            if len(parts) >= 2:
+                session["_last_parser_action"] = "filesystem"
+                return handle_mkdir(session, parts[1])
+            session["_last_parser_action"] = "blocked"
+            return "Usage: mkdir <dir>"
+
+        if command in ("cat", "head", "tail", "stat", "file"):
+            response = self._handle_file_reader(command, parts, session)
+            if response is not None:
+                session["_last_parser_action"] = "filesystem"
+            return response
+
+        if command == "find":
+            response = self._handle_find(parts, session)
+            if response is not None:
+                session["_last_parser_action"] = "filesystem"
+            return response
+
+        if command == "grep":
+            response = self._handle_grep(parts, session)
+            if response is not None:
+                session["_last_parser_action"] = "filesystem"
+            return response
+
+        if "wget" in query.lower() or "curl" in query.lower():
+            parts = query.strip().split()
+            if len(parts) >= 2:
+                url = parts[-1]
+                logging.info(f"[FakeFSDataHandler] Handling download: {url}")
+                session["_last_parser_action"] = "builtin"
+                return handle_download(session, url)
+            logging.warning("[FakeFSDataHandler] Invalid wget/curl syntax")
+            session["_last_parser_action"] = "blocked"
+            return "Usage: wget <url> or curl <url>"
+
+        return None
 
     def _handle_uname(self, query: str) -> str:
         parts = shlex.split(query)
@@ -387,6 +466,213 @@ class FakeFSDataHandler(HoneypotAction):
     def _strip_terminal_trailing_newlines(self, response: str) -> str:
         return response.rstrip("\r\n")
 
+    def _is_redirection_token(self, token: str) -> bool:
+        return token in {">", ">>", "2>", "2>>", "<"} or token.startswith((">", "2>"))
+
+    def _path_node(self, session: HoneypotSession, path: str) -> Optional[dict]:
+        fs = session["fs"]
+        full_path = normalize_path(path, self._cwd_for(session))
+        return fs.resolve_path(full_path, "/")
+
+    def _content_for_path(
+        self, session: HoneypotSession, path: str
+    ) -> Optional[tuple[str, dict]]:
+        node = self._path_node(session, path)
+        if not node:
+            return None
+        if node["is_dir"]:
+            return (f"cat: {path}: Is a directory\n", node)
+        return (node.get("content") or "", node)
+
+    def _command_paths(self, command: str, parts: list[str]) -> list[str]:
+        paths = []
+        skip_next = False
+        for token in parts[1:]:
+            if skip_next:
+                skip_next = False
+                continue
+            if self._is_redirection_token(token):
+                skip_next = True
+                continue
+            if command in ("head", "tail") and token in ("-n", "--lines"):
+                skip_next = True
+                continue
+            if token.startswith("-"):
+                continue
+            paths.append(token)
+        return paths
+
+    def _line_count(self, command: str, parts: list[str]) -> int:
+        count = 10
+        for index, token in enumerate(parts):
+            if token in ("-n", "--lines") and index + 1 < len(parts):
+                try:
+                    return abs(int(parts[index + 1]))
+                except ValueError:
+                    return count
+            if token.startswith("-n") and len(token) > 2:
+                try:
+                    return abs(int(token[2:]))
+                except ValueError:
+                    return count
+            if command in ("head", "tail") and token.startswith("-") and token[1:].isdigit():
+                return int(token[1:])
+        return count
+
+    def _handle_file_reader(
+        self, command: str, parts: list[str], session: HoneypotSession
+    ) -> Optional[str]:
+        paths = self._command_paths(command, parts)
+        if not paths:
+            return None
+
+        if command == "cat":
+            outputs = []
+            for path in paths:
+                content_node = self._content_for_path(session, path)
+                if content_node is None:
+                    return None
+                content, _node = content_node
+                outputs.append(content)
+            return "".join(outputs)
+
+        path = paths[-1]
+        node = self._path_node(session, path)
+        if not node:
+            return None
+
+        if command == "stat":
+            return self._render_stat(path, node)
+        if command == "file":
+            return self._render_file_type(path, node)
+
+        if node["is_dir"]:
+            return f"{command}: error reading '{path}': Is a directory\n"
+
+        content = node.get("content") or ""
+        lines = content.splitlines()
+        count = self._line_count(command, parts)
+        selected = lines[:count] if command == "head" else lines[-count:]
+        return "\n".join(selected) + ("\n" if selected else "")
+
+    def _handle_find(self, parts: list[str], session: HoneypotSession) -> Optional[str]:
+        start_path = "/"
+        name_pattern = None
+        type_filter = None
+        index = 1
+        if index < len(parts) and not parts[index].startswith("-"):
+            start_path = parts[index]
+            index += 1
+
+        while index < len(parts):
+            token = parts[index]
+            if self._is_redirection_token(token):
+                index += 2
+                continue
+            if token == "-name" and index + 1 < len(parts):
+                name_pattern = parts[index + 1]
+                index += 2
+                continue
+            if token == "-type" and index + 1 < len(parts):
+                type_filter = parts[index + 1]
+                index += 2
+                continue
+            index += 1
+
+        fs = session["fs"]
+        root = normalize_path(start_path, self._cwd_for(session))
+        if not fs.resolve_path(root, "/"):
+            return None
+
+        matches = []
+        for node in fs.store.list_subtree(root):
+            if type_filter == "f" and node["is_dir"]:
+                continue
+            if type_filter == "d" and not node["is_dir"]:
+                continue
+            if name_pattern and not fnmatch.fnmatch(node["name"], name_pattern):
+                continue
+            matches.append(node["path"])
+
+        return "\n".join(sorted(matches)) + ("\n" if matches else "")
+
+    def _handle_grep(self, parts: list[str], session: HoneypotSession) -> Optional[str]:
+        recursive = any(part in ("-R", "-r", "--recursive") for part in parts[1:])
+        if not recursive:
+            return None
+
+        pattern = None
+        paths = []
+        index = 1
+        while index < len(parts):
+            token = parts[index]
+            if self._is_redirection_token(token):
+                index += 2
+                continue
+            if token.startswith("-"):
+                index += 1
+                continue
+            if pattern is None:
+                pattern = token
+            else:
+                paths.append(token)
+            index += 1
+
+        if not pattern or not paths:
+            return None
+
+        fs = session["fs"]
+        lines = []
+        for path in paths:
+            root = normalize_path(path, self._cwd_for(session))
+            if not fs.resolve_path(root, "/"):
+                continue
+            for node in fs.store.list_subtree(root):
+                if node["is_dir"]:
+                    continue
+                content = node.get("content") or ""
+                for line in content.splitlines():
+                    if pattern in line:
+                        lines.append(f"{node['path']}:{line}")
+
+        return "\n".join(lines) + ("\n" if lines else "")
+
+    def _render_stat(self, requested_path: str, node: dict) -> str:
+        file_type = "directory" if node["is_dir"] else "regular file"
+        size = node.get("size") or 0
+        permissions = node.get("permissions", "drwxr-xr-x")
+        modified = node.get("modified_at") or "2026-01-15T09:24:00"
+        return (
+            f"  File: {requested_path}\n"
+            f"  Size: {size:<10} Blocks: 8          IO Block: 4096   {file_type}\n"
+            f"Device: 802h/2050d    Inode: 1048577     Links: 1\n"
+            f"Access: ({permissions})  Uid: (    0/    root)   Gid: (    0/    root)\n"
+            f"Modify: {modified.replace('T', ' ')} +0000\n"
+        )
+
+    def _render_file_type(self, requested_path: str, node: dict) -> str:
+        if node["is_dir"]:
+            return f"{requested_path}: directory\n"
+        name = node["name"]
+        content = node.get("content") or ""
+        if name.endswith(".gz"):
+            kind = "gzip compressed data"
+        elif name.endswith(".php"):
+            kind = "PHP script, ASCII text"
+        elif name.endswith((".yaml", ".yml")):
+            kind = "YAML configuration, ASCII text"
+        elif name.endswith(".json"):
+            kind = "JSON data"
+        elif name.endswith(".sql"):
+            kind = "ASCII text"
+        elif content.startswith("#!/"):
+            kind = "POSIX shell script, ASCII text executable"
+        elif "<html" in content.lower():
+            kind = "HTML document, ASCII text"
+        else:
+            kind = "ASCII text"
+        return f"{requested_path}: {kind}\n"
+
     def _render_id(self) -> str:
         return (
             f"uid={self.uid}({self.username}) gid={self.gid}({self.group}) "
@@ -428,8 +714,10 @@ class FakeFSDataHandler(HoneypotAction):
             "backup:x:34:34:backup:/var/backups:/usr/sbin/nologin",
             "nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin",
             "sshd:x:102:65534::/run/sshd:/usr/sbin/nologin",
+            "ubuntu:x:1000:1000:Ubuntu:/home/ubuntu:/bin/bash",
+            "deploy:x:1001:1001:Deploy User:/srv/app:/bin/bash",
         ]
-        if self.username != "root":
+        if self.username not in ("root", "ubuntu", "deploy"):
             lines.append(
                 f"{self.username}:x:{self.uid}:{self.gid}:"
                 f"{self.username}:/home/{self.username}:/bin/sh"
@@ -540,6 +828,13 @@ class FakeFSDataHandler(HoneypotAction):
             "Buffers:        16384 kB\n"
             "Cached:         131072 kB\n"
             "SwapCached:            0 kB\n"
+        )
+
+    def _render_proc_route(self) -> str:
+        return (
+            "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n"
+            f"{self.interface}\t00000000\t01101FAC\t0003\t0\t0\t100\t00000000\t0\t0\t0\n"
+            f"{self.interface}\t00101FAC\t00000000\t0001\t0\t0\t100\t00FFFFFF\t0\t0\t0\n"
         )
 
     def _handle_dmidecode(self, query: str) -> str:

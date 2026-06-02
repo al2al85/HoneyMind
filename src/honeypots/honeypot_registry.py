@@ -1,6 +1,6 @@
 from typing import List
 
-from base_honeypot import BaseHoneypot
+from honeypots.base_honeypot import BaseHoneypot
 
 
 class HoneypotRegistry:

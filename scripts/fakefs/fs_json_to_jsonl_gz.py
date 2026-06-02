@@ -49,7 +49,7 @@ def convert(json_path: str, out_path: str):
         for node in nodes:
             f.write(json.dumps(node) + "\n")
 
-    print(f"✅ Converted {json_path} → {out_path} with {len(nodes) + 1} entries")
+    print(f"Converted {json_path} -> {out_path} with {len(nodes) + 1} entries")
 
 
 if __name__ == "__main__":

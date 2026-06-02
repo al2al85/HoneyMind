@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Optional
 
-from session_fingerprint import fingerprint_session, identify_user_agent
+from analysis.session_fingerprint import fingerprint_session, identify_user_agent
 
 
 @dataclass

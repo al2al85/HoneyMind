@@ -7,7 +7,7 @@ import threading
 import time
 from typing import Optional, List, Tuple
 
-from base_honeypot import BaseHoneypot, HoneypotSession
+from honeypots.base_honeypot import BaseHoneypot, HoneypotSession
 from infra.interfaces import HoneypotAction
 
 # Postgresql protocol constants

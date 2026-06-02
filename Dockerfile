@@ -7,4 +7,4 @@ RUN test -f /usr/local/lib/python3.12/site-packages/paramiko-*.dist-info/LICENSE
 WORKDIR /app/
 COPY src/. .
 ENV PYTHONPATH "/app"
-ENTRYPOINT ["python", "-u", "honeypot_main.py"]
+ENTRYPOINT ["python", "-u", "-m", "honeypots.honeypot_main"]

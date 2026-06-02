@@ -3,7 +3,7 @@ import os
 import requests
 from urllib.parse import urlparse
 
-from base_honeypot import HoneypotSession
+from honeypots.base_honeypot import HoneypotSession
 
 
 class FileDownloadHandler:

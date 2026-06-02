@@ -20,7 +20,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from llm_usage import get_daily_usage_summary, get_usage_summary, iter_usage_rows
+from llm_providers.llm_usage import get_daily_usage_summary, get_usage_summary, iter_usage_rows
 
 
 def _format_table(rows: list[dict], columns: list[str]) -> str:

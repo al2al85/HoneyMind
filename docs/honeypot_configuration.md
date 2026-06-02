@@ -37,7 +37,7 @@ honeypots/
 
 Each honeypot config must include the following fields:
 
-###  Required Fields
+### Required Fields
 
 | Field           | Description                                     |
 | --------------- | ----------------------------------------------- |
@@ -49,7 +49,7 @@ Each honeypot config must include the following fields:
 
 ---
 
-###  Optional Fields (Based on Type)
+### Optional Fields by Type
 
 | Field             | Description                                                |
 | ----------------- | ---------------------------------------------------------- |
@@ -197,7 +197,7 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 ## Example Configurations
 
-###  Fully Local Ollama Native API
+### Fully Local Ollama Native API
 
 ```json
 {
@@ -220,7 +220,7 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 ---
 
-###  OpenAI API Config
+### OpenAI API Config
 
 ```json
 {
@@ -239,7 +239,7 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 ---
 
-###  Local Ollama OpenAI-Compatible Config
+### Local Ollama OpenAI-Compatible Config
 
 ```json
 {
@@ -263,7 +263,7 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 ---
 
-###  Native Ollama Config
+### Native Ollama Config
 
 ```json
 {
@@ -281,7 +281,7 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 ---
 
-###  Local vLLM Config
+### Local vLLM Config
 
 ```json
 {
@@ -299,7 +299,7 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 ---
 
-###  Anthropic Claude API Config
+### Anthropic Claude API Config
 
 ```json
 {
@@ -318,7 +318,7 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 ---
 
-###  Optional AWS Bedrock Config
+### Optional AWS Bedrock Config
 
 ```json
 {
@@ -336,7 +336,7 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 ---
 
-###  MySQL Honeypot
+### MySQL Honeypot
 
 ```json
 {
@@ -376,7 +376,21 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 For CLI honeypots (like SSH/Telnet), add an `fs_file` entry that points to a compressed fake file system file (with `.jsonl.gz` extension).
 
-These files simulate the output of commands like `ls`, `cd`, and `cat` by emulating a real container file system.
+These files simulate command behavior by emulating a Linux filesystem. HoneyMind loads the JSONL.GZ file into SQLite and enriches it with a coherent synthetic SSH profile by default, including `/etc`, `/proc`, `/var/www/html`, `/srv/app`, logs, backups, cron scripts, and fake sensitive-looking files.
+
+Known fake files are handled locally before the LLM fallback, so common reconnaissance commands do not need an LLM call:
+
+```sh
+cat /etc/passwd
+cat /srv/app/.env
+cat       /srv/app/.env
+ls -la /var/www/html
+ls -la /srv/app
+find / -name "*.env" 2>/dev/null
+grep -R "DB_PASSWORD" /srv/app 2>/dev/null
+```
+
+The seeded files are synthetic. They can contain fake placeholders such as `DB_PASSWORD=dev_password_123`, but must never contain real tokens, private keys, passwords, hostnames, local paths, or personal data. Unknown paths keep the existing HoneyMind behavior instead of being invented automatically.
 
 Example:
 
@@ -385,9 +399,9 @@ Example:
   "type": "ssh",
   "fs_file": "fs_alpine.jsonl.gz"
 }
+```
 
-   ```
- To learn how to generate and convert the fake file system, see the [fakefs_json_guide.md](fakefs_json_guide.md).
+To learn how to generate and convert the fake file system, see the [fakefs_json_guide.md](fakefs_json_guide.md).
 
  
 5. **Port Mapping**

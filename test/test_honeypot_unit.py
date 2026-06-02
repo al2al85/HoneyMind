@@ -2,9 +2,9 @@ from time import sleep
 
 import pytest
 
-from base_honeypot import BaseHoneypot
-from honeypot_utils import allocate_port
-from llm_utils import InvokeLimiter
+from honeypots.base_honeypot import BaseHoneypot
+from core.honeypot_utils import allocate_port
+from llm_providers.llm_utils import InvokeLimiter
 
 
 class TestBaseHoneypot:

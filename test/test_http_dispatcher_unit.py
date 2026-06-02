@@ -7,7 +7,7 @@ import random
 @patch("infra.data_handler.invoke_llm", return_value="UNKNOWN")
 def test_http_dispatcher_routing(monkeypatch):
     with patch(
-        "http_honeypot.HTTPHoneypot.handle_request", autospec=True
+        "honeypots.http_honeypot.HTTPHoneypot.handle_request", autospec=True
     ) as mock_handle:
         # Session persistence for UNKNOWN
         session_backend = {}

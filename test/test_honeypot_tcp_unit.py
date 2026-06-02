@@ -9,12 +9,12 @@ from typing import Generator
 
 import pytest
 
-from base_honeypot import HoneypotSession, BaseHoneypot
+from honeypots.base_honeypot import HoneypotSession, BaseHoneypot
 from conftest import get_honeypot_main
-from honeypot_main import start_dd_honeypot
-from honeypot_utils import allocate_port
+from honeypots.honeypot_main import start_dd_honeypot
+from core.honeypot_utils import allocate_port
 from infra.interfaces import HoneypotAction
-from tcp_honeypot import TCPHoneypot
+from honeypots.tcp_honeypot import TCPHoneypot
 
 logger = logging.getLogger(__name__)
 

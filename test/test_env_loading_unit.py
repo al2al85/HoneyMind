@@ -1,6 +1,6 @@
 import logging
 
-import honeypot_utils
+import core.honeypot_utils as honeypot_utils
 
 
 def test_llm_env_list_is_loaded(tmp_path, monkeypatch):

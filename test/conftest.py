@@ -8,7 +8,7 @@ import tempfile
 import threading
 from typing import Generator, List
 
-from honeypot_main_utils import start_dd_honeypot
+from honeypots.honeypot_main_utils import start_dd_honeypot
 
 
 def _free_port() -> int:

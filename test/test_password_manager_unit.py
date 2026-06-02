@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from base_honeypot import HoneypotSession
-from password_manager import PasswordManager
+from honeypots.base_honeypot import HoneypotSession
+from core.password_manager import PasswordManager
 
 
 def make_session():

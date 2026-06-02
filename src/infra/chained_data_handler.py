@@ -1,6 +1,6 @@
 import logging
 
-from base_honeypot import HoneypotSession
+from honeypots.base_honeypot import HoneypotSession
 
 
 class ChainedDataHandler:

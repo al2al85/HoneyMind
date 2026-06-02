@@ -14,8 +14,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from canonical_log_utils import convert_legacy_event
-from local_log_utils import event_to_json
+from logging_pipeline.canonical_log_utils import convert_legacy_event
+from logging_pipeline.local_log_utils import event_to_json
 
 
 def iter_jsonl(path: Path):

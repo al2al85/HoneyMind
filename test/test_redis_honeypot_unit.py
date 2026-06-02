@@ -2,9 +2,9 @@ import socket
 import logging
 from typing import Generator
 import pytest
-from base_honeypot import BaseHoneypot, HoneypotSession
+from honeypots.base_honeypot import BaseHoneypot, HoneypotSession
 from infra.interfaces import HoneypotAction
-from redis_honeypot import RedisHoneypot
+from honeypots.redis_honeypot import RedisHoneypot
 
 logger = logging.getLogger(__name__)
 

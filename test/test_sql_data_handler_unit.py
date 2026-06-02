@@ -1,5 +1,5 @@
 import pytest
-from sql_data_handler import SqlDataHandler
+from honeypots.sql_data_handler import SqlDataHandler
 
 
 @pytest.fixture()

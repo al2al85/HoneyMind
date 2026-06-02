@@ -70,6 +70,57 @@ class FakeFSDataStore:
                 for row in cursor.fetchall()
             ]
 
+    def list_subtree(self, root_path: str) -> List[dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            if root_path == "/":
+                cursor = conn.execute("SELECT * FROM fs_nodes")
+            else:
+                cursor = conn.execute(
+                    "SELECT * FROM fs_nodes WHERE path = ? OR path LIKE ?",
+                    (root_path, root_path.rstrip("/") + "/%"),
+                )
+            return [
+                dict(zip([column[0] for column in cursor.description], row))
+                for row in cursor.fetchall()
+            ]
+
+    def upsert_node(
+        self,
+        path: str,
+        is_dir: bool,
+        permissions: str,
+        owner: str = "root",
+        size: Optional[int] = None,
+        modified_at: Optional[str] = None,
+        content: Optional[str] = None,
+    ):
+        parent_path = os.path.dirname(path.rstrip("/")) or "/"
+        name = os.path.basename(path) if path != "/" else "/"
+        node_size = 0 if size is None and is_dir else size
+        if node_size is None:
+            node_size = len(content or "")
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO fs_nodes
+                (path, parent_path, name, is_dir, permissions, owner, size, modified_at, content)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    path,
+                    None if path == "/" else parent_path,
+                    name,
+                    is_dir,
+                    permissions,
+                    owner,
+                    node_size,
+                    modified_at,
+                    content,
+                ),
+            )
+            conn.commit()
+
     def mkdir(self, path: str, permissions="drwxr-xr-x", owner="root", size=0):
         parent_path = os.path.dirname(path.rstrip("/")) or "/"
         name = os.path.basename(path)

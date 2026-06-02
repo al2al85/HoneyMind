@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from flask import Flask, request, session, Request, Response, g
 from werkzeug.serving import make_server
 
-from base_honeypot import BaseHoneypot, HoneypotSession
+from honeypots.base_honeypot import BaseHoneypot, HoneypotSession
 from infra.interfaces import HoneypotAction
 
 logger = logging.getLogger(__name__)

@@ -6,8 +6,8 @@ import sys
 
 import pytest
 
-import llm_utils
-from llm_usage import record_llm_usage, get_usage_summary, get_daily_usage_summary
+import llm_providers.llm_utils as llm_utils
+from llm_providers.llm_usage import record_llm_usage, get_usage_summary, get_daily_usage_summary
 
 
 def _read_single_row(db_path: Path, table: str = "llm_usage"):

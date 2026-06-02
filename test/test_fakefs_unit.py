@@ -1,11 +1,13 @@
 import os
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from infra.fake_fs.commands import handle_ls, handle_cd, handle_mkdir, handle_download
 from infra.fake_fs_data_handler import FakeFSDataHandler
+from infra.honeypot_wrapper import build_data_handler
 
 
 @pytest.mark.parametrize(
@@ -336,3 +338,148 @@ def test_common_recon_commands_are_hardcoded_and_coherent(tmp_path):
         response = handler.query(command, session)
         assert response is not None
         assert not response.endswith("\n"), command
+
+
+def _fakefs_handler(tmp_path, config=None):
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    fs_path = os.path.join(base_dir, "test/honeypots/alpine/fs_alpine.jsonl.gz")
+    data_file = tmp_path / "data.jsonl"
+    data_file.touch()
+    return FakeFSDataHandler(
+        data_file=str(data_file),
+        fs_file=fs_path,
+        config=config or {},
+    )
+
+
+def test_honeymind_default_fake_files_are_available_and_coherent(tmp_path):
+    handler = _fakefs_handler(
+        tmp_path,
+        {
+            "hostname": "web-prod-01",
+            "distro": "Ubuntu 20.04.6 LTS",
+            "ip_address": "172.31.16.42",
+            "gateway": "172.31.16.1",
+        },
+    )
+    session = handler.connect({})
+
+    os_release = handler.query("cat /etc/os-release", session)
+    assert 'PRETTY_NAME="Ubuntu 20.04.6 LTS"' in os_release
+
+    passwd = handler.query("cat /etc/passwd", session)
+    assert "root:x:0:0:root:/root:/bin/sh" in passwd
+    assert "ubuntu:x:" in passwd
+
+    assert handler.query("cat /etc/hostname", session) == "web-prod-01"
+    assert "172.31.16.42 web-prod-01" in handler.query("cat /etc/hosts", session)
+    assert "processor" in handler.query("cat /proc/cpuinfo", session)
+    assert "model name" in handler.query("cat /proc/cpuinfo", session)
+
+
+def test_honeymind_web_and_app_directories_list_seeded_files(tmp_path):
+    handler = _fakefs_handler(tmp_path)
+    session = handler.connect({})
+
+    assert handler.query("ls /srv", session) == "app"
+
+    srv_listing = handler.query("ls -la /srv/app", session)
+    assert ".env" in srv_listing
+    assert "config.yaml" in srv_listing
+    assert "docker-compose.yml" in srv_listing
+
+    web_listing = handler.query("ls        -la       /var/www/html", session)
+    assert "index.html" in web_listing
+    assert "config.php" in web_listing
+    assert ".env" in web_listing
+
+
+def test_honeymind_fake_file_readers_use_seeded_content(tmp_path):
+    handler = _fakefs_handler(tmp_path)
+    session = handler.connect({})
+
+    env_content = handler.query("cat /srv/app/.env", session)
+    spaced_env_content = handler.query("cat       /srv/app/.env", session)
+    assert env_content == spaced_env_content
+    assert "DB_PASSWORD=dev_password_123" in env_content
+    assert "sk-test-fake-honeymind" in env_content
+    assert "fakeSecretKeyForHoneyMindOnlyDoNotUse" in env_content
+
+    assert "APP_NAME=HoneyMindDemo" in handler.query("head -n 2 /srv/app/.env", session)
+    assert "MYSQL_PASSWORD=changeme123" in handler.query("tail /srv/app/.env", session)
+    assert "/srv/app/.env: ASCII text" == handler.query("file /srv/app/.env", session)
+    assert "regular file" in handler.query("stat /srv/app/.env", session)
+
+
+def test_honeymind_find_and_grep_common_discovery_commands(tmp_path):
+    handler = _fakefs_handler(tmp_path)
+    session = handler.connect({})
+
+    env_files = handler.query('find / -name "*.env" 2>/dev/null', session)
+    assert "/srv/app/.env" in env_files
+    assert "/var/www/html/.env" in env_files
+
+    web_files = handler.query("find /var/www -type f", session)
+    assert "/var/www/html/index.html" in web_files
+    assert "/var/www/html/config.php" in web_files
+
+    home_files = handler.query("find /home -type f", session)
+    assert "/home/ubuntu/.git-credentials" in home_files
+    assert "/home/ubuntu/deploy_key.old" in home_files
+
+    password_hits = handler.query('grep -R "password" /var/www 2>/dev/null', session)
+    assert "/var/www/html/config.php:" in password_hits
+
+    db_password_hits = handler.query('grep -R "DB_PASSWORD" /srv/app 2>/dev/null', session)
+    assert "/srv/app/.env:DB_PASSWORD=dev_password_123" in db_password_hits
+
+
+def test_honeymind_unknown_file_keeps_fallback_compatible(tmp_path):
+    handler = _fakefs_handler(tmp_path)
+    session = handler.connect({})
+
+    assert handler.query("cat /unknown/path", session) is None
+    assert handler.query("head /unknown/path", session) is None
+    assert handler.query("stat /unknown/path", session) is None
+
+
+def test_honeymind_fake_files_are_synthetic(tmp_path):
+    handler = _fakefs_handler(tmp_path)
+    session = handler.connect({})
+
+    sensitive_files = [
+        handler.query("cat /srv/app/.env", session),
+        handler.query("cat /home/ubuntu/deploy_key.old", session),
+        handler.query("cat /root/.ssh/authorized_keys", session),
+    ]
+    combined = "\n".join(sensitive_files)
+    assert "HONEYMIND" in combined.upper()
+    assert "FAKE" in combined.upper()
+    assert "BEGIN OPENSSH PRIVATE KEY" not in combined
+    assert "/Users/" not in combined
+    assert "/home/boon" not in combined
+
+
+def test_known_fakefs_entry_short_circuits_llm(tmp_path):
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    fs_path = os.path.join(base_dir, "test/honeypots/alpine/fs_alpine.jsonl.gz")
+    data_file = tmp_path / "data.jsonl"
+    data_file.touch()
+    config = {
+        "type": "ssh",
+        "data_file": str(data_file),
+        "fs_file": fs_path,
+        "model_id": "gpt-test",
+        "system_prompt": "system",
+        "port": 0,
+        "llm_provider": "openai_compatible",
+        "llm_base_url": "http://localhost:11434/v1",
+    }
+
+    with patch("infra.data_handler.invoke_llm", return_value="ShouldNotBeCalled") as mock_llm:
+        handler = build_data_handler(config)
+        session = handler.connect({"username": "root"})
+        response = handler.query("cat /srv/app/.env", session)
+
+    assert "DB_PASSWORD=dev_password_123" in response
+    mock_llm.assert_not_called()

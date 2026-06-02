@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from llm_utils import invoke_llm
+from llm_providers.llm_utils import invoke_llm
 
 
 class FakeResponse:
@@ -70,7 +70,7 @@ def test_openai_provider_formats_request_and_parses_response(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "env-openai-key")
     response = FakeResponse({"choices": [{"message": {"content": "openai text"}}]})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         result = invoke_llm(
             "system",
             "user",
@@ -92,7 +92,7 @@ def test_openai_provider_formats_request_and_parses_response(monkeypatch):
 def test_openai_provider_sends_bearer_token_from_direct_config():
     response = FakeResponse({"choices": [{"message": {"content": "openai text"}}]})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         invoke_llm(
             "system",
             "user",
@@ -112,7 +112,7 @@ def test_non_bedrock_provider_does_not_import_boto3(monkeypatch):
     response = FakeResponse({"choices": [{"message": {"content": "ok"}}]})
 
     with patch.dict(sys.modules, {"boto3": None}):
-        with patch("llm_utils.requests.post", return_value=response):
+        with patch("llm_providers.llm_utils.requests.post", return_value=response):
             result = invoke_llm("system", "user", "gpt-test", llm_provider="openai")
 
     assert result == "ok"
@@ -121,7 +121,7 @@ def test_non_bedrock_provider_does_not_import_boto3(monkeypatch):
 def test_openai_compatible_formats_request_and_parses_response():
     response = FakeResponse({"choices": [{"message": {"content": "openai text"}}]})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         result = invoke_llm(
             "system",
             "user",
@@ -152,7 +152,7 @@ def test_openai_compatible_formats_request_and_parses_response():
 def test_openai_compatible_normalizes_raw_bearer_token():
     response = FakeResponse({"choices": [{"message": {"content": "ok"}}]})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         invoke_llm(
             "system",
             "user",
@@ -171,7 +171,7 @@ def test_openai_compatible_normalizes_raw_bearer_token():
 def test_openai_compatible_does_not_duplicate_bearer_prefix():
     response = FakeResponse({"choices": [{"message": {"content": "ok"}}]})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         invoke_llm(
             "system",
             "user",
@@ -190,7 +190,7 @@ def test_openai_compatible_does_not_duplicate_bearer_prefix():
 def test_anthropic_formats_request_and_parses_response():
     response = FakeResponse({"content": [{"text": "anthropic text"}]})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         result = invoke_llm(
             "system",
             "user",
@@ -216,7 +216,7 @@ def test_anthropic_formats_request_and_parses_response():
 def test_native_ollama_formats_request_and_parses_response():
     response = FakeResponse({"message": {"content": "ollama text"}})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         result = invoke_llm(
             "system",
             "user",
@@ -245,7 +245,7 @@ def test_api_key_env_var_takes_priority_over_direct_key(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "env-key")
     response = FakeResponse({"choices": [{"message": {"content": "ok"}}]})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         invoke_llm(
             "system",
             "user",
@@ -263,7 +263,7 @@ def test_empty_api_key_env_var_does_not_override_direct_key(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "")
     response = FakeResponse({"choices": [{"message": {"content": "ok"}}]})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         invoke_llm(
             "system",
             "user",
@@ -280,7 +280,7 @@ def test_empty_api_key_env_var_does_not_override_direct_key(monkeypatch):
 def test_openai_compatible_localhost_does_not_require_api_key():
     response = FakeResponse({"choices": [{"message": {"content": "local ok"}}]})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         result = invoke_llm(
             "system",
             "user",
@@ -296,7 +296,7 @@ def test_openai_compatible_localhost_does_not_require_api_key():
 def test_openai_compatible_host_docker_internal_does_not_require_api_key():
     response = FakeResponse({"choices": [{"message": {"content": "docker ok"}}]})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         result = invoke_llm(
             "system",
             "user",
@@ -312,7 +312,7 @@ def test_openai_compatible_host_docker_internal_does_not_require_api_key():
 def test_openai_compatible_private_lan_does_not_require_api_key():
     response = FakeResponse({"choices": [{"message": {"content": "lan ok"}}]})
 
-    with patch("llm_utils.requests.post", return_value=response) as mock_post:
+    with patch("llm_providers.llm_utils.requests.post", return_value=response) as mock_post:
         result = invoke_llm(
             "system",
             "user",
@@ -340,7 +340,7 @@ def test_token_is_not_in_errors_or_logs(caplog):
     secret = "super-secret-token"
 
     with patch(
-        "llm_utils.requests.post",
+        "llm_providers.llm_utils.requests.post",
         return_value=FakeResponse({"error": "unauthorized"}, status_code=401),
     ):
         with pytest.raises(RuntimeError) as exc_info:

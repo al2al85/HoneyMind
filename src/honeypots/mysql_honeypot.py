@@ -22,8 +22,8 @@ from mysql_mimic.variables import Variables
 from mysql_mimic.session import AllowedResult
 from mysql_mimic.errors import MysqlError
 
-from base_honeypot import BaseHoneypot, HoneypotSession
-from honeypot_utils import wait_for_port
+from honeypots.base_honeypot import BaseHoneypot, HoneypotSession
+from core.honeypot_utils import wait_for_port
 from infra.interfaces import HoneypotAction
 
 logger = logging.getLogger(__name__)

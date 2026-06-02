@@ -4,8 +4,8 @@ import random
 from pathlib import Path
 from typing import Optional
 
-from base_honeypot import HoneypotSession
-from canonical_log_utils import iso_utc
+from honeypots.base_honeypot import HoneypotSession
+from logging_pipeline.canonical_log_utils import iso_utc
 
 logger = logging.getLogger(__name__)
 
