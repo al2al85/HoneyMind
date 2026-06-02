@@ -536,19 +536,75 @@ function parseStixIndicators(bundle) {
   return out;
 }
 
-function IocView({ themeToggle }) {
-  const [raw, setRaw]       = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError]   = React.useState(null);
-  const [tab, setTab]       = React.useState('ipv4-addr');
-  const [search, setSearch] = React.useState('');
+function _dlBlob(content, filename, mime) {
+  const url = URL.createObjectURL(new Blob([content], { type: mime }));
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
 
-  useEffect(() => {
+function _csvEsc(v) {
+  const s = String(v ?? '');
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s;
+}
+
+function exportCsv(indicators) {
+  const cols = ['type','value','confidence','first_seen','last_seen',
+                'source_ips','campaign_ids','attack_categories','filename','transfer_method'];
+  const rows = [cols.join(',')];
+  for (const [type, iocs] of Object.entries(indicators)) {
+    for (const ioc of iocs) {
+      rows.push([
+        type,
+        ioc.value,
+        ioc.confidence,
+        ioc.first_seen || '',
+        ioc.last_seen  || '',
+        ioc.source_ips.join(';'),
+        ioc.campaign_ids.join(';'),
+        ioc.attack_categories.join(';'),
+        ioc.context.filename        || '',
+        ioc.context.transfer_method || '',
+      ].map(_csvEsc).join(','));
+    }
+  }
+  _dlBlob(rows.join('\r\n'),
+    `honeymind-iocs-${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
+}
+
+function exportStix(bundle) {
+  _dlBlob(JSON.stringify(bundle, null, 2),
+    `honeymind-iocs-${new Date().toISOString().slice(0,10)}.stix.json`,
+    'application/json');
+}
+
+const ExportBtn = ({ onClick, children }) => (
+  <button onClick={onClick} style={{
+    display:'inline-flex', alignItems:'center', gap:7, padding:'7px 14px',
+    background:'var(--surface-2)', border:'1px solid var(--border-soft)',
+    color:'var(--text-dim)', borderRadius:8, cursor:'pointer', fontSize:13,
+    fontFamily:'inherit',
+  }}>
+    {children}
+  </button>
+);
+
+function IocView({ themeToggle }) {
+  const [raw, setRaw]         = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError]     = React.useState(null);
+  const [tab, setTab]         = React.useState('ipv4-addr');
+  const [search, setSearch]   = React.useState('');
+
+  const doLoad = React.useCallback(() => {
+    setLoading(true); setError(null);
     fetch('/api/v1/iocs')
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(b => { setRaw(b); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
   }, []);
+
+  useEffect(() => { doLoad(); }, [doLoad]);
 
   const indicators = React.useMemo(() => parseStixIndicators(raw), [raw]);
 
@@ -566,7 +622,7 @@ function IocView({ themeToggle }) {
   }, [indicators, tab, search]);
 
   if (loading) return <LoadingView themeToggle={themeToggle} />;
-  if (error)   return <ErrorView message={error} onRetry={() => { setLoading(true); setError(null); fetch('/api/v1/iocs').then(r=>r.json()).then(b=>{setRaw(b);setLoading(false);}).catch(e=>{setError(e.message);setLoading(false);}); }} themeToggle={themeToggle} />;
+  if (error)   return <ErrorView message={error} onRetry={doLoad} themeToggle={themeToggle} />;
 
   const total = Object.values(indicators).reduce((s, a) => s + a.length, 0);
 
@@ -574,8 +630,20 @@ function IocView({ themeToggle }) {
     <div className="main">
       <PageHead crumb="HoneyMind · Menaces" title="Indicateurs de compromission"
         right={
-          <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-            <span style={{ fontSize:11.5, color:'var(--text-faint)' }}>{nf(total)} IOC</span>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <ExportBtn onClick={() => exportCsv(indicators)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+              CSV
+            </ExportBtn>
+            <ExportBtn onClick={() => exportStix(raw)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+              STIX 2.1
+            </ExportBtn>
+            <span style={{ fontSize:11.5, color:'var(--text-faint)', paddingLeft:4 }}>{nf(total)} IOC</span>
             {themeToggle}
           </div>
         }
@@ -585,7 +653,8 @@ function IocView({ themeToggle }) {
         {/* Stats */}
         <div className="stat-grid" style={{ marginBottom:24 }}>
           {IOC_TYPES.map(t => (
-            <div key={t.id} className="card stat" style={{ cursor:'pointer', outline: tab===t.id ? '2px solid var(--honey)' : 'none' }}
+            <div key={t.id} className="card stat"
+              style={{ cursor:'pointer', outline: tab===t.id ? '2px solid var(--honey)' : 'none', transition:'outline .1s' }}
               onClick={() => setTab(t.id)}>
               <div className="lbl">
                 <Icon name={t.icon} className="nav-ic" style={{ color: tab===t.id ? 'var(--honey-deep)' : undefined }} />
@@ -606,11 +675,11 @@ function IocView({ themeToggle }) {
             ))}
           </div>
           <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Filtrer…"
+            placeholder="Filtrer par valeur, IP, campagne…"
             style={{
               padding:'7px 13px', borderRadius:8, border:'1px solid var(--border-soft)',
               background:'var(--surface-2)', color:'var(--text)', font:'inherit', fontSize:13,
-              outline:'none', minWidth:200,
+              outline:'none', minWidth:220, flex:1, maxWidth:360,
             }}
           />
           {search && (
@@ -626,10 +695,10 @@ function IocView({ themeToggle }) {
               <p className="empty-note">Aucun IOC{search ? ' correspondant à la recherche' : ''}.</p>
             </div>
           : <div className="card tbl-wrap">
-              {tab === 'ipv4-addr' && <IocTableIp rows={filtered} />}
-              {tab === 'url'       && <IocTableUrl rows={filtered} />}
+              {tab === 'ipv4-addr'   && <IocTableIp rows={filtered} />}
+              {tab === 'url'         && <IocTableUrl rows={filtered} />}
               {tab === 'domain-name' && <IocTableDomain rows={filtered} />}
-              {tab === 'file'      && <IocTableFile rows={filtered} />}
+              {tab === 'file'        && <IocTableFile rows={filtered} />}
             </div>
         }
 
@@ -639,11 +708,6 @@ function IocView({ themeToggle }) {
 }
 
 /* ── IOC sub-tables ─────────────────────────────────────────────────────────── */
-
-function ConfBadge({ v }) {
-  const c = v >= 90 ? 'var(--c-red)' : v >= 70 ? 'var(--c-amber)' : 'var(--c-green)';
-  return <span style={{ fontFamily:'var(--font-mono)', fontSize:12, color:c }}>{v}%</span>;
-}
 
 function CampList({ ids }) {
   if (!ids.length) return <span style={{ color:'var(--text-faint)', fontSize:12 }}>—</span>;
@@ -678,7 +742,7 @@ function IocTableIp({ rows }) {
     <table className="tbl">
       <thead><tr>
         <th>Adresse IP</th><th>Campagnes</th><th>Catégories</th>
-        <th>Première vue</th><th>Dernière vue</th><th className="num">Conf.</th><th></th>
+        <th>Première vue</th><th>Dernière vue</th><th></th>
       </tr></thead>
       <tbody>
         {rows.map((r,i) => (
@@ -688,15 +752,7 @@ function IocTableIp({ rows }) {
             <td><CatList cats={r.attack_categories} /></td>
             <td><FmtDate iso={r.first_seen} /></td>
             <td><FmtDate iso={r.last_seen} /></td>
-            <td className="num"><ConfBadge v={r.confidence} /></td>
-            <td>
-              <span style={{ display:'flex', gap:6 }}>
-                <CopyBtn text={r.value} />
-                <a href={D.vtIpUrl(r.value)} target="_blank" rel="noopener" className="mini-act" title="VirusTotal">
-                  <Icon name="ext" style={{ width:13, height:13 }} />
-                </a>
-              </span>
-            </td>
+            <td><CopyBtn text={r.value} /></td>
           </tr>
         ))}
       </tbody>
@@ -708,26 +764,18 @@ function IocTableUrl({ rows }) {
   return (
     <table className="tbl">
       <thead><tr>
-        <th>URL</th><th>Source IPs</th><th>Campagnes</th><th>Première vue</th><th className="num">Conf.</th><th></th>
+        <th>URL</th><th>Source IPs</th><th>Campagnes</th><th>Première vue</th><th></th>
       </tr></thead>
       <tbody>
         {rows.map((r,i) => (
           <tr key={i}>
-            <td style={{ fontFamily:'var(--font-mono)', fontSize:12, maxWidth:320, wordBreak:'break-all' }}>
+            <td style={{ fontFamily:'var(--font-mono)', fontSize:12, maxWidth:380, wordBreak:'break-all' }}>
               {r.value}
             </td>
             <td style={{ fontSize:12, color:'var(--text-faint)' }}>{r.source_ips.join(', ') || '—'}</td>
             <td><CampList ids={r.campaign_ids} /></td>
             <td><FmtDate iso={r.first_seen} /></td>
-            <td className="num"><ConfBadge v={r.confidence} /></td>
-            <td>
-              <span style={{ display:'flex', gap:6 }}>
-                <CopyBtn text={r.value} />
-                <a href={r.value} target="_blank" rel="noopener" className="mini-act" title="Ouvrir (dangereux)">
-                  <Icon name="ext" style={{ width:13, height:13 }} />
-                </a>
-              </span>
-            </td>
+            <td><CopyBtn text={r.value} /></td>
           </tr>
         ))}
       </tbody>
@@ -739,7 +787,7 @@ function IocTableDomain({ rows }) {
   return (
     <table className="tbl">
       <thead><tr>
-        <th>Domaine</th><th>Source IPs</th><th>Campagnes</th><th>Première vue</th><th className="num">Conf.</th><th></th>
+        <th>Domaine</th><th>Source IPs</th><th>Campagnes</th><th>Première vue</th><th></th>
       </tr></thead>
       <tbody>
         {rows.map((r,i) => (
@@ -748,15 +796,7 @@ function IocTableDomain({ rows }) {
             <td style={{ fontSize:12, color:'var(--text-faint)' }}>{r.source_ips.join(', ') || '—'}</td>
             <td><CampList ids={r.campaign_ids} /></td>
             <td><FmtDate iso={r.first_seen} /></td>
-            <td className="num"><ConfBadge v={r.confidence} /></td>
-            <td>
-              <span style={{ display:'flex', gap:6 }}>
-                <CopyBtn text={r.value} />
-                <a href={D.vtDomainUrl(r.value)} target="_blank" rel="noopener" className="mini-act" title="VirusTotal">
-                  <Icon name="ext" style={{ width:13, height:13 }} />
-                </a>
-              </span>
-            </td>
+            <td><CopyBtn text={r.value} /></td>
           </tr>
         ))}
       </tbody>
@@ -773,8 +813,7 @@ function IocTableFile({ rows }) {
       <tbody>
         {rows.map((r,i) => (
           <tr key={i}>
-            <td style={{ fontFamily:'var(--font-mono)', fontSize:11.5, color:'var(--text-dim)' }}
-              title={r.value}>
+            <td style={{ fontFamily:'var(--font-mono)', fontSize:11.5, color:'var(--text-dim)' }} title={r.value}>
               {r.value.slice(0,12)}…{r.value.slice(-8)}
             </td>
             <td style={{ fontFamily:'var(--font-mono)', fontSize:12 }}>{r.context.filename || '—'}</td>
@@ -787,14 +826,7 @@ function IocTableFile({ rows }) {
             <td style={{ fontSize:12, color:'var(--text-faint)' }}>{r.source_ips.join(', ') || '—'}</td>
             <td><CampList ids={r.campaign_ids} /></td>
             <td><FmtDate iso={r.first_seen} /></td>
-            <td>
-              <span style={{ display:'flex', gap:6 }}>
-                <CopyBtn text={r.value} />
-                <a href={D.vtHashUrl(r.value)} target="_blank" rel="noopener" className="mini-act" title="VirusTotal">
-                  <Icon name="ext" style={{ width:13, height:13 }} />
-                </a>
-              </span>
-            </td>
+            <td><CopyBtn text={r.value} /></td>
           </tr>
         ))}
       </tbody>
