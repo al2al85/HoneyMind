@@ -85,6 +85,12 @@ def enrich(event: dict) -> dict:
     if category.value not in _session_phases[sid]:
         _session_phases[sid].append(category.value)
 
+    # --- Backfill command_raw at top-level for Loki/Grafana queries ---
+    if "command_raw" not in e:
+        cmd_obj = e.get("command")
+        if isinstance(cmd_obj, dict) and cmd_obj.get("raw"):
+            e["command_raw"] = cmd_obj["raw"]
+
     # --- GeoIP + anonymization (using src/ip_enricher.py) ---
     geo = _ip_enricher.enrich(ip) if ip else {}
     e["_geo"] = geo
@@ -127,14 +133,16 @@ def enrich(event: dict) -> dict:
         e["_ai_trap_triggered"] = False
         e["_ai_trap_ids"] = []
 
+    # --- SSH HASSH (from event if logged by ssh_honeypot) ---
+    # ssh_fingerprint can be top-level or nested in details (emitted as event_type="error")
+    ssh_fp = e.get("ssh_fingerprint") or (e.get("details") or {}).get("ssh_fingerprint") or {}
+
     # --- Session fingerprint ---
-    fp = fingerprint_session(session_events, hassh=(e.get("ssh_fingerprint") or {}).get("hassh"))
+    fp = fingerprint_session(session_events, hassh=ssh_fp.get("hassh"))
     e["_fingerprint"] = fp
 
-    # --- SSH HASSH (from event if logged by ssh_honeypot) ---
-    ssh_fp = e.get("ssh_fingerprint") or {}
     e["_hassh"] = ssh_fp.get("hassh") or ""
-    e["_ssh_client"] = ssh_fp.get("client_banner") or fp.get("ua_tool") or ""
+    e["_ssh_client"] = ssh_fp.get("client_name") or ssh_fp.get("client_banner") or fp.get("ua_tool") or ""
     e["_tool_match"] = fp.get("tool_match") or ""
 
     # --- Attacker profile (using src/attacker_profiler.py) ---

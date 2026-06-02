@@ -7,6 +7,23 @@ from logging_pipeline.local_log_utils import write_local_event
 
 SCHEMA_VERSION = 1
 DEFAULT_SERVICE = "ssh"
+
+
+def _classify_command(cmd: str) -> str:
+    """Lightweight command classifier for log enrichment."""
+    import re
+    c = cmd.strip().lower()
+    if re.search(r"\b(sudo|su\b|pkexec)\b", c):        return "PRIVILEGE_ESCALATION"
+    if re.search(r"\bssh\s+\S+@\S+", c):               return "LATERAL_MOVEMENT"
+    if re.search(r"\b(wget|curl)\s+.*https?://", c):   return "EXFILTRATION"
+    if re.search(r"cat\s+/etc/(shadow|gshadow)", c):   return "CREDENTIAL_ACCESS"
+    if re.search(r"\.(env|pem|key|credentials)\b", c): return "CREDENTIAL_ACCESS"
+    if re.search(r"\b(crontab|adduser|useradd)\b", c): return "PERSISTENCE"
+    if re.search(r"\b(chmod\s+\+x|linpeas|msfcon)\b",c):return "EXECUTION"
+    if re.search(r"\b(whoami|uname|ifconfig|netstat|ps\s+(aux|a))\b", c): return "RECON"
+    if re.search(r"\b(ls|find|cat\s+/etc/passwd)\b",c):return "DISCOVERY"
+    if re.search(r"\brm\s+-rf?\b", c):                 return "IMPACT"
+    return "UNKNOWN"
 EVENT_TYPES = {
     "auth_attempt",
     "auth_success",
@@ -109,6 +126,13 @@ def build_event(
         "client": client or client_identity(session=session),
         "timing": session_timing(session, ts),
     }
+    # Flat top-level fields for Grafana/Loki queries (no nested extraction needed)
+    if client:
+        event["client_ip"] = client.get("ip")
+        event["username"] = client.get("username")
+    if command is not None:
+        event["command_raw"] = command.get("raw")
+        event["attack_category"] = _classify_command(command.get("raw") or "")
     if auth is not None:
         event["auth"] = auth
     if command is not None:

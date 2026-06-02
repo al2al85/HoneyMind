@@ -100,6 +100,7 @@ def _build_labels(event: dict) -> dict[str, str]:
 
 _seen_ips: dict[str, set] = {}
 _active_sessions: dict[str, set] = {}
+_session_last_phase: dict[str, str] = {}
 
 
 def _record_metrics(event: dict) -> None:
@@ -136,6 +137,14 @@ def _record_metrics(event: dict) -> None:
         score = event.get("_sophistication_score") or 0
         m.sophistication_score.observe(float(score))
         cleanup_session(sid)
+        _session_last_phase.pop(sid, None)
+
+    # Attack phase transitions (kill chain progression)
+    if category != "UNKNOWN" and sid:
+        prev_phase = _session_last_phase.get(sid)
+        if prev_phase and prev_phase != category:
+            m.attack_phase_transitions_total.labels(from_phase=prev_phase, to_phase=category).inc()
+        _session_last_phase[sid] = category
 
     # Auth metrics
     if event_type in ("auth_attempt",):
@@ -202,8 +211,9 @@ def _record_metrics(event: dict) -> None:
 
     # HASSH / SSH client fingerprint
     ssh_client = event.get("_ssh_client") or ""
-    if ssh_client:
-        m.hassh_detections_total.labels(ssh_client=ssh_client[:60]).inc()
+    hassh_val = event.get("_hassh") or ""
+    if ssh_client or hassh_val:
+        m.hassh_detections_total.labels(ssh_client=ssh_client[:60], hassh=hassh_val[:32]).inc()
 
     # Anonymization type
     anon_type = labels.get("anonymization_type") or ""

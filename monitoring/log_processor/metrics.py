@@ -70,7 +70,7 @@ ai_trap_hits_total = Counter(
 hassh_detections_total = Counter(
     "honeymind_hassh_detections_total",
     "SSH client fingerprint (HASSH) detections",
-    ["ssh_client"],
+    ["ssh_client", "hassh"],
 )
 
 anonymization_type_total = Counter(

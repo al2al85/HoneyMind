@@ -102,7 +102,7 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
       "fieldConfig": { "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } } },
-      "targets": [{ "expr": "sum(honeymind_sophistication_total{level=\"high\"})", "legendFormat": "High", "refId": "A" }]
+      "targets": [{ "expr": "sum(honeymind_sophistication_total{profile_type=~\"targeted|nation_state\"})", "legendFormat": "High", "refId": "A" }]
     },
     {
       "id": 22, "type": "stat", "title": "Multi-Phase Attacks (≥3 phases)",
@@ -123,13 +123,17 @@
       }]
     },
     {
-      "id": 40, "type": "logs", "title": "Auth Brute-Force (>20 attempts same IP)",
+      "id": 40, "type": "table", "title": "Auth Brute-Force (>20 attempts same IP)",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 34 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "showTime": true, "showLabels": true, "wrapLogMessage": false },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "sortBy": [{ "displayName": "Value", "desc": true }] },
+      "fieldConfig": { "overrides": [{ "matcher": { "id": "byName", "options": "Value" }, "properties": [{ "id": "displayName", "value": "Auth Attempts" }, { "id": "custom.displayMode", "value": "lcd-gauge" }, { "id": "color", "value": { "mode": "continuous-RdYlGr" } }] }] },
       "targets": [{
-        "expr": "topk(100, sum by (client_ip) (count_over_time({job=\"honeymind\", event_type=\"auth_attempt\"} [$__range]))) > 20",
-        "refId": "A"
+        "expr": "sort_desc(sum by (username) (honeymind_auth_attempts_total{success=\"false\"})) > 20",
+        "legendFormat": "{{username}}",
+        "refId": "A",
+        "instant": true,
+        "format": "table"
       }]
     }
   ]

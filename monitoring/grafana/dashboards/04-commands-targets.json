@@ -1,145 +1,371 @@
 {
   "uid": "commands-targets",
-  "title": "HoneyMind — Commands, Targets & Credentials",
+  "title": "HoneyMind \u2014 Commands, Targets & Credentials",
   "description": "What attackers run, what files they access, credentials they try",
-  "tags": ["honeymind", "commands"],
+  "tags": [
+    "honeymind",
+    "commands"
+  ],
   "timezone": "browser",
   "refresh": "1m",
-  "time": { "from": "now-24h", "to": "now" },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
   "schemaVersion": 39,
   "panels": [
     {
-      "id": 1, "type": "heatmap", "title": "Command Activity Heatmap (hour × day)",
-      "gridPos": { "h": 8, "w": 14, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "id": 1,
+      "type": "heatmap",
+      "title": "Command Activity Heatmap (hour \u00d7 day)",
+      "gridPos": {
+        "h": 8,
+        "w": 14,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "options": {
         "calculate": false,
         "cellGap": 1,
-        "color": { "exponent": 0.5, "fill": "#F2495C", "mode": "scheme", "scale": "exponential", "scheme": "Oranges", "steps": 64 },
-        "legend": { "show": true },
-        "tooltip": { "show": true, "yHistogram": false }
+        "color": {
+          "exponent": 0.5,
+          "fill": "#F2495C",
+          "mode": "scheme",
+          "scale": "exponential",
+          "scheme": "Oranges",
+          "steps": 64
+        },
+        "legend": {
+          "show": true
+        },
+        "tooltip": {
+          "show": true,
+          "yHistogram": false
+        }
       },
-      "targets": [{
-        "expr": "sum(rate(honeymind_commands_total[$__rate_interval]))",
-        "legendFormat": "commands",
-        "refId": "A",
-        "format": "heatmap"
-      }]
+      "targets": [
+        {
+          "expr": "sum(rate(honeymind_commands_total[$__rate_interval]))",
+          "legendFormat": "commands",
+          "refId": "A",
+          "format": "heatmap"
+        }
+      ]
     },
     {
-      "id": 2, "type": "table", "title": "Top Commands",
-      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 0 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "sortBy": [{ "displayName": "Count", "desc": true }] },
+      "id": 2,
+      "type": "table",
+      "title": "Top Commands",
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 14,
+        "y": 0
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "Count",
+            "desc": true
+          }
+        ]
+      },
       "transformations": [
         {
           "id": "extractFields",
-          "options": { "source": "line", "format": "json" }
+          "options": {
+            "source": "line",
+            "format": "json"
+          }
         },
         {
           "id": "groupBy",
           "options": {
             "fields": {
-              "command_raw": { "aggregations": ["count"], "operation": "groupby" },
-              "_attack_category": { "aggregations": ["lastNotNull"], "operation": "groupby" }
+              "command_raw": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "groupby"
+              },
+              "_attack_category": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              }
             }
           }
         },
-        { "id": "sortBy", "options": { "fields": [{ "desc": true, "displayName": "command_raw Count" }] } },
-        { "id": "limit", "options": { "limitField": 30 } }
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": [
+              {
+                "desc": true,
+                "displayName": "command_raw Count"
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 30
+          }
+        }
       ],
-      "targets": [{
-        "expr": "{job=\"honeymind\", event_type=\"command\"} | json",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "expr": "{job=\"honeymind\", event_type=\"command\"} | json command_raw=\"command.raw\", command_response=\"command.response\", attack_category=\"_attack_category\"",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 10, "type": "table", "title": "Files Accessed",
-      "gridPos": { "h": 10, "w": 8, "x": 0, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "sortBy": [{ "displayName": "Value", "desc": true }] },
-      "fieldConfig": {
-        "overrides": [
-          { "matcher": { "id": "byName", "options": "Value" }, "properties": [
-            { "id": "displayName", "value": "Access Count" },
-            { "id": "custom.displayMode", "value": "lcd-gauge" },
-            { "id": "color", "value": { "mode": "continuous-RdYlGr" } }
-          ]}
+      "id": 10,
+      "type": "table",
+      "title": "Files Accessed",
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
         ]
       },
-      "targets": [{
-        "expr": "sort_desc(sum by (file_path, attack_category) (honeymind_files_accessed_total))",
-        "legendFormat": "{{file_path}}",
-        "refId": "A",
-        "instant": true,
-        "format": "table"
-      }]
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Access Count"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "lcd-gauge"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sort_desc(sum by (file_path, attack_category) (honeymind_files_accessed_total))",
+          "legendFormat": "{{file_path}}",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ]
     },
     {
-      "id": 11, "type": "table", "title": "Credentials Attempted",
-      "gridPos": { "h": 10, "w": 8, "x": 8, "y": 8 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "sortBy": [{ "displayName": "Count", "desc": true }] },
+      "id": 11,
+      "type": "table",
+      "title": "Credentials Attempted",
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "Count",
+            "desc": true
+          }
+        ]
+      },
       "transformations": [
-        { "id": "extractFields", "options": { "source": "labels" } },
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "labels"
+          }
+        },
         {
           "id": "groupBy",
           "options": {
             "fields": {
-              "client_ip": { "aggregations": ["count"], "operation": "groupby" },
-              "service": { "aggregations": ["lastNotNull"], "operation": "groupby" }
+              "client_ip": {
+                "aggregations": [
+                  "count"
+                ],
+                "operation": "groupby"
+              },
+              "service": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              }
             }
           }
         },
-        { "id": "sortBy", "options": { "fields": [{ "desc": true, "displayName": "client_ip Count" }] } }
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": [
+              {
+                "desc": true,
+                "displayName": "client_ip Count"
+              }
+            ]
+          }
+        }
       ],
-      "targets": [{
-        "expr": "{job=\"honeymind\", event_type=\"auth_attempt\"} | json | auth_success=\"false\"",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "expr": "{job=\"honeymind\", event_type=\"auth_attempt\"} | json | auth_success=\"false\"",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 12, "type": "table", "title": "Top Usernames Tried",
-      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "options": { "sortBy": [{ "displayName": "Value", "desc": true }] },
-      "targets": [{
-        "expr": "sort_desc(sum by (username) (honeymind_auth_attempts_total{success=\"false\"}))",
-        "legendFormat": "{{username}}",
-        "refId": "A",
-        "instant": true,
-        "format": "table"
-      }]
+      "id": 12,
+      "type": "table",
+      "title": "Top Usernames Tried",
+      "gridPos": {
+        "h": 10,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "options": {
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sort_desc(sum by (username) (honeymind_auth_attempts_total{success=\"false\"}))",
+          "legendFormat": "{{username}}",
+          "refId": "A",
+          "instant": true,
+          "format": "table"
+        }
+      ]
     },
     {
-      "id": 20, "type": "logs", "title": "Commands by Category — EXECUTION",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "showTime": true, "showLabels": false, "wrapLogMessage": false, "dedupStrategy": "exact" },
-      "targets": [{
-        "expr": "{job=\"honeymind\", attack_category=\"EXECUTION\"} | json | line_format \"{{.client_ip}} ({{.country}}) | {{.command_raw}}\"",
-        "refId": "A"
-      }]
+      "id": 20,
+      "type": "logs",
+      "title": "Commands by Category \u2014 EXECUTION",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": false,
+        "dedupStrategy": "exact"
+      },
+      "targets": [
+        {
+          "expr": "{job=\"honeymind\", attack_category=\"EXECUTION\"} | json | line_format \"{{.client_ip}} ({{.country}}) | {{.command_raw}}\"",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 21, "type": "logs", "title": "Commands by Category — PERSISTENCE",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "showTime": true, "showLabels": false, "wrapLogMessage": false, "dedupStrategy": "exact" },
-      "targets": [{
-        "expr": "{job=\"honeymind\", attack_category=\"PERSISTENCE\"} | json | line_format \"{{.client_ip}} ({{.country}}) | {{.command_raw}}\"",
-        "refId": "A"
-      }]
+      "id": 21,
+      "type": "logs",
+      "title": "Commands by Category \u2014 PERSISTENCE",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": false,
+        "dedupStrategy": "exact"
+      },
+      "targets": [
+        {
+          "expr": "{job=\"honeymind\", attack_category=\"PERSISTENCE\"} | json | line_format \"{{.client_ip}} ({{.country}}) | {{.command_raw}}\"",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "id": 22, "type": "logs", "title": "Uploaded / Downloaded Files",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": { "showTime": true, "showLabels": true, "wrapLogMessage": false },
-      "targets": [{
-        "expr": "{job=\"honeymind\"} | json | _uploaded_file != \"\" and _uploaded_file != \"null\"  | line_format \"[UPLOAD] {{.client_ip}} ({{.country}}) | {{._uploaded_file}} | cmd: {{.command_raw}}\"",
-        "refId": "A"
-      }]
+      "id": 22,
+      "type": "logs",
+      "title": "Uploaded / Downloaded Files",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "expr": "{job=\"honeymind\"} | json | _uploaded_file != \"\" and _uploaded_file != \"null\"  | line_format \"[UPLOAD] {{.client_ip}} ({{.country}}) | {{._uploaded_file}} | cmd: {{.command_raw}}\"",
+          "refId": "A"
+        }
+      ]
     }
   ]
 }
