@@ -5,7 +5,10 @@ import os
 from typing import Any, Optional
 from collections import defaultdict
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+_src = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+sys.path.insert(0, _src)
+sys.path.insert(0, os.path.join(_src, "analysis"))
+sys.path.insert(0, os.path.join(_src, "logging_pipeline"))
 
 from attack_classifier import classify_event, Category
 from ip_enricher import IPEnricher
