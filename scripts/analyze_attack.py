@@ -22,6 +22,7 @@ from bot_human_analyzer import analyze as analyze_bot_human
 from ip_enricher import IPEnricher, format_ip_line
 from attacker_profiler import profile as build_profile, score_icon
 from campaign_detector import detect_campaigns, format_campaign
+from session_fingerprint import fingerprint_session
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -123,6 +124,21 @@ def print_session_timeline(sid: str, events: list[dict], enricher: IPEnricher = 
     if attacker:
         sc = attacker['sophistication_score']
         print(f"  Profil  : {score_icon(sc)} {attacker['profile_label']} ({sc}/10)  —  {attacker['narrative']}")
+    # Session fingerprint
+    ssh_fp = next((e.get("ssh_fingerprint") for e in events if e.get("ssh_fingerprint")), None)
+    hassh = (ssh_fp or {}).get("hassh")
+    sfp = fingerprint_session(events, hassh=hassh)
+    fp_parts = []
+    if sfp.get("tool_match"):
+        fp_parts.append(f"tool={sfp['tool_match']}")
+    elif sfp.get("ua_tool"):
+        fp_parts.append(f"ua={sfp['ua_tool']}")
+    if sfp.get("seq_hash"):
+        fp_parts.append(f"seq={sfp['seq_hash'][:8]}")
+    if hassh:
+        fp_parts.append(f"hassh={hassh[:8]}")
+    if fp_parts:
+        print(f"  Fingerprint: {' | '.join(fp_parts)}")
     if bh.ai_trap_hits:
         for hit in bh.ai_trap_hits:
             print(f"  ⚠️  AI TRAP [{hit.trap_id}] {hit.description}")

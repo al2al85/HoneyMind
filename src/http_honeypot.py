@@ -177,6 +177,8 @@ class HTTPHoneypot(BaseHoneypot):
                     "body": request.get_data(as_text=True),
                     "headers": dict(request.headers),
                     "resource_type": resource_type,
+                    "client_ip": request.remote_addr,
+                    "user_agent": request.headers.get("User-Agent"),
                 }
                 result = self._action.request(
                     data,

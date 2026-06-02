@@ -14,6 +14,7 @@ from paramiko.ssh_exception import SSHException
 from base_honeypot import BaseHoneypot, HoneypotSession
 from infra.interfaces import HoneypotAction
 from infra.prompt_utils import render_prompt
+from ssh_fingerprint import FingerprintingTransport
 
 
 class EnhancedParamikoFilter(logging.Filter):
@@ -464,7 +465,7 @@ class SSHHoneypot(BaseHoneypot):
         try:
             logging.info("SSH connection accepted from %s", peer)
             self.log_session_start(session, client_ip=addr[0])
-            transport = Transport(client_socket)
+            transport = FingerprintingTransport(client_socket)
             # Use configured SSH banner when available to match the fake system
             banner = (self.config or {}).get("ssh_banner") if hasattr(self, "config") else None
             transport.local_version = banner or "SSH-2.0-OpenSSH_8.9p1"
@@ -486,6 +487,16 @@ class SSHHoneypot(BaseHoneypot):
 
             transport.add_server_key(self.host_key)
             transport.start_server(server=handler)
+
+            # Log SSH client fingerprint after handshake
+            fp = transport.client_fingerprint()
+            if any(fp.values()):
+                session["ssh_fingerprint"] = fp
+                self.log_data(session, {"ssh_fingerprint": fp})
+                logging.info(
+                    "SSH fingerprint from %s: banner=%s hassh=%s",
+                    peer, fp.get("client_banner"), fp.get("hassh"),
+                )
 
             logging.info("SSH server banner exchanged with %s, waiting for channel requests", peer)
 

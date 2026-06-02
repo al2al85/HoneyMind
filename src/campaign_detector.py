@@ -1,10 +1,12 @@
 """
-Campaign detection: clusters sessions by subnet/ASN/timing/commands.
+Campaign detection: clusters sessions by subnet/ASN/timing/commands/fingerprint.
 """
 import ipaddress
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Optional
+
+from session_fingerprint import fingerprint_session, identify_user_agent
 
 
 @dataclass
@@ -66,6 +68,14 @@ def _extract_asn(ip_cache: dict, ip: str) -> Optional[str]:
     return asn.split()[0] if asn else None
 
 
+def _extract_ssh_fingerprint(events: list[dict]) -> Optional[dict]:
+    for e in events:
+        fp = e.get("ssh_fingerprint")
+        if isinstance(fp, dict) and fp.get("hassh"):
+            return fp
+    return None
+
+
 def detect_campaigns(
     sessions: dict[str, list[dict]],
     ip_cache: Optional[dict] = None,
@@ -83,6 +93,9 @@ def detect_campaigns(
         ip = _extract_ip(events)
         if not ip:
             continue
+        fp = _extract_ssh_fingerprint(events)
+        hassh = fp.get("hassh") if fp else None
+        sfp = fingerprint_session(events, hassh=hassh)
         meta[sid] = {
             "ip": ip,
             "subnet24": _subnet24(ip),
@@ -90,6 +103,13 @@ def detect_campaigns(
             "time_start": _extract_time(events, first=True),
             "time_end": _extract_time(events, first=False),
             "commands": _extract_commands(events),
+            "hassh": hassh,
+            "client_banner": fp.get("client_banner") if fp else None,
+            "client_name": fp.get("client_name") if fp else None,
+            "seq_hash": sfp.get("seq_hash"),
+            "tool_match": sfp.get("tool_match"),
+            "user_agent": sfp.get("user_agent"),
+            "ua_tool": sfp.get("ua_tool"),
         }
 
     # Group by /24 subnet
@@ -97,6 +117,24 @@ def detect_campaigns(
     for sid, m in meta.items():
         if m["subnet24"]:
             subnet_groups[m["subnet24"]].append(sid)
+
+    # Group by HASSH (même outil SSH = même campagne probable)
+    hassh_groups: dict[str, list[str]] = defaultdict(list)
+    for sid, m in meta.items():
+        if m["hassh"]:
+            hassh_groups[m["hassh"]].append(sid)
+
+    # Group by sequence hash (même comportement = même outil/script)
+    seq_groups: dict[str, list[str]] = defaultdict(list)
+    for sid, m in meta.items():
+        if m["seq_hash"]:
+            seq_groups[m["seq_hash"]].append(sid)
+
+    # Group by User-Agent tool (même scanner HTTP)
+    ua_groups: dict[str, list[str]] = defaultdict(list)
+    for sid, m in meta.items():
+        if m["ua_tool"]:
+            ua_groups[m["ua_tool"]].append(sid)
 
     # Group by ASN
     asn_groups: dict[str, list[str]] = defaultdict(list)
@@ -148,6 +186,42 @@ def detect_campaigns(
                 seen.add(key)
                 asn = meta[sids[0]]["asn"]
                 campaigns.append(_make_campaign(sids, subnet, asn))
+
+    # HASSH-based clustering (même outil, IPs différentes = campagne distribuée)
+    for hassh, sids in hassh_groups.items():
+        if len(sids) >= 2:
+            key = frozenset(sids)
+            if key not in seen:
+                seen.add(key)
+                asn = meta[sids[0]]["asn"]
+                c = _make_campaign(sids, None, asn)
+                client_name = meta[sids[0]].get("client_name") or "unknown"
+                c.shared_commands = [f"[HASSH:{hassh[:8]}] {client_name}"] + c.shared_commands
+                c.verdict = "same_tool"
+                campaigns.append(c)
+
+    # Sequence hash clustering (même script, IPs quelconques)
+    for seq, sids in seq_groups.items():
+        if len(sids) >= 2:
+            key = frozenset(sids)
+            if key not in seen:
+                seen.add(key)
+                c = _make_campaign(sids, None, meta[sids[0]]["asn"])
+                tool = meta[sids[0]].get("tool_match") or f"seq:{seq[:8]}"
+                c.shared_commands = [f"[SEQ:{seq[:8]}] {tool}"] + c.shared_commands
+                c.verdict = "same_tool"
+                campaigns.append(c)
+
+    # User-Agent clustering (même scanner HTTP)
+    for ua_tool, sids in ua_groups.items():
+        if len(sids) >= 2:
+            key = frozenset(sids)
+            if key not in seen:
+                seen.add(key)
+                c = _make_campaign(sids, None, meta[sids[0]]["asn"])
+                c.shared_commands = [f"[UA] {ua_tool}"] + c.shared_commands
+                c.verdict = "same_tool"
+                campaigns.append(c)
 
     # ASN-based clustering (broader signal)
     for asn, sids in asn_groups.items():
