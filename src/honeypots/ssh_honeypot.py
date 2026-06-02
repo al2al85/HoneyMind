@@ -3,12 +3,22 @@ import os
 import select
 import shlex
 import socket
+import stat
 import threading
 import time
 from pathlib import Path
 
 import paramiko
-from paramiko import Transport
+from paramiko import (
+    SFTPAttributes,
+    SFTPHandle,
+    SFTP_NO_SUCH_FILE,
+    SFTP_OK,
+    SFTP_PERMISSION_DENIED,
+    SFTPServer,
+    SFTPServerInterface,
+    Transport,
+)
 from paramiko.ssh_exception import SSHException
 
 from honeypots.base_honeypot import BaseHoneypot, HoneypotSession
@@ -227,17 +237,7 @@ class SSHServerInterface(paramiko.ServerInterface):
                 channel.send(b"\x01")
             except OSError as e:
                 logging.getLogger(f"Failed to start honeypot: {e}")
-                raise
-        finally:
-            try:
-                channel.shutdown_write()
-            except (EOFError, OSError):
-                pass
 
-            try:
-                channel.close()
-            except (EOFError, OSError):
-                pass
 
     def check_channel_exec_request(self, channel, command):
         command_str = command.decode().strip()
@@ -423,6 +423,116 @@ class SSHServerInterface(paramiko.ServerInterface):
                 pass
 
 
+class HoneypotSFTPServerInterface(SFTPServerInterface):
+    def __init__(self, server, honeypot=None, config=None):
+        super().__init__(server)
+        self.honeypot = honeypot
+        self.config = config or {}
+        upload_dir = self.config.get(
+            "upload_dir", os.environ.get("HONEYPOT_UPLOAD_DIR", "/data/honeypot/uploads")
+        )
+        self.upload_dir = Path(upload_dir)
+        self.upload_dir.mkdir(parents=True, exist_ok=True)
+
+    def _remote_path(self, path: str) -> Path:
+        if not path or path == "/":
+            return self.upload_dir
+        return self.upload_dir / Path(path).name
+
+    @staticmethod
+    def _attrs(path: Path) -> SFTPAttributes:
+        return SFTPAttributes.from_stat(path.stat())
+
+    def stat(self, path):
+        local_path = self._remote_path(path)
+        if local_path.exists():
+            return self._attrs(local_path)
+        return SFTP_NO_SUCH_FILE
+
+    lstat = stat
+
+    def list_folder(self, path):
+        local_path = self._remote_path(path)
+        if not local_path.exists() or not local_path.is_dir():
+            return SFTP_NO_SUCH_FILE
+
+        entries = []
+        for child in local_path.iterdir():
+            attr = self._attrs(child)
+            attr.filename = child.name
+            entries.append(attr)
+        return entries
+
+    def canonicalize(self, path):
+        return "/" if not path else path
+
+    def open(self, path, flags, attr):
+        if flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND) == 0:
+            return SFTP_PERMISSION_DENIED
+
+        local_path = self._remote_path(path)
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if flags & os.O_APPEND:
+            mode = "ab"
+        elif flags & os.O_RDWR:
+            mode = "w+b"
+        else:
+            mode = "wb"
+
+        try:
+            file_obj = local_path.open(mode)
+        except OSError as exc:
+            return paramiko.SFTPServer.convert_errno(exc.errno)
+
+        handle = SFTPHandle(flags)
+        handle.writefile = file_obj
+        if flags & os.O_RDWR:
+            handle.readfile = file_obj
+        handle.filename = str(local_path)
+        return handle
+
+    def remove(self, path):
+        local_path = self._remote_path(path)
+        if not local_path.exists():
+            return SFTP_NO_SUCH_FILE
+        try:
+            local_path.unlink()
+        except OSError as exc:
+            return paramiko.SFTPServer.convert_errno(exc.errno)
+        return SFTP_OK
+
+    def rename(self, oldpath, newpath):
+        old_local = self._remote_path(oldpath)
+        new_local = self._remote_path(newpath)
+        if not old_local.exists():
+            return SFTP_NO_SUCH_FILE
+        new_local.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            old_local.replace(new_local)
+        except OSError as exc:
+            return paramiko.SFTPServer.convert_errno(exc.errno)
+        return SFTP_OK
+
+    def mkdir(self, path, attr):
+        local_path = self._remote_path(path)
+        try:
+            local_path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            return paramiko.SFTPServer.convert_errno(exc.errno)
+        return SFTP_OK
+
+    def rmdir(self, path):
+        local_path = self._remote_path(path)
+        if not local_path.exists():
+            return SFTP_NO_SUCH_FILE
+        try:
+            local_path.rmdir()
+        except OSError as exc:
+            return paramiko.SFTPServer.convert_errno(exc.errno)
+        return SFTP_OK
+
+
 class SSHHoneypot(BaseHoneypot):
     def __init__(self, port=0, action: HoneypotAction = None, config: dict = None):
         super().__init__(port, config)
@@ -520,6 +630,13 @@ class SSHHoneypot(BaseHoneypot):
             handler.session = session
 
             transport.add_server_key(self.host_key)
+            transport.set_subsystem_handler(
+                "sftp",
+                SFTPServer,
+                HoneypotSFTPServerInterface,
+                honeypot=self,
+                config=self.config,
+            )
             transport.start_server(server=handler)
 
             # Log SSH client fingerprint after handshake
