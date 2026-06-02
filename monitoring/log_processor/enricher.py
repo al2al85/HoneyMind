@@ -63,17 +63,32 @@ _FILE_ACCESS_PATTERN = re.compile(
     r"(?:cat|less|more|head|tail|vi|nano|vim)\s+(/\S+)", re.I
 )
 
-_CO2_WH_PER_KTOK = {
-    "anthropic": 0.003, "openai": 0.003, "bedrock": 0.003,
-    "ollama": 0.001, "openai_compatible": 0.002,
+# Énergie estimée par 1000 tokens de *completion* (Wh/ktok).
+#
+# Méthodologie :
+#   - Tokens de completion (décodage autorégressif, séquentiel) : taux de base
+#   - Tokens de prompt (prefill parallèle) : ~4× moins coûteux → pondérés à 0.25
+#   - Sources : IEA 2024 (~3 Wh/requête ChatGPT), benchmarks A100 batchés,
+#     estimations MLCommons inférence LLM en production (1–3 Wh/ktok)
+#   - Ollama/local : plus élevé, pas de batching, GPU grand public
+_WH_PER_KTOK = {
+    "anthropic":         1.5,   # cloud, inference batché et optimisé
+    "openai":            1.5,   # idem
+    "bedrock":           1.5,   # AWS-hosted
+    "ollama":            3.0,   # GPU local, pas de batching
+    "openai_compatible": 2.0,   # fournisseur inconnu, valeur prudente
 }
+# Intensité carbone : moyenne mondiale IEA 2022 = 460 gCO2/kWh = 0.46 gCO2/Wh
+_GRID_GCO2_PER_WH = 0.46
 
 
 def _co2_estimate(prompt_tokens: int, completion_tokens: int, provider: str) -> tuple[float, float]:
-    rate = _CO2_WH_PER_KTOK.get(provider, 0.002)
-    weighted = prompt_tokens * 0.5 + completion_tokens
-    energy_wh = (weighted / 1000) * rate
-    return round(energy_wh * 0.486, 6), round(energy_wh, 6)
+    # Prompt (prefill parallèle) ≈ 4× moins coûteux que completion (décodage séquentiel)
+    effective_tokens = prompt_tokens * 0.25 + completion_tokens
+    rate_wh_per_ktok = _WH_PER_KTOK.get(provider, 2.0)
+    energy_wh = (effective_tokens / 1000) * rate_wh_per_ktok
+    co2_g = energy_wh * _GRID_GCO2_PER_WH
+    return round(co2_g, 6), round(energy_wh, 6)
 
 
 def enrich(event: dict) -> dict:

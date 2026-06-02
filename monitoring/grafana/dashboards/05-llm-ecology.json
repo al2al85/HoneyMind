@@ -37,21 +37,24 @@
       "targets": [{ "expr": "sum(honeymind_llm_cost_total)", "legendFormat": "EUR", "refId": "A" }]
     },
     {
-      "id": 3, "type": "stat", "title": "Estimated CO2 (grams)",
+      "id": 3, "type": "stat", "title": "CO2 estimé (gCO2)",
+      "description": "Formule : (prompt×0.25 + completion) / 1000 × Wh/ktok × 0.46 gCO2/Wh. Intensité carbone : moyenne mondiale IEA 2022 (460 gCO2/kWh).",
       "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
       "fieldConfig": {
         "defaults": {
           "unit": "none",
+          "displayName": "${__value} gCO2",
           "color": { "mode": "thresholds" },
-          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 1000 }] }
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] }
         }
       },
       "targets": [{ "expr": "sum(honeymind_llm_co2_grams_total)", "legendFormat": "gCO2", "refId": "A" }]
     },
     {
-      "id": 4, "type": "stat", "title": "Energy Consumed (Wh)",
+      "id": 4, "type": "stat", "title": "Énergie consommée (Wh)",
+      "description": "Taux : 1.5 Wh/ktok cloud (Anthropic/OpenAI/Bedrock) ou 3 Wh/ktok local (Ollama). Source : IEA 2024 + benchmarks A100.",
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
@@ -59,7 +62,7 @@
         "defaults": {
           "unit": "watth",
           "color": { "mode": "thresholds" },
-          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 5 }] }
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 200 }, { "color": "red", "value": 1000 }] }
         }
       },
       "targets": [{ "expr": "sum(honeymind_llm_energy_wh_total)", "legendFormat": "Wh", "refId": "A" }]
