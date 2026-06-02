@@ -543,21 +543,6 @@ function IpSheet({ ip, onClose, go }) {
             {ip.success > 0 && <><dt>Réussies</dt><dd>{ip.success}</dd></>}
           </dl>
 
-          {/* Catégories d'attaque */}
-          {cats.length > 0 && (
-            <div style={{ marginBottom:18 }}>
-              <div className="crumb" style={{ marginBottom:8 }}>Tactiques observées</div>
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                {cats.map(c => (
-                  <span key={c} style={{ fontSize:11.5, padding:'3px 9px', borderRadius:999,
-                    background:'color-mix(in oklch,var(--honey) 14%,transparent)',
-                    color:'var(--honey-deep)', fontFamily:'var(--font-mono)' }}>
-                    {c.replace(/_/g,'-').toLowerCase()}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* IOC counts */}
           {Object.keys(iocCnts).some(k => iocCnts[k] > 0) && (
