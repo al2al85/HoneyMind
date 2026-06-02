@@ -153,7 +153,10 @@ def _call_llm(user_prompt: str, args=None, log_dir: Path = None) -> str:
         or os.environ.get("ANALYSIS_LLM_API_KEY_ENV")
         or "LLM_API_KEY"
     )
-    max_tokens = args.max_tokens if args else 600
+    max_tokens = (
+        (args.max_tokens if args else None)
+        or int(os.environ.get("ANALYSIS_LLM_MAX_TOKENS") or os.environ.get("LLM_MAX_TOKENS") or 600)
+    )
 
     usage_db = (
         os.environ.get("LLM_USAGE_DB")
