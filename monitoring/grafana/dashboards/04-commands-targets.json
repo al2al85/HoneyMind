@@ -19,10 +19,10 @@
       "type": "heatmap",
       "title": "Command Activity Heatmap (hour × day)",
       "gridPos": {
-        "h": 8,
-        "w": 14,
-        "x": 0,
-        "y": 0
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
       },
       "datasource": {
         "type": "prometheus",
@@ -61,10 +61,10 @@
       "type": "table",
       "title": "Top Commands",
       "gridPos": {
-        "h": 8,
-        "w": 10,
-        "x": 14,
-        "y": 0
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 10
       },
       "datasource": {
         "type": "loki",
@@ -80,25 +80,12 @@
       },
       "transformations": [
         {
-          "id": "extractFields",
-          "options": {
-            "source": "line",
-            "format": "json"
-          }
-        },
-        {
           "id": "groupBy",
           "options": {
             "fields": {
               "command_raw": {
                 "aggregations": [
                   "count"
-                ],
-                "operation": "groupby"
-              },
-              "_attack_category": {
-                "aggregations": [
-                  "lastNotNull"
                 ],
                 "operation": "groupby"
               }
@@ -128,17 +115,45 @@
           "expr": "{job=\"honeymind\", event_type=\"command\"} | json",
           "refId": "A"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "command_raw"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Commande"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "command_raw Count"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Occurrences"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "id": 10,
       "type": "table",
       "title": "Files Accessed",
       "gridPos": {
-        "h": 10,
-        "w": 8,
         "x": 0,
-        "y": 8
+        "y": 10,
+        "w": 8,
+        "h": 10
       },
       "datasource": {
         "type": "loki",
@@ -157,22 +172,24 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Value"
+              "options": "_file_accessed"
             },
             "properties": [
               {
                 "id": "displayName",
-                "value": "Access Count"
-              },
+                "value": "Fichier"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "_file_accessed Count"
+            },
+            "properties": [
               {
-                "id": "custom.displayMode",
-                "value": "lcd-gauge"
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "continuous-RdYlGr"
-                }
+                "id": "displayName",
+                "value": "Occurrences"
               }
             ]
           }
@@ -191,13 +208,6 @@
         }
       ],
       "transformations": [
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "line",
-            "format": "json"
-          }
-        },
         {
           "id": "groupBy",
           "options": {
@@ -235,10 +245,10 @@
       "type": "table",
       "title": "Credentials Attempted",
       "gridPos": {
-        "h": 10,
-        "w": 8,
         "x": 8,
-        "y": 8
+        "y": 10,
+        "w": 8,
+        "h": 10
       },
       "datasource": {
         "type": "loki",
@@ -253,12 +263,6 @@
         ]
       },
       "transformations": [
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "labels"
-          }
-        },
         {
           "id": "groupBy",
           "options": {
@@ -302,10 +306,10 @@
       "type": "table",
       "title": "Top Usernames Tried",
       "gridPos": {
-        "h": 10,
-        "w": 8,
-        "x": 16,
-        "y": 28
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
       },
       "datasource": {
         "type": "prometheus",
@@ -334,10 +338,10 @@
       "type": "logs",
       "title": "Commands by Category — EXECUTION",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 28
+        "y": 28,
+        "w": 12,
+        "h": 8
       },
       "datasource": {
         "type": "loki",
@@ -361,10 +365,10 @@
       "type": "logs",
       "title": "Commands by Category — PERSISTENCE",
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 28
+        "y": 28,
+        "w": 12,
+        "h": 8
       },
       "datasource": {
         "type": "loki",
@@ -388,10 +392,10 @@
       "type": "logs",
       "title": "Uploaded / Downloaded Files",
       "gridPos": {
-        "h": 8,
-        "w": 24,
         "x": 0,
-        "y": 36
+        "y": 36,
+        "w": 24,
+        "h": 8
       },
       "datasource": {
         "type": "loki",
@@ -418,10 +422,10 @@
         "uid": "loki"
       },
       "gridPos": {
-        "h": 10,
-        "w": 8,
         "x": 16,
-        "y": 18
+        "y": 10,
+        "w": 8,
+        "h": 10
       },
       "targets": [
         {
@@ -432,17 +436,10 @@
           },
           "expr": "{job=\"honeymind\", event_type=\"auth_attempt\"} | json | _auth_password != \"\" | _auth_password != \"null\"",
           "queryType": "range",
-          "maxLines": 2000
+          "maxLines": 1000
         }
       ],
       "transformations": [
-        {
-          "id": "extractFields",
-          "options": {
-            "source": "line",
-            "format": "json"
-          }
-        },
         {
           "id": "groupBy",
           "options": {
@@ -509,7 +506,8 @@
             ]
           }
         ]
-      }
+      },
+      "timeFrom": "7d"
     }
   ]
 }
