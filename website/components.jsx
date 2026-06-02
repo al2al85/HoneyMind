@@ -61,32 +61,18 @@ const HM_CSS = `
 
 /* Map */
 .map-wrap { padding: 0; position: relative; overflow: hidden; }
-.map-stage { position: relative; padding: 14px; background:
-  radial-gradient(900px 360px at 50% 35%, color-mix(in oklch, var(--honey) 8%, transparent), transparent 62%),
-  linear-gradient(180deg, color-mix(in oklch, var(--map-water) 96%, var(--surface)), var(--map-water));
-}
-.map-svg { width: 100%; display: block; cursor: grab; touch-action: none; border-radius: 10px; }
-.map-svg.dragging { cursor: grabbing; }
-.map-land-cell { fill: var(--map-land); opacity: .72; }
-.map-graticule { stroke: color-mix(in oklch, var(--text-faint) 23%, transparent); stroke-width: .35; vector-effect: non-scaling-stroke; }
-.map-frame { fill: none; stroke: color-mix(in oklch, var(--border) 80%, transparent); stroke-width: .8; vector-effect: non-scaling-stroke; }
-.atk { cursor: pointer; }
-.atk-core { transform-box: fill-box; transform-origin: center; filter: drop-shadow(0 2px 6px color-mix(in oklch, var(--honey) 34%, transparent)); }
-.map-controls { position: absolute; top: 18px; right: 18px; display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px; border-radius: 10px; background: color-mix(in oklch, var(--surface) 84%, transparent);
-  border: 1px solid var(--border-soft); box-shadow: var(--shadow); backdrop-filter: blur(8px); }
-.map-btn { width: 30px; height: 30px; border-radius: 7px; background: transparent;
-  border: 0; color: var(--text-dim); cursor: pointer; display: grid; place-items: center;
-  font-size: 15px; font-weight: 600; line-height: 1; transition: background .12s, color .12s; }
-.map-btn:hover { background: var(--surface-2); color: var(--text); }
-.map-zoom-pill { min-width: 48px; text-align: center; font-family: var(--font-mono); font-size: 11px;
-  color: var(--text-faint); padding: 0 6px; }
 .map-legend { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; padding: 12px 16px 14px; font-size: 12px; color: var(--text-dim); border-top: 1px solid var(--border-soft); }
 .lg-dot { display: inline-flex; align-items: center; gap: 7px; }
-.map-tip { position: absolute; pointer-events: none; z-index: 30; background: var(--surface);
-  border: 1px solid var(--border); border-radius: 9px; padding: 8px 11px; box-shadow: var(--shadow);
-  font-size: 12.5px; white-space: nowrap; }
-.map-tip .ip { font-family: var(--font-mono); font-weight: 600; color: var(--honey-deep); }
+/* Style Leaflet controls to match the app theme */
+.leaflet-container { font-family: var(--font-ui); background: var(--map-water); }
+.leaflet-control-zoom a { background: color-mix(in oklch, var(--surface) 92%, transparent) !important;
+  border-color: var(--border-soft) !important; color: var(--text-dim) !important; }
+.leaflet-control-zoom a:hover { background: var(--surface-2) !important; color: var(--text) !important; }
+.leaflet-popup-content-wrapper { background: var(--surface); border: 1px solid var(--border-soft);
+  color: var(--text); box-shadow: var(--shadow); border-radius: 10px; }
+.leaflet-popup-tip { background: var(--surface); }
+.leaflet-control-attribution { background: color-mix(in oklch, var(--bg) 80%, transparent) !important;
+  color: var(--text-faint) !important; font-size: 10px !important; }
 
 /* Bars */
 .bar-row { display: grid; grid-template-columns: 26px 1fr auto; gap: 12px; align-items: center; padding: 7px 0; }
@@ -324,258 +310,93 @@ function Stat({ icon, label, value, sub, accent = 'var(--honey)' }) {
   );
 }
 
-/* ---- World map avec zoom/pan ---- */
+/* ---- World map Leaflet ---- */
+const TILE_DARK  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+const TILE_ATTR  = '© <a href="https://openstreetmap.org">OpenStreetMap</a> © <a href="https://carto.com">CARTO</a>';
+
 function WorldMap({ points, height = 360 }) {
-  const VW = D.map.W * 5;
-  const VH = D.map.H * 4;
-  const MIN_W = 54;
-  const INIT = { x: 0, y: 0, w: VW, h: VH };
+  const containerRef = useRef(null);
+  const mapRef       = useRef(null);
+  const tileRef      = useRef(null);
 
-  const [vb, setVbState] = useState(INIT);
-  const [dragging, setDragging] = useState(false);
-  const [tip, setTip] = useState(null);
-  const svgRef = useRef(null);
-  const wrapRef = useRef(null);
-  const vbRef = useRef(INIT);
-  const dragRef = useRef(null);
-
-  const setVb = useCallback(next => {
-    const clamped = clampViewBox(next);
-    vbRef.current = clamped;
-    setVbState(clamped);
-  }, []);
-
-  function clampViewBox(box) {
-    const w = Math.min(VW, Math.max(MIN_W, box.w));
-    const h = w * (VH / VW);
-    return {
-      x: Math.max(0, Math.min(VW - w, box.x)),
-      y: Math.max(0, Math.min(VH - h, box.y)),
-      w,
-      h,
-    };
-  }
-
-  const landCells = useMemo(() => {
-    const cells = [];
-    for (let r = 0; r < D.map.H; r++) {
-      for (let c = 0; c < D.map.W; c++) {
-        if (D.map.isLand(r, c)) cells.push({ x: c * 5, y: r * 4 });
-      }
-    }
-    return cells;
-  }, []);
-
-  const graticules = useMemo(() => {
-    const lines = [];
-    for (let lon = -150; lon <= 150; lon += 30) {
-      const x = ((lon + 180) / 360) * VW;
-      lines.push({ type: 'v', x });
-    }
-    for (let lat = -60; lat <= 60; lat += 30) {
-      const y = ((90 - lat) / 180) * VH;
-      lines.push({ type: 'h', y });
-    }
-    return lines;
-  }, []);
-
-  const countryLabels = useMemo(() =>
-    Object.entries(D.centroids).map(([iso, d]) => {
-      const p = D.map.project(d.lat, d.lon);
-      return { iso, x: (p.x / 100) * VW, y: (p.y / 100) * VH };
-    }), []);
-
-  const projectedPoints = useMemo(() => points.map((p, i) => {
-    const pos = D.map.project(p.lat, p.lon);
-    return {
-      ...p,
-      key: `${p.ip}-${i}`,
-      x: (pos.x / 100) * VW,
-      y: (pos.y / 100) * VH,
-    };
-  }), [points]);
-
-  const maxWeight = useMemo(() => Math.max(...points.map(p => p.weight), 1), [points]);
-
-  function svgPoint(clientX, clientY, box = vbRef.current) {
-    const rect = svgRef.current.getBoundingClientRect();
-    return {
-      x: box.x + ((clientX - rect.left) / rect.width) * box.w,
-      y: box.y + ((clientY - rect.top) / rect.height) * box.h,
-    };
-  }
-
-  function zoomAt(factor, pivot) {
-    const current = vbRef.current;
-    const w = Math.min(VW, Math.max(MIN_W, current.w * factor));
-    const h = w * (VH / VW);
-    const sx = w / current.w;
-    const sy = h / current.h;
-    setVb({
-      x: pivot.x - (pivot.x - current.x) * sx,
-      y: pivot.y - (pivot.y - current.y) * sy,
-      w,
-      h,
-    });
-  }
-
-  const zoomCenter = factor => {
-    const c = vbRef.current;
-    zoomAt(factor, { x: c.x + c.w / 2, y: c.y + c.h / 2 });
-  };
-
+  // Init Leaflet map once
   useEffect(() => {
-    const el = svgRef.current;
-    if (!el) return;
-    const onWheel = e => {
-      e.preventDefault();
-      const delta = e.deltaMode === 1 ? e.deltaY * 24 : e.deltaY;
-      const factor = Math.exp(delta * 0.0016);
-      zoomAt(factor, svgPoint(e.clientX, e.clientY));
+    const L = window.L;
+    if (!L || !containerRef.current) return;
+
+    const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const map = L.map(containerRef.current, {
+      center: [20, 0], zoom: 2, minZoom: 1, maxZoom: 14,
+      worldCopyJump: true, zoomControl: true,
+    });
+    mapRef.current = map;
+
+    tileRef.current = L.tileLayer(theme === 'dark' ? TILE_DARK : TILE_LIGHT, {
+      attribution: TILE_ATTR, subdomains: 'abcd', maxZoom: 19,
+    }).addTo(map);
+
+    // Swap tiles when the app theme changes
+    const obs = new MutationObserver(() => {
+      if (!tileRef.current) return;
+      const t = document.documentElement.getAttribute('data-theme') || 'dark';
+      tileRef.current.setUrl(t === 'dark' ? TILE_DARK : TILE_LIGHT);
+    });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+    return () => {
+      obs.disconnect();
+      map.remove();
+      mapRef.current = null;
+      tileRef.current = null;
     };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  const onPointerDown = e => {
-    if (e.button !== undefined && e.button !== 0) return;
-    const current = vbRef.current;
-    dragRef.current = {
-      pointerId: e.pointerId,
-      sx: e.clientX,
-      sy: e.clientY,
-      x: current.x,
-      y: current.y,
-      w: current.w,
-      h: current.h,
-    };
-    setTip(null);
-    setDragging(true);
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-  };
+  // Refresh attack markers when points change
+  useEffect(() => {
+    const L = window.L;
+    const map = mapRef.current;
+    if (!L || !map) return;
 
-  const onPointerMove = e => {
-    const drag = dragRef.current;
-    if (!drag) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const dx = ((e.clientX - drag.sx) / rect.width) * drag.w;
-    const dy = ((e.clientY - drag.sy) / rect.height) * drag.h;
-    setVb({ x: drag.x - dx, y: drag.y - dy, w: drag.w, h: drag.h });
-  };
+    map.eachLayer(l => { if (l instanceof L.CircleMarker) map.removeLayer(l); });
 
-  const endDrag = e => {
-    if (dragRef.current && e?.currentTarget?.releasePointerCapture) {
-      try { e.currentTarget.releasePointerCapture(dragRef.current.pointerId); } catch {}
-    }
-    dragRef.current = null;
-    setDragging(false);
-  };
+    if (!points.length) return;
+    const maxW = Math.max(...points.map(p => p.weight), 1);
 
-  const viewBox = `${vb.x.toFixed(2)} ${vb.y.toFixed(2)} ${vb.w.toFixed(2)} ${vb.h.toFixed(2)}`;
-  const zoomFactor = VW / vb.w;
-  const showLabels = zoomFactor >= 2.2;
-  const labelSize = Math.max(2.1, vb.w / 72);
+    points.forEach(p => {
+      if (p.lat == null || p.lon == null) return;
+      const r = 5 + Math.sqrt(p.weight / maxW) * 13;
+      L.circleMarker([p.lat, p.lon], {
+        radius: r,
+        fillColor: '#e8a83c',
+        color: '#b87820',
+        weight: 1.2,
+        opacity: 0.95,
+        fillOpacity: 0.65,
+      }).bindPopup(
+        `<div style="font-size:12px;line-height:1.5">` +
+        `<strong style="font-family:monospace;color:#c47f1a">${p.ip}</strong><br/>` +
+        `${p.country || ''}` +
+        (p.weight ? `<br/>${p.weight} connexion${p.weight !== 1 ? 's' : ''}` : '') +
+        `</div>`
+      ).addTo(map);
+    });
+  }, [points]);
 
   return (
-    <div className="card map-wrap" ref={wrapRef}>
-      <div className="map-stage">
-        <svg
-          ref={svgRef}
-          className={`map-svg${dragging ? ' dragging' : ''}`}
-          viewBox={viewBox}
-          style={{ maxHeight: height }}
-          preserveAspectRatio="xMidYMid meet"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-          onDoubleClick={e => zoomAt(0.55, svgPoint(e.clientX, e.clientY))}
-          aria-label="Carte des origines d'attaques"
-        >
-          <defs>
-            <radialGradient id="attackGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="var(--honey)" stopOpacity="0.38" />
-              <stop offset="72%" stopColor="var(--honey)" stopOpacity="0.10" />
-              <stop offset="100%" stopColor="var(--honey)" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-
-          {graticules.map((line, i) => line.type === 'v'
-            ? <line key={i} className="map-graticule" x1={line.x} x2={line.x} y1="0" y2={VH} />
-            : <line key={i} className="map-graticule" x1="0" x2={VW} y1={line.y} y2={line.y} />
-          )}
-
-          {landCells.map((cell, i) => (
-            <rect key={i} className="map-land-cell" x={cell.x + .45} y={cell.y + .45}
-              width="4.1" height="3.1" rx=".9" />
-          ))}
-
-          {showLabels && countryLabels.map(({ iso, x, y }) => {
-            if (x < vb.x || x > vb.x + vb.w || y < vb.y || y > vb.y + vb.h) return null;
-            return (
-              <text key={iso} x={x} y={y} fontSize={labelSize} textAnchor="middle"
-                dominantBaseline="middle" fill="var(--text-faint)"
-                style={{ pointerEvents: 'none', fontFamily: 'var(--font-mono)', opacity: .82 }}>
-                {iso}
-              </text>
-            );
-          })}
-
-          {projectedPoints.map(p => {
-            const r = 2 + Math.sqrt(p.weight / maxWeight) * 5.8;
-            return (
-              <g key={p.key} className="atk"
-                onPointerMove={e => {
-                  const rect = wrapRef.current.getBoundingClientRect();
-                  setTip({ x: e.clientX - rect.left, y: e.clientY - rect.top, p });
-                }}
-                onPointerLeave={() => setTip(null)}>
-                <circle cx={p.x} cy={p.y} r={r * 3.3} fill="url(#attackGlow)" />
-                <circle cx={p.x} cy={p.y} r={r} className="atk-core"
-                  fill="var(--honey)" stroke="var(--honey-deep)" strokeWidth=".75"
-                  vectorEffect="non-scaling-stroke" />
-                <circle cx={p.x} cy={p.y} r={r * .38} fill="white" opacity=".55" />
-              </g>
-            );
-          })}
-
-          <rect className="map-frame" x=".4" y=".4" width={VW - .8} height={VH - .8} rx="3" />
-        </svg>
-
-        <div className="map-controls">
-          <button className="map-btn" title="Zoom avant" onClick={() => zoomCenter(0.65)} aria-label="Zoom avant">
-            <Icon name="zoom_in" style={{ width:15, height:15 }} />
-          </button>
-          <span className="map-zoom-pill">x{zoomFactor.toFixed(1)}</span>
-          <button className="map-btn" title="Zoom arrière" onClick={() => zoomCenter(1.45)} aria-label="Zoom arrière">
-            <Icon name="zoom_out" style={{ width:15, height:15 }} />
-          </button>
-          <button className="map-btn" title="Réinitialiser" onClick={() => setVb(INIT)} aria-label="Réinitialiser">
-            <Icon name="zoom_reset" style={{ width:15, height:15 }} />
-          </button>
-        </div>
-
-        {tip && (
-          <div className="map-tip" style={{
-            left: tip.x,
-            top: tip.y,
-            transform: tip.y < 72 ? 'translate(-50%, 14px)' : 'translate(-50%, -118%)',
-          }}>
-            <div className="ip">{tip.p.ip}</div>
-            <div style={{ color: 'var(--text-dim)' }}>{tip.p.country} · {tip.p.weight} connexions</div>
-          </div>
-        )}
-      </div>
-
+    <div className="card map-wrap">
+      <div
+        ref={containerRef}
+        style={{ height, position: 'relative', zIndex: 0,
+          borderRadius: '14px 14px 0 0', overflow: 'hidden', isolation: 'isolate' }}
+      />
       <div className="map-legend">
         <span className="lg-dot">
-          <span style={{ width:9,height:9,borderRadius:3,background:'var(--map-land)',display:'inline-block' }} /> Terres
+          <span style={{ width:10, height:10, borderRadius:'50%', background:'var(--honey)', display:'inline-block' }} />
+          Source d'attaque
         </span>
-        <span className="lg-dot">
-          <span style={{ width:10,height:10,borderRadius:'50%',background:'var(--honey)',display:'inline-block' }} /> Source d'attaque
-        </span>
-        <span style={{ marginLeft:'auto', color:'var(--text-faint)', fontSize: 11 }}>
-          Molette ou double-clic : zoom · Glisser : déplacer
+        <span style={{ marginLeft:'auto', color:'var(--text-faint)', fontSize:11 }}>
+          Molette : zoom · Glisser : déplacer · Clic : détails
         </span>
         <span style={{ color:'var(--text-faint)' }}>{points.length} sources</span>
       </div>
