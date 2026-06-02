@@ -119,7 +119,7 @@ Règles importantes :
 - Utilise les termes “probable”, “vraisemblable”, “suspecté” ou “inconnu” lorsque les preuves sont incomplètes.
 - Chaque conclusion doit inclure une preuve issue des logs.
 - Sois concis : la sortie ne doit pas être trop longue.
-- Tout doit être rédigé en français."""
+- Tout doit être rédigé en français et au format markdown."""
 
 _SESSION_PROMPT = """Analyse cette session d'attaque :
 
