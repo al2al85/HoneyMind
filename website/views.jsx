@@ -24,6 +24,7 @@ function SecH({ title, hint }) {
 /* ============ DASHBOARD ============ */
 function DashboardView({ themeToggle }) {
   const { data, loading, error, reload } = useHM();
+  const [sheetIp, setSheetIp] = useState(null);
 
   if (loading) return <LoadingView themeToggle={themeToggle} />;
   if (error || !data) return <ErrorView message={error} onRetry={reload} themeToggle={themeToggle} />;
@@ -32,6 +33,24 @@ function DashboardView({ themeToggle }) {
   const countriesBar = data.topCountries.map(c => ({ label: c.name, code: c.code, value: c.attacks }));
   const cmdBar = (data.topCommands || []).slice(0, 7).map(c => ({ label: c.label, value: c.count }));
   const peak = data.timeseries.length ? Math.max(...data.timeseries.map(d => d.attacks)) : 0;
+
+  const handleMapClick = point => {
+    const ipData = (data.ips || []).find(i => i.ip === point.ip) || {};
+    setSheetIp({
+      ip:           point.ip,
+      country:      point.country || 'Inconnu',
+      code:         '',
+      lat:          point.lat,
+      lon:          point.lon,
+      connections:  point.weight || 0,
+      success:      0,
+      commands:     Object.values(ipData.ioc_counts || {}).reduce((a, b) => a + b, 0),
+      asn:          '—',
+      org:          '—',
+      firstSeen:    (ipData.first_seen || '').slice(0, 10) || '—',
+      sampleCommands: [],
+    });
+  };
 
   return (
     <div className="main">
@@ -79,7 +98,7 @@ function DashboardView({ themeToggle }) {
 
         <SecH title="Origine des attaques" />
         {data.mapPoints.length > 0
-          ? <WorldMap points={data.mapPoints} height={420} />
+          ? <WorldMap points={data.mapPoints} height={420} onMarkerClick={handleMapClick} />
           : <div className="card map-wrap"><p className="empty-note">Aucune IP géolocalisée pour le moment.</p></div>
         }
 
@@ -115,6 +134,7 @@ function DashboardView({ themeToggle }) {
 
       </div>
     </div>
+    {sheetIp && <IpSheet ip={sheetIp} onClose={() => setSheetIp(null)} />}
   );
 }
 
@@ -565,7 +585,9 @@ function CampaignDetailView({ id, go, themeToggle }) {
         {points.length > 0 && (
           <>
             <SecH title="Géographie de la campagne" />
-            <WorldMap points={points} height={280} />
+            <WorldMap points={points} height={280}
+              onMarkerClick={point => setSheetIp(c.ips.find(i => i.ip === point.ip) || { ip: point.ip, country: point.country, code: '', lat: point.lat, lon: point.lon, connections: point.weight || 0, success: 0, commands: 0, asn: '—', org: '—', firstSeen: '—', sampleCommands: [] })}
+            />
           </>
         )}
 

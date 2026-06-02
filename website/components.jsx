@@ -315,7 +315,7 @@ const TILE_DARK  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.pn
 const TILE_LIGHT = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 const TILE_ATTR  = '© <a href="https://openstreetmap.org">OpenStreetMap</a> © <a href="https://carto.com">CARTO</a>';
 
-function WorldMap({ points, height = 360 }) {
+function WorldMap({ points, height = 360, onMarkerClick }) {
   const containerRef = useRef(null);
   const mapRef       = useRef(null);
   const tileRef      = useRef(null);
@@ -366,20 +366,26 @@ function WorldMap({ points, height = 360 }) {
     points.forEach(p => {
       if (p.lat == null || p.lon == null) return;
       const r = 5 + Math.sqrt(p.weight / maxW) * 13;
-      L.circleMarker([p.lat, p.lon], {
+      const m = L.circleMarker([p.lat, p.lon], {
         radius: r,
         fillColor: '#e8a83c',
         color: '#b87820',
         weight: 1.2,
         opacity: 0.95,
         fillOpacity: 0.65,
-      }).bindPopup(
-        `<div style="font-size:12px;line-height:1.5">` +
-        `<strong style="font-family:monospace;color:#c47f1a">${p.ip}</strong><br/>` +
-        `${p.country || ''}` +
-        (p.weight ? `<br/>${p.weight} connexion${p.weight !== 1 ? 's' : ''}` : '') +
-        `</div>`
-      ).addTo(map);
+      }).addTo(map);
+      if (onMarkerClick) {
+        m.on('click', () => onMarkerClick(p));
+        m.getElement()?.style.setProperty('cursor', 'pointer');
+      } else {
+        m.bindPopup(
+          `<div style="font-size:12px;line-height:1.5">` +
+          `<strong style="font-family:monospace;color:#c47f1a">${p.ip}</strong><br/>` +
+          `${p.country || ''}` +
+          (p.weight ? `<br/>${p.weight} connexion${p.weight !== 1 ? 's' : ''}` : '') +
+          `</div>`
+        );
+      }
     });
   }, [points]);
 
