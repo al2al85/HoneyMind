@@ -183,6 +183,7 @@
       }
 
       if (line === '') { closeLists(); continue; }
+      if (/^---+$/.test(line)) { closeLists(); html += '<hr>'; continue; }
       if (line.startsWith('### ')) { closeLists(); html += `<h3>${inline(line.slice(4))}</h3>`; continue; }
       if (line.startsWith('## '))  { closeLists(); html += `<h2>${inline(line.slice(3))}</h2>`; continue; }
       if (line.startsWith('# '))   { closeLists(); html += `<h1>${inline(line.slice(2))}</h1>`; continue; }
