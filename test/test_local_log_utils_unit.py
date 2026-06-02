@@ -155,7 +155,8 @@ def test_canonical_event_has_required_fields_and_nested_client():
     assert event["seq"] == 1
     assert event["client"] == {"ip": "1.2.3.4", "username": "root"}
     assert event["auth"]["success"] is False
-    assert "username" not in event
+    assert event["client_ip"] == "1.2.3.4"
+    assert event["username"] == "root"
     assert "password" not in event
     assert "success" not in event
 
@@ -212,7 +213,7 @@ def test_canonical_ssh_logger_writes_complete_session(tmp_path, capsys):
     ]
     auth_event = lines[1]
     assert "auth" in auth_event
-    assert not {"username", "password", "success"} & set(auth_event)
+    assert not {"password", "success"} & set(auth_event)
     command_event = lines[2]
     assert command_event["command"]["raw"] == "uname      -a"
     assert command_event["command"]["normalized"] == "uname -a"
