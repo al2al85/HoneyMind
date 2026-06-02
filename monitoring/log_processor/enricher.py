@@ -159,6 +159,14 @@ def enrich(event: dict) -> dict:
     # ssh_fingerprint can be top-level or nested in details (emitted as event_type="error")
     ssh_fp = e.get("ssh_fingerprint") or (e.get("details") or {}).get("ssh_fingerprint") or {}
 
+    # Backfill HASSH from earlier events in the same session if not on current event
+    if not ssh_fp.get("hassh"):
+        for prev in session_events[:-1]:
+            prev_fp = prev.get("ssh_fingerprint") or (prev.get("details") or {}).get("ssh_fingerprint") or {}
+            if prev_fp.get("hassh"):
+                ssh_fp = prev_fp
+                break
+
     # --- Session fingerprint ---
     fp = fingerprint_session(session_events, hassh=ssh_fp.get("hassh"))
     e["_fingerprint"] = fp

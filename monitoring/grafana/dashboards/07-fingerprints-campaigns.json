@@ -381,7 +381,7 @@
       ],
       "targets": [
         {
-          "expr": "{job=\"honeymind\", event_type=\"session_start\", hassh!=\"\"}",
+          "expr": "{job=\"honeymind\", hassh!=\"\"}",
           "queryType": "range",
           "refId": "A"
         }
@@ -491,7 +491,7 @@
       ],
       "targets": [
         {
-          "expr": "{job=\"honeymind\", event_type=\"session_start\", tool_match!=\"\"}",
+          "expr": "{job=\"honeymind\", tool_match!=\"\"}",
           "queryType": "range",
           "refId": "A"
         }
