@@ -35,23 +35,31 @@ function DashboardView({ themeToggle, go }) {
   const peak = data.timeseries.length ? Math.max(...data.timeseries.map(d => d.attacks)) : 0;
 
   const handleMapClick = point => {
+    // Cherche l'objet IP complet (avec ASN, org, commandes) dans les campagnes déjà enrichies
+    let rich = null;
+    for (const camp of (data.campaigns || [])) {
+      rich = camp.ips.find(i => i.ip === point.ip);
+      if (rich) break;
+    }
+
     const ipData    = (data.ips || []).find(i => i.ip === point.ip) || {};
     const campaigns = (ipData.campaign_ids || [])
       .map(id => data.campaigns.find(c => c.id === id))
       .filter(Boolean);
+
     setSheetIp({
       ip:               point.ip,
-      country:          point.country || 'Inconnu',
-      code:             '',
-      lat:              point.lat,
-      lon:              point.lon,
-      connections:      point.weight || 0,
-      success:          0,
-      commands:         Object.values(ipData.ioc_counts || {}).reduce((a, b) => a + b, 0),
-      asn:              '—',
-      org:              '—',
-      firstSeen:        (ipData.first_seen || '').slice(0, 10) || '—',
-      sampleCommands:   [],
+      country:          rich?.country  || point.country || 'Inconnu',
+      code:             rich?.code     || '',
+      lat:              rich?.lat      ?? point.lat,
+      lon:              rich?.lon      ?? point.lon,
+      connections:      rich?.connections ?? point.weight ?? 0,
+      success:          rich?.success  ?? 0,
+      commands:         rich?.commands ?? 0,
+      asn:              rich?.asn      || '—',
+      org:              rich?.org      || '—',
+      firstSeen:        rich?.firstSeen || (ipData.first_seen || '').slice(0, 10) || '—',
+      sampleCommands:   rich?.sampleCommands || [],
       campaigns,
       attackCategories: ipData.attack_categories || [],
       iocCounts:        ipData.ioc_counts || {},
