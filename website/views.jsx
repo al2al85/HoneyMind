@@ -792,7 +792,6 @@ function IocView({ themeToggle }) {
               </svg>
               STIX 2.1
             </ExportBtn>
-            <span style={{ fontSize:11.5, color:'var(--text-faint)', paddingLeft:4 }}>{nf(total)} IOC</span>
             {themeToggle}
           </div>
         }
