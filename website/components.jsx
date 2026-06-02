@@ -25,7 +25,7 @@ const HM_CSS = `
 .nav-item.active .nav-ic { color: var(--honey-deep); }
 .nav-ic { width: 18px; height: 18px; flex: none; color: var(--text-faint); }
 .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 0 4px; }
-.side-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-faint); }
+.side-status { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text-faint); }
 .dot-live { width: 8px; height: 8px; border-radius: 50%; background: var(--c-green);
   box-shadow: 0 0 0 0 color-mix(in oklch, var(--c-green) 70%, transparent); animation: pulse 2.2s infinite; }
 @keyframes pulse { 0%{ box-shadow:0 0 0 0 color-mix(in oklch,var(--c-green) 60%, transparent);} 70%{ box-shadow:0 0 0 7px transparent;} 100%{ box-shadow:0 0 0 0 transparent;} }

@@ -32,7 +32,7 @@ function ipJitter(ip, axis) {
   let h = 0;
   for (let i = 0; i < ip.length; i++) h = (Math.imul(h, 31) + ip.charCodeAt(i)) >>> 0;
   const val = ((h + axis * 1234567) >>> 0) / 4294967296;
-  return (val - 0.5) * (axis === 0 ? 9 : 13);
+  return (val - 0.5) * (axis === 0 ? 3 : 5);
 }
 
 // ── Parsing STIX 2.1 bundle → IOCs ────────────────────────────────────────────
