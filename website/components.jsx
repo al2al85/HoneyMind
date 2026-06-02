@@ -1,6 +1,9 @@
 /* HoneyMind — composants partagés */
-const { useState, useEffect, useRef, useMemo } = React;
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
 const D = window.HM_DATA;
+
+// Contexte global (views.jsx et app.jsx l'utilisent via window.HMContext)
+window.HMContext = React.createContext({ data: null, loading: true, error: null, fetchCampaignIOCs: null });
 
 /* ---- CSS additionnel injecté une fois ---- */
 const HM_CSS = `
@@ -50,7 +53,6 @@ const HM_CSS = `
 .stat .lbl { font-size: 12.5px; color: var(--text-dim); display: flex; align-items: center; gap: 7px; }
 .stat .val { font-size: 30px; font-weight: 600; letter-spacing: -.02em; font-family: var(--font-ui); }
 .stat .sub { font-size: 12px; color: var(--text-faint); }
-.stat .spark-hint { position: absolute; right: -2px; bottom: -2px; opacity: .5; }
 
 /* Section heading */
 .sec-h { display: flex; align-items: baseline; justify-content: space-between; margin: 30px 0 14px; gap: 12px; }
@@ -58,10 +60,17 @@ const HM_CSS = `
 .sec-h .hint { font-size: 12.5px; color: var(--text-faint); }
 
 /* Map */
-.map-wrap { padding: 18px; position: relative; }
-.map-svg { width: 100%; height: auto; display: block; }
+.map-wrap { padding: 18px; position: relative; overflow: hidden; }
+.map-svg { width: 100%; height: auto; display: block; cursor: grab; touch-action: none; }
+.map-svg.dragging { cursor: grabbing; }
 .atk { cursor: pointer; }
 .atk-core { transform-box: fill-box; transform-origin: center; }
+.map-controls { position: absolute; top: 14px; right: 14px; display: flex; flex-direction: column; gap: 4px; }
+.map-btn { width: 28px; height: 28px; border-radius: 7px; background: var(--surface-2);
+  border: 1px solid var(--border-soft); color: var(--text-dim); cursor: pointer;
+  display: grid; place-items: center; font-size: 15px; font-weight: 600; line-height: 1;
+  transition: background .12s, color .12s; }
+.map-btn:hover { background: var(--surface); color: var(--text); }
 .map-legend { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--text-dim); }
 .lg-dot { display: inline-flex; align-items: center; gap: 7px; }
 .map-tip { position: absolute; pointer-events: none; z-index: 30; background: var(--surface);
@@ -171,6 +180,20 @@ table.tbl tbody tr:last-child td { border-bottom: 0; }
 .chart-main { flex: 1; min-width: 0; }
 .chart-x { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-faint);
   font-family: var(--font-mono); margin-top: 7px; }
+
+/* Loading / empty */
+.loading-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 60vh; gap: 16px; color: var(--text-faint); }
+.spinner { width: 36px; height: 36px; border: 3px solid var(--border);
+  border-top-color: var(--honey); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.error-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 60vh; gap: 14px; color: var(--text-dim); text-align: center; padding: 40px; }
+.retry-btn { background: color-mix(in oklch,var(--honey) 18%,transparent);
+  color: var(--honey-deep); border: 1px solid color-mix(in oklch,var(--honey) 40%,transparent);
+  padding: 9px 18px; border-radius: 10px; font: inherit; font-weight: 600; font-size: 13.5px; cursor: pointer; }
+.retry-btn:hover { background: color-mix(in oklch,var(--honey) 26%,transparent); }
+.empty-note { color: var(--text-faint); font-size: 13px; font-style: italic; padding: 18px 0; }
 `;
 
 function injectCss() {
@@ -181,8 +204,8 @@ function injectCss() {
 }
 injectCss();
 
-/* ---- petites icônes (geometriques, trait) ---- */
-function Icon({ name, className }) {
+/* ---- Icônes ---- */
+function Icon({ name, className, style }) {
   const p = {
     grid: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
     layers: 'M12 2 2 7l10 5 10-5zM2 12l10 5 10-5M2 17l10 5 10-5',
@@ -198,9 +221,13 @@ function Icon({ name, className }) {
     pulse: 'M3 12h4l2-6 4 14 2-8h6',
     brain: 'M9 3a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3M15 3a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3M12 3v18',
     shield: 'M12 2 4 5v6c0 5 3.5 8 8 11 4.5-3 8-6 8-11V5z',
+    refresh: 'M23 4v6h-6M1 20v-6h6M3.5 9a9 9 0 0 1 14.8-3.3L23 10M1 14l4.7 4.3A9 9 0 0 0 20.5 15',
+    zoom_in: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35M11 8v6M8 11h6',
+    zoom_out: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35M8 11h6',
+    zoom_reset: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35',
   }[name] || '';
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
       <path d={p} />
     </svg>
@@ -258,7 +285,10 @@ function Sidebar({ route, go }) {
         ))}
       </nav>
       <div className="side-foot">
-        <div className="side-status"><span className="dot-live"></span><span className="txt">Capteur en ligne</span></div>
+        <div className="side-status">
+          <span className="dot-live"></span>
+          <span className="txt">Capteur en ligne</span>
+        </div>
       </div>
     </aside>
   );
@@ -275,12 +305,18 @@ function Stat({ icon, label, value, sub, accent = 'var(--honey)' }) {
   );
 }
 
-/* ---- World map (matrice de points + attaques) ---- */
+/* ---- World map avec zoom/pan ---- */
 function WorldMap({ points, height = 360 }) {
+  const W = D.map.W, H = D.map.H;
+  const VW = W * 5, VH = H * 4; // 360 × 144 unités SVG
+
+  const INITIAL_VB = { x: 0, y: 0, w: VW, h: VH };
+  const [vb, setVb] = useState(INITIAL_VB);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef(null); // { startX, startY, vbx, vby }
   const [tip, setTip] = useState(null);
   const wrapRef = useRef(null);
-  const W = D.map.W, H = D.map.H;
-  const VW = W * 5, VH = H * 4; // 360 x 144
+  const svgRef = useRef(null);
 
   const land = useMemo(() => {
     const dots = [];
@@ -292,14 +328,82 @@ function WorldMap({ points, height = 360 }) {
 
   const maxW = useMemo(() => Math.max(...points.map(p => p.weight), 1), [points]);
 
-  function onEnter(e, p) {
+  // Zoom au scroll molette
+  const onWheel = useCallback((e) => {
+    e.preventDefault();
+    const rect = svgRef.current.getBoundingClientRect();
+    // Position souris en coordonnées SVG
+    const mx = vb.x + (e.clientX - rect.left) / rect.width  * vb.w;
+    const my = vb.y + (e.clientY - rect.top)  / rect.height * vb.h;
+    const factor = e.deltaY > 0 ? 1.18 : 0.847;
+    const newW = Math.min(VW, Math.max(40, vb.w * factor));
+    const newH = newW * (VH / VW);
+    setVb({
+      x: Math.max(0, Math.min(VW - newW, mx - (mx - vb.x) * (newW / vb.w))),
+      y: Math.max(0, Math.min(VH - newH, my - (my - vb.y) * (newH / vb.h))),
+      w: newW, h: newH,
+    });
+  }, [vb, VW, VH]);
+
+  // Attacher/détacher le wheel listener (passif: false obligatoire pour preventDefault)
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [onWheel]);
+
+  function onMouseDown(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    setDragging(true);
+    dragRef.current = { startX: e.clientX, startY: e.clientY, vbx: vb.x, vby: vb.y };
+  }
+
+  function onMouseMove(e) {
+    if (!dragging || !dragRef.current || !svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const dx = (e.clientX - dragRef.current.startX) / rect.width  * vb.w;
+    const dy = (e.clientY - dragRef.current.startY) / rect.height * vb.h;
+    setVb(v => ({
+      ...v,
+      x: Math.max(0, Math.min(VW - v.w, dragRef.current.vbx - dx)),
+      y: Math.max(0, Math.min(VH - v.h, dragRef.current.vby - dy)),
+    }));
+  }
+
+  function onMouseUp() { setDragging(false); dragRef.current = null; }
+
+  function zoomIn()    { applyZoom(0.7); }
+  function zoomOut()   { applyZoom(1.43); }
+  function resetZoom() { setVb(INITIAL_VB); }
+
+  function applyZoom(factor) {
+    setVb(v => {
+      const cx = v.x + v.w / 2, cy = v.y + v.h / 2;
+      const newW = Math.min(VW, Math.max(40, v.w * factor));
+      const newH = newW * (VH / VW);
+      return {
+        x: Math.max(0, Math.min(VW - newW, cx - newW / 2)),
+        y: Math.max(0, Math.min(VH - newH, cy - newH / 2)),
+        w: newW, h: newH,
+      };
+    });
+  }
+
+  function onPointEnter(e, p) {
     const rect = wrapRef.current.getBoundingClientRect();
     setTip({ x: e.clientX - rect.left, y: e.clientY - rect.top, p });
   }
 
+  const viewBox = `${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`;
+
   return (
-    <div className="card map-wrap" ref={wrapRef}>
-      <svg className="map-svg" viewBox={`0 0 ${VW} ${VH}`} style={{ maxHeight: height }}>
+    <div className="card map-wrap" ref={wrapRef}
+      onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}>
+      <svg ref={svgRef} className={`map-svg${dragging ? ' dragging' : ''}`}
+        viewBox={viewBox} style={{ maxHeight: height }}
+        onMouseDown={onMouseDown}>
         {land.map((d, i) => (
           <circle key={i} cx={d.x} cy={d.y} r={1.25} fill="var(--map-land)" />
         ))}
@@ -308,14 +412,24 @@ function WorldMap({ points, height = 360 }) {
           const cx = (x / 100) * VW, cy = (y / 100) * VH;
           const r = 1.6 + (p.weight / maxW) * 5.2;
           return (
-            <g key={i} className="atk" onMouseMove={(e) => onEnter(e, p)} onMouseLeave={() => setTip(null)}>
+            <g key={i} className="atk"
+              onMouseMove={(e) => onPointEnter(e, p)}
+              onMouseLeave={() => setTip(null)}>
               <circle cx={cx} cy={cy} r={r * 2.1} fill="var(--honey)" opacity="0.12" />
-              <circle className="atk-core" cx={cx} cy={cy} r={r} fill="var(--honey)"
-                stroke="var(--honey-deep)" strokeWidth="0.4" opacity="0.92" />
+              <circle className="atk-core" cx={cx} cy={cy} r={r}
+                fill="var(--honey)" stroke="var(--honey-deep)" strokeWidth="0.4" opacity="0.92" />
             </g>
           );
         })}
       </svg>
+
+      {/* Contrôles zoom */}
+      <div className="map-controls">
+        <button className="map-btn" title="Zoom +" onClick={zoomIn}>+</button>
+        <button className="map-btn" title="Zoom −" onClick={zoomOut}>−</button>
+        <button className="map-btn" title="Réinitialiser" onClick={resetZoom} style={{ fontSize: 11 }}>⌂</button>
+      </div>
+
       {tip && (
         <div className="map-tip" style={{ left: tip.x, top: tip.y }}>
           <div className="ip">{tip.p.ip}</div>
@@ -323,9 +437,16 @@ function WorldMap({ points, height = 360 }) {
         </div>
       )}
       <div className="map-legend">
-        <span className="lg-dot"><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--map-land)', display: 'inline-block' }}></span> Terres</span>
-        <span className="lg-dot"><span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--honey)', display: 'inline-block' }}></span> IP attaquante (taille ∝ connexions)</span>
-        <span style={{ marginLeft: 'auto', color: 'var(--text-faint)' }}>{points.length} sources</span>
+        <span className="lg-dot">
+          <span style={{ width:8, height:8, borderRadius:'50%', background:'var(--map-land)', display:'inline-block' }}></span> Terres
+        </span>
+        <span className="lg-dot">
+          <span style={{ width:10, height:10, borderRadius:'50%', background:'var(--honey)', display:'inline-block' }}></span> IP attaquante (taille ∝ connexions)
+        </span>
+        <span style={{ marginLeft:'auto', color:'var(--text-faint)', fontSize: 11 }}>
+          Molette : zoom · Glisser : pan
+        </span>
+        <span style={{ color:'var(--text-faint)' }}>{points.length} sources</span>
       </div>
     </div>
   );
@@ -339,14 +460,13 @@ function BarList({ data, colors, showFlag }) {
       {data.map((d, i) => (
         <div key={i} style={{ marginBottom: 6 }}>
           <div className="bar-meta">
-            <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ display:'flex', gap:8, alignItems:'center' }}>
               {showFlag && <span className="flag">{d.code}</span>}{d.label}
             </span>
             <span className="v">{d.value.toLocaleString('fr-FR')}</span>
           </div>
           <div className="bar-track">
-            <div className="bar-fill" style={{ width: (d.value / max * 100) + '%',
-              background: colors[i % colors.length] }} />
+            <div className="bar-fill" style={{ width:(d.value / max * 100) + '%', background: colors[i % colors.length] }} />
           </div>
         </div>
       ))}
@@ -354,17 +474,17 @@ function BarList({ data, colors, showFlag }) {
   );
 }
 
-/* ---- Area chart (timeseries) avec échelle dynamique ---- */
+/* ---- Area chart (timeseries) ---- */
 function AreaChart({ data, height = 170 }) {
   const w = 600, pad = 4;
   const rawMax = Math.max(...data.map(d => d.attacks));
   const niceMax = Math.max(100, Math.ceil(rawMax / 100) * 100);
   const ticks = [niceMax, Math.round(niceMax / 2), 0];
-  const step = (w - pad * 2) / (data.length - 1);
+  const step = (w - pad * 2) / Math.max(data.length - 1, 1);
   const yOf = v => pad + (1 - v / niceMax) * (height - pad * 2);
   const pts = data.map((d, i) => [pad + i * step, yOf(d.attacks)]);
   const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-  const area = line + ` L ${pts[pts.length - 1][0].toFixed(1)} ${height - pad} L ${pad} ${height - pad} Z`;
+  const area = line + ` L ${pts[pts.length-1][0].toFixed(1)} ${height-pad} L ${pad} ${height-pad} Z`;
   const fr = n => n.toLocaleString('fr-FR');
   return (
     <div className="chart">
@@ -373,7 +493,7 @@ function AreaChart({ data, height = 170 }) {
       </div>
       <div className="chart-main">
         <svg viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none"
-          style={{ width: '100%', height, display: 'block' }}>
+          style={{ width:'100%', height, display:'block' }}>
           <defs>
             <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--honey)" stopOpacity="0.34" />
@@ -382,38 +502,20 @@ function AreaChart({ data, height = 170 }) {
           </defs>
           {ticks.map((t, i) => {
             const y = yOf(t);
-            return <line key={i} x1={pad} x2={w - pad} y1={y} y2={y}
+            return <line key={i} x1={pad} x2={w-pad} y1={y} y2={y}
               stroke="var(--border-soft)" strokeWidth="1" vectorEffect="non-scaling-stroke"
               strokeDasharray={t === 0 ? '' : '3 5'} />;
           })}
           <path d={area} fill="url(#ag)" />
-          <path d={line} fill="none" stroke="var(--honey)" strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          <path d={line} fill="none" stroke="var(--honey)" strokeWidth="2"
+            strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
         </svg>
         <div className="chart-x">
-          <span>J‑30</span><span>J‑20</span><span>J‑10</span><span>Auj.</span>
+          <span>J‑{data.length}</span><span>J‑{Math.round(data.length*2/3)}</span>
+          <span>J‑{Math.round(data.length/3)}</span><span>Auj.</span>
         </div>
       </div>
     </div>
-  );
-}
-function AreaChartOld({ data, height = 150 }) {
-  const w = 600, h = height, pad = 6;
-  const max = Math.max(...data.map(d => d.attacks));
-  const step = (w - pad * 2) / (data.length - 1);
-  const pts = data.map((d, i) => [pad + i * step, h - pad - (d.attacks / max) * (h - pad * 2)]);
-  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-  const area = line + ` L ${pts[pts.length - 1][0].toFixed(1)} ${h - pad} L ${pad} ${h - pad} Z`;
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 'auto', display: 'block' }} preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--honey)" stopOpacity="0.34" />
-          <stop offset="100%" stopColor="var(--honey)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#ag)" />
-      <path d={line} fill="none" stroke="var(--honey)" strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-    </svg>
   );
 }
 
@@ -423,7 +525,7 @@ function Status({ value }) {
   return <span className={'badge st-' + value}>{value === 'active' && <span className="d"></span>}{value}</span>;
 }
 
-/* ---- copy helper ---- */
+/* ---- Copy helper ---- */
 function CopyBtn({ text, title }) {
   const [ok, setOk] = useState(false);
   return (
@@ -447,8 +549,8 @@ function IpSheet({ ip, onClose }) {
         <div className="sheet-h">
           <div>
             <div className="crumb">Adresse IP</div>
-            <div className="mono" style={{ fontSize: 20, fontWeight: 600, color: 'var(--honey-deep)', marginTop: 4 }}>{ip.ip}</div>
-            <div style={{ color: 'var(--text-dim)', fontSize: 13, marginTop: 4 }}>{ip.country} · {ip.org}</div>
+            <div className="mono" style={{ fontSize:20, fontWeight:600, color:'var(--honey-deep)', marginTop:4 }}>{ip.ip}</div>
+            <div style={{ color:'var(--text-dim)', fontSize:13, marginTop:4 }}>{ip.country} · {ip.org}</div>
           </div>
           <button className="iconbtn" onClick={onClose}><Icon name="close" /></button>
         </div>
@@ -464,15 +566,15 @@ function IpSheet({ ip, onClose }) {
             <dt>Connexions</dt><dd>{ip.connections}</dd>
             <dt>Réussies</dt><dd>{ip.success}</dd>
             <dt>Commandes</dt><dd>{ip.commands}</dd>
-            <dt>Coordonnées</dt><dd>{ip.lat.toFixed(1)}, {ip.lon.toFixed(1)}</dd>
+            <dt>Coordonnées</dt><dd>{ip.lat?.toFixed(1)}, {ip.lon?.toFixed(1)}</dd>
           </dl>
-          {ip.sampleCommands.length > 0 && (
+          {ip.sampleCommands && ip.sampleCommands.length > 0 && (
             <div>
-              <div className="crumb" style={{ marginBottom: 8 }}>Commandes observées</div>
-              <pre style={{ background: 'var(--bg-2)', border: '1px solid var(--border-soft)', borderRadius: 9,
-                padding: '12px 14px', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-dim)',
-                overflowX: 'auto', margin: 0, whiteSpace: 'pre-wrap' }}>
-                {ip.sampleCommands.map((c, i) => '$ ' + c).join('\n')}
+              <div className="crumb" style={{ marginBottom:8 }}>Commandes observées</div>
+              <pre style={{ background:'var(--bg-2)', border:'1px solid var(--border-soft)', borderRadius:9,
+                padding:'12px 14px', fontFamily:'var(--font-mono)', fontSize:12, color:'var(--text-dim)',
+                overflowX:'auto', margin:0, whiteSpace:'pre-wrap' }}>
+                {ip.sampleCommands.map(c => '$ ' + c).join('\n')}
               </pre>
             </div>
           )}
@@ -482,7 +584,41 @@ function IpSheet({ ip, onClose }) {
   );
 }
 
+/* ---- Loading / Error views ---- */
+function LoadingView({ themeToggle }) {
+  return (
+    <div className="main">
+      <div className="topbar">
+        <div><div className="crumb">HoneyMind</div><h1 className="page-title">Chargement…</h1></div>
+        <div>{themeToggle}</div>
+      </div>
+      <div className="loading-wrap">
+        <div className="spinner"></div>
+        <div>Connexion à l'API…</div>
+      </div>
+    </div>
+  );
+}
+
+function ErrorView({ message, onRetry, themeToggle }) {
+  return (
+    <div className="main">
+      <div className="topbar">
+        <div><div className="crumb">HoneyMind</div><h1 className="page-title">Erreur</h1></div>
+        <div>{themeToggle}</div>
+      </div>
+      <div className="error-wrap">
+        <Icon name="shield" style={{ color:'var(--c-red)', width:40, height:40 }} />
+        <div style={{ fontSize:16, fontWeight:600, color:'var(--text)' }}>Impossible de charger les données</div>
+        <div style={{ fontSize:13, maxWidth:420 }}>{message || 'Vérifiez que l\'API IOC et Loki sont accessibles via le proxy nginx.'}</div>
+        {onRetry && <button className="retry-btn" onClick={onRetry}>Réessayer</button>}
+      </div>
+    </div>
+  );
+}
+
 Object.assign(window, {
   Icon, Logo, ThemeToggle, Sidebar, Stat, WorldMap, BarList, AreaChart,
-  Severity, Status, CopyBtn, IpSheet, useState, useEffect, useRef, useMemo,
+  Severity, Status, CopyBtn, IpSheet, LoadingView, ErrorView,
+  useState, useEffect, useRef, useMemo, useCallback,
 });
