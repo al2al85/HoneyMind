@@ -277,6 +277,69 @@ def _resolve_env_file(env_file: str = None) -> None:
         print(f"warning: env file not found: {env_file}", file=sys.stderr)
 
 
+def _build_ip_cache(sessions: dict, log_dir: Path) -> dict:
+    """Enrich all unique attacker IPs (geoloc, ASN, proxy) with SQLite cache."""
+    from analysis.ip_enricher import IPEnricher
+
+    ips = set()
+    for events in sessions.values():
+        for e in events:
+            ip = (e.get("client") or {}).get("ip") or e.get("client_ip")
+            if ip:
+                ips.add(ip)
+                break
+
+    if not ips:
+        return {}
+
+    cache_path = str(log_dir / "ip_cache.db")
+    enricher = IPEnricher(cache_path=cache_path)
+    result = {}
+    for ip in ips:
+        try:
+            result[ip] = enricher.enrich(ip)
+        except Exception:
+            pass
+    return result
+
+
+def _build_session_timeline(sessions: dict, max_per_session: int = 30) -> dict:
+    """Per-session ordered command list with timestamp and MITRE category."""
+    from analysis.attack_classifier import classify_command
+
+    timeline = {}
+    for sid, events in sessions.items():
+        entries = []
+        for e in events:
+            cmd = e.get("command")
+            if isinstance(cmd, dict):
+                raw = cmd.get("raw") or cmd.get("normalized")
+            elif isinstance(cmd, str):
+                raw = cmd
+            else:
+                continue
+            if not raw:
+                continue
+            ts = (e.get("timestamp") or e.get("time") or "")[:19]
+            cat = classify_command(raw).value
+            entries.append({"ts": ts, "cmd": raw, "cat": cat})
+        if entries:
+            timeline[sid[:8]] = entries[:max_per_session]
+    return timeline
+
+
+def _session_ip_map(sessions: dict) -> dict:
+    """Returns {session_id: ip}."""
+    result = {}
+    for sid, events in sessions.items():
+        for e in events:
+            ip = (e.get("client") or {}).get("ip") or e.get("client_ip")
+            if ip:
+                result[sid] = ip
+                break
+    return result
+
+
 def _sessions_for_campaign(campaign, sessions: dict) -> dict:
     """Return the subset of sessions belonging to a campaign, matched by IP."""
     campaign_ips = set(campaign.ips)
@@ -350,6 +413,8 @@ def main():
     bot_human_results = {sid: analyze_bot_human(evts) for sid, evts in sessions.items()}
     campaigns = detect_campaigns(sessions)
     campaign_map = {c.campaign_id: c for c in campaigns}
+    ip_cache = _build_ip_cache(sessions, log_dir)
+    sid_to_ip = _session_ip_map(sessions)
 
     # List campaigns and exit
     if args.list_campaigns:
@@ -395,11 +460,13 @@ def main():
             bh = bh_for_campaign.get(sid)
             if bh:
                 cats = {classify_event(e) for e in evts}
-                attacker_profiles[sid] = build_profile({}, bh, cats)
+                ip_data = ip_cache.get(sid_to_ip.get(sid), {})
+                attacker_profiles[sid] = build_profile(ip_data, bh, cats)
 
         full = condense_multidimensional(
             campaign_sessions,
             bot_human_results=bh_for_campaign,
+            ip_cache=ip_cache,
             campaigns=[campaign],
             attacker_profiles=attacker_profiles,
         )
@@ -417,6 +484,7 @@ def main():
         for dim in args.by:
             if dim in full:
                 condensed_global[dim] = full[dim]
+        condensed_global["timeline"] = _build_session_timeline(campaign_sessions)
 
         condensed_str = json.dumps(condensed_global, indent=2, ensure_ascii=False)
         n_events = sum(len(e) for e in campaign_sessions.values())
@@ -459,21 +527,27 @@ def main():
     for sid, evts in sessions.items():
         bh = bot_human_results[sid]
         cats = {classify_event(e) for e in evts}
-        attacker_profiles[sid] = build_profile({}, bh, cats)
+        ip_data = ip_cache.get(sid_to_ip.get(sid), {})
+        attacker_profiles[sid] = build_profile(ip_data, bh, cats)
 
     # Build multidimensional condensed view
     full = condense_multidimensional(
         sessions,
         bot_human_results=bot_human_results,
+        ip_cache=ip_cache,
         campaigns=campaigns,
         attacker_profiles=attacker_profiles,
     )
 
     # Filter to selected dimensions only
+    top_sessions = dict(
+        sorted(sessions.items(), key=lambda kv: len(kv[1]), reverse=True)[:args.top]
+    )
     condensed_global = {"meta": full["meta"]}
     for dim in args.by:
         if dim in full:
             condensed_global[dim] = full[dim]
+    condensed_global["timeline"] = _build_session_timeline(top_sessions)
 
     condensed_str = json.dumps(condensed_global, indent=2, ensure_ascii=False)
     dims_label = ", ".join(args.by)
