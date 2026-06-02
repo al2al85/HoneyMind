@@ -1,6 +1,6 @@
 {
   "uid": "commands-targets",
-  "title": "HoneyMind \u2014 Commands, Targets & Credentials",
+  "title": "HoneyMind — Commands, Targets & Credentials",
   "description": "What attackers run, what files they access, credentials they try",
   "tags": [
     "honeymind",
@@ -17,7 +17,7 @@
     {
       "id": 1,
       "type": "heatmap",
-      "title": "Command Activity Heatmap (hour \u00d7 day)",
+      "title": "Command Activity Heatmap (hour × day)",
       "gridPos": {
         "h": 8,
         "w": 14,
@@ -125,7 +125,7 @@
       ],
       "targets": [
         {
-          "expr": "{job=\"honeymind\", event_type=\"command\"} | json command_raw=\"command.raw\", command_response=\"command.response\", attack_category=\"_attack_category\"",
+          "expr": "{job=\"honeymind\", event_type=\"command\"} | json",
           "refId": "A"
         }
       ]
@@ -250,7 +250,7 @@
       ],
       "targets": [
         {
-          "expr": "{job=\"honeymind\", event_type=\"auth_attempt\"} | json | auth_success=\"false\"",
+          "expr": "{job=\"honeymind\", event_type=\"auth_attempt\"} | json | _auth_success=\"false\"",
           "refId": "A"
         }
       ]
@@ -290,7 +290,7 @@
     {
       "id": 20,
       "type": "logs",
-      "title": "Commands by Category \u2014 EXECUTION",
+      "title": "Commands by Category — EXECUTION",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -317,7 +317,7 @@
     {
       "id": 21,
       "type": "logs",
-      "title": "Commands by Category \u2014 PERSISTENCE",
+      "title": "Commands by Category — PERSISTENCE",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -362,7 +362,7 @@
       },
       "targets": [
         {
-          "expr": "{job=\"honeymind\"} | json | _uploaded_file != \"\" and _uploaded_file != \"null\"  | line_format \"[UPLOAD] {{.client_ip}} ({{.country}}) | {{._uploaded_file}} | cmd: {{.command_raw}}\"",
+          "expr": "{job=\"honeymind\"} | json | _uploaded_file != \"\" | _uploaded_file != \"null\"  | line_format \"[UPLOAD] {{.client_ip}} ({{.country}}) | {{._uploaded_file}} | cmd: {{.command_raw}}\"",
           "refId": "A"
         }
       ]
