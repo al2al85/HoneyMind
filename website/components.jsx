@@ -312,214 +312,244 @@ function Stat({ icon, label, value, sub, accent = 'var(--honey)' }) {
 
 /* ---- World map avec zoom/pan ---- */
 function WorldMap({ points, height = 360 }) {
-  const W = D.map.W, H = D.map.H;
-  const VW = W * 5, VH = H * 4; // 1800 × 576 unités SVG
-  const MIN_W = 40, MAX_W = VW, ASPECT = VH / VW;
+  // Espace de coordonnées SVG : 1 unité = 5° lon (W) ou 4° lat (H)
+  const VW = D.map.W * 5;   // 360
+  const VH = D.map.H * 4;   // 144
+  const MIN_W = 12;          // zoom max ≈ ×30 (zone ~6°×2.4°)
+  const INIT = { x: 0, y: 0, w: VW, h: VH };
 
-  const [vb, setVbState] = useState(() => ({ x: 0, y: 0, w: VW, h: VH }));
-  const [dragging, setDragging] = useState(false);
-  const [tip, setTip] = useState(null);
+  const [vb, setVb_] = useState(INIT);
+  const [drag, setDrag] = useState(false);
+  const [tip, setTip]   = useState(null);
 
-  // Refs pour éviter les stale closures dans les useEffect à deps []
-  const vbRef    = useRef({ x: 0, y: 0, w: VW, h: VH });
-  const dragRef   = useRef(null);
-  const touchRef  = useRef(null);
-  const animRef   = useRef(null); // id du RAF en cours
-  const svgRef    = useRef(null);
-  const wrapRef   = useRef(null);
+  // vbR reflète toujours vb — permet aux handlers attachés une seule fois de lire
+  // l'état courant sans stale closure (useRef garde la même référence objet)
+  const vbR    = useRef(INIT);
+  const dragR  = useRef(null);
+  const touchR = useRef(null);
+  const animR  = useRef(null);
+  const svgR   = useRef(null);
+  const wrapR  = useRef(null);
 
-  function setVb(v) { vbRef.current = v; setVbState(v); }
+  // Mise à jour simultanée du ref et de l'état React
+  const setVb = v => { vbR.current = v; setVb_(v); };
 
+  // Dots de terre (calculés une seule fois)
   const land = useMemo(() => {
     const dots = [];
-    for (let r = 0; r < H; r++)
-      for (let c = 0; c < W; c++)
+    for (let r = 0; r < D.map.H; r++)
+      for (let c = 0; c < D.map.W; c++)
         if (D.map.isLand(r, c)) dots.push({ x: c * 5 + 2.5, y: r * 4 + 2 });
     return dots;
-  }, [W, H]);
+  }, []);
 
-  const maxW = useMemo(() => Math.max(...points.map(p => p.weight), 1), [points]);
+  // Étiquettes pays depuis D.centroids — projetées en coordonnées SVG
+  const countryLabels = useMemo(() =>
+    Object.entries(D.centroids).map(([iso, d]) => {
+      const p = D.map.project(d.lat, d.lon);
+      return { iso, name: d.name, x: (p.x / 100) * VW, y: (p.y / 100) * VH };
+    }), []);
 
-  /* Calcul d'un nouveau viewbox zoomé — px/py = pivot en coords SVG */
-  function calcZoom(base, factor, px, py) {
-    const nw = Math.min(MAX_W, Math.max(MIN_W, base.w * factor));
-    const nh = nw * ASPECT, s = nw / base.w;
+  const maxPt = useMemo(() => Math.max(...points.map(p => p.weight), 1), [points]);
+
+  // ── Zoom : calcule le nouveau viewbox en gardant le pivot fixe ──────────
+  // factor < 1 → zoom avant (viewbox plus petit = zone plus petite, plus de détail)
+  // factor > 1 → zoom arrière (viewbox plus grand = zone plus grande, moins de détail)
+  function zoomAt(base, factor, px, py) {
+    const w = Math.min(VW, Math.max(MIN_W, base.w * factor));
+    const h = w * (VH / VW), s = w / base.w;
     return {
-      x: Math.max(0, Math.min(VW - nw, px - (px - base.x) * s)),
-      y: Math.max(0, Math.min(VH - nh, py - (py - base.y) * s)),
-      w: nw, h: nh,
+      x: Math.max(0, Math.min(VW - w, px - (px - base.x) * s)),
+      y: Math.max(0, Math.min(VH - h, py - (py - base.y) * s)),
+      w, h,
     };
   }
 
-  /* Animation fluide vers un viewbox cible (boutons + reset) */
-  function animateTo(to) {
-    if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
-    const from = { ...vbRef.current };
-    const t0 = performance.now(), DUR = 320;
-    function ease(t) { return t < 0.5 ? 2*t*t : -1+(4-2*t)*t; } // easeInOutQuad
-    function step(now) {
+  // ── Animation fluide pour les boutons et le reset ──────────────────────
+  function animTo(to) {
+    if (animR.current) { cancelAnimationFrame(animR.current); animR.current = null; }
+    const from = { ...vbR.current };
+    const t0 = performance.now(), DUR = 300;
+    const ease = t => t < 0.5 ? 2*t*t : -1+(4-2*t)*t; // easeInOutQuad
+    const step = now => {
       const p = Math.min(1, (now - t0) / DUR), e = ease(p);
       const lp = (a, b) => a + (b - a) * e;
       setVb({ x: lp(from.x, to.x), y: lp(from.y, to.y), w: lp(from.w, to.w), h: lp(from.h, to.h) });
-      animRef.current = p < 1 ? requestAnimationFrame(step) : null;
-    }
-    animRef.current = requestAnimationFrame(step);
+      animR.current = p < 1 ? requestAnimationFrame(step) : null;
+    };
+    animR.current = requestAnimationFrame(step);
   }
 
-  /* Zoom molette — passive:false obligatoire pour preventDefault.
-     Utilise uniquement des refs → pas de stale closure, listener attaché une seule fois. */
+  // ── Molette : passive:false obligatoire ; tout via refs, pas de stale closure ──
   useEffect(() => {
-    const el = svgRef.current;
+    const el = svgR.current;
     if (!el) return;
-    function onWheel(e) {
+    const onWheel = e => {
       e.preventDefault();
-      if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
+      if (animR.current) { cancelAnimationFrame(animR.current); animR.current = null; }
       const rect = el.getBoundingClientRect();
-      const c = vbRef.current;
+      const c = vbR.current;
+      // Pivot = position du curseur en coordonnées SVG
       const px = c.x + (e.clientX - rect.left) / rect.width  * c.w;
       const py = c.y + (e.clientY - rect.top)  / rect.height * c.h;
-      // Normalise deltaY selon deltaMode (pixels, lignes, pages)
-      const delta = e.deltaMode === 1 ? e.deltaY * 32 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
-      setVb(calcZoom(c, Math.pow(1.001, delta), px, py));
-    }
+      // Normalise selon deltaMode (pixels=0, lignes=1, pages=2)
+      const d = e.deltaMode === 1 ? e.deltaY * 30 : e.deltaMode === 2 ? e.deltaY * 300 : e.deltaY;
+      // deltaY > 0 → scroll bas → zoom arrière (factor > 1 → viewbox s'agrandit)
+      // deltaY < 0 → scroll haut → zoom avant (factor < 1 → viewbox se réduit)
+      setVb(zoomAt(c, Math.pow(1.001, d), px, py));
+    };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, []); // stable — tout accès via refs ou constantes module
+  }, []); // VW,VH,MIN_W sont des constantes — closure de premier rendu toujours valide
 
-  /* Événements tactiles — passive:false pour éviter le scroll natif pendant pinch/pan */
+  // ── Touch : pan 1 doigt + pinch zoom 2 doigts ─────────────────────────
   useEffect(() => {
-    const el = svgRef.current;
+    const el = svgR.current;
     if (!el) return;
-
-    function onTouchStart(e) {
+    const onTS = e => {
       e.preventDefault();
-      if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
-      const c = vbRef.current;
+      if (animR.current) { cancelAnimationFrame(animR.current); animR.current = null; }
+      const c = vbR.current;
       if (e.touches.length === 1) {
-        touchRef.current = { type: 'pan', sx: e.touches[0].clientX, sy: e.touches[0].clientY, vbx: c.x, vby: c.y, vbw: c.w, vbh: c.h };
-        setDragging(true);
+        touchR.current = { type: 'pan', sx: e.touches[0].clientX, sy: e.touches[0].clientY,
+          vbx: c.x, vby: c.y, vbw: c.w, vbh: c.h };
+        setDrag(true);
       } else if (e.touches.length === 2) {
         const rect = el.getBoundingClientRect();
         const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        touchRef.current = {
+        touchR.current = {
           type: 'pinch',
           sd: Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY),
           sv: { ...c },
           px: c.x + (mx - rect.left) / rect.width  * c.w,
           py: c.y + (my - rect.top)  / rect.height * c.h,
         };
-        setDragging(false);
+        setDrag(false);
       }
-    }
-
-    function onTouchMove(e) {
+    };
+    const onTM = e => {
       e.preventDefault();
-      const t = touchRef.current;
+      const t = touchR.current;
       if (!t) return;
       const rect = el.getBoundingClientRect();
-      const c = vbRef.current;
+      const c = vbR.current;
       if (t.type === 'pan' && e.touches.length === 1) {
         const dx = (e.touches[0].clientX - t.sx) / rect.width  * t.vbw;
         const dy = (e.touches[0].clientY - t.sy) / rect.height * t.vbh;
         setVb({ ...c, x: Math.max(0, Math.min(VW - c.w, t.vbx - dx)), y: Math.max(0, Math.min(VH - c.h, t.vby - dy)) });
       } else if (t.type === 'pinch' && e.touches.length === 2) {
         const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-        setVb(calcZoom(t.sv, t.sd / nd, t.px, t.py));
+        // doigts qui s'écartent (nd > sd) → factor < 1 → zoom avant ✓
+        setVb(zoomAt(t.sv, t.sd / nd, t.px, t.py));
       }
-    }
-
-    function onTouchEnd(e) {
-      if (e.touches.length === 0) { setDragging(false); touchRef.current = null; }
-    }
-
-    el.addEventListener('touchstart', onTouchStart, { passive: false });
-    el.addEventListener('touchmove',  onTouchMove,  { passive: false });
-    el.addEventListener('touchend',   onTouchEnd);
+    };
+    const onTE = e => { if (e.touches.length === 0) { setDrag(false); touchR.current = null; } };
+    el.addEventListener('touchstart', onTS, { passive: false });
+    el.addEventListener('touchmove',  onTM, { passive: false });
+    el.addEventListener('touchend',   onTE);
     return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchmove',  onTouchMove);
-      el.removeEventListener('touchend',   onTouchEnd);
+      el.removeEventListener('touchstart', onTS);
+      el.removeEventListener('touchmove',  onTM);
+      el.removeEventListener('touchend',   onTE);
     };
   }, []);
 
-  /* Drag souris — listeners au niveau document pour que le drag survive
-     si le curseur quitte le composant pendant le glissement */
+  // ── Drag souris : listeners document pour survivre à la sortie du composant ──
   useEffect(() => {
-    if (!dragging) return;
-    function onMove(e) {
-      const d = dragRef.current;
-      if (!d || !svgRef.current) return;
-      const rect = svgRef.current.getBoundingClientRect();
-      // Conversion pixels→SVG basée sur les dims au moment du mousedown (stable)
+    if (!drag) return;
+    const onMove = e => {
+      const d = dragR.current;
+      if (!d || !svgR.current) return;
+      const rect = svgR.current.getBoundingClientRect();
+      // Conversion pixels→SVG basée sur les dimensions AU MOMENT du mousedown (d.vbw/d.vbh)
       const dx = (e.clientX - d.sx) / rect.width  * d.vbw;
       const dy = (e.clientY - d.sy) / rect.height * d.vbh;
-      const c = vbRef.current;
+      const c = vbR.current;
       setVb({ ...c, x: Math.max(0, Math.min(VW - c.w, d.vbx - dx)), y: Math.max(0, Math.min(VH - c.h, d.vby - dy)) });
-    }
-    function onUp() { setDragging(false); dragRef.current = null; }
+    };
+    const onUp = () => { setDrag(false); dragR.current = null; };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup',   onUp);
     return () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-  }, [dragging]);
+  }, [drag]);
 
-  function onMouseDown(e) {
+  const onMD = e => {
     if (e.button !== 0) return;
     e.preventDefault();
-    if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
-    const c = vbRef.current;
-    dragRef.current = { sx: e.clientX, sy: e.clientY, vbx: c.x, vby: c.y, vbw: c.w, vbh: c.h };
-    setDragging(true);
-  }
+    if (animR.current) { cancelAnimationFrame(animR.current); animR.current = null; }
+    const c = vbR.current;
+    dragR.current = { sx: e.clientX, sy: e.clientY, vbx: c.x, vby: c.y, vbw: c.w, vbh: c.h };
+    setDrag(true);
+  };
 
-  function zoomIn()    { const c = vbRef.current; animateTo(calcZoom(c, 1/1.5, c.x + c.w/2, c.y + c.h/2)); }
-  function zoomOut()   { const c = vbRef.current; animateTo(calcZoom(c, 1.5,   c.x + c.w/2, c.y + c.h/2)); }
-  function resetZoom() { animateTo({ x: 0, y: 0, w: VW, h: VH }); }
+  // Boutons : zoom centré sur le milieu de la vue actuelle
+  const zIn  = () => { const c = vbR.current; animTo(zoomAt(c, 1/1.5, c.x + c.w/2, c.y + c.h/2)); };
+  const zOut = () => { const c = vbR.current; animTo(zoomAt(c, 1.5,   c.x + c.w/2, c.y + c.h/2)); };
+  const zRst = () => animTo(INIT);
 
-  function onPointEnter(e, p) {
-    if (!wrapRef.current) return;
-    const r = wrapRef.current.getBoundingClientRect();
-    setTip({ x: e.clientX - r.left, y: e.clientY - r.top, below: (e.clientY - r.top) < 70, p });
-  }
+  // ── Métriques d'affichage ──────────────────────────────────────────────
+  const zoomFactor = VW / vb.w;                                        // 1.0 = monde entier
+  const zoomPct    = Math.min(100, Math.round(((zoomFactor - 1) / (VW / MIN_W - 1)) * 100));
+  const showLabels = zoomFactor >= 2.5;  // étiquettes pays visibles dès ×2.5
 
-  // Indicateur de niveau de zoom (0 % = monde entier, 100 % = zoom max)
-  const zoomFactor = VW / vb.w;
-  const zoomPct    = Math.round(((zoomFactor - 1) / (VW / MIN_W - 1)) * 100);
+  // Taille de police en unités SVG : constante en pixels quelle que soit le zoom
+  // car elle est divisée par la largeur du viewBox (même rapport que le rendu à l'écran)
+  const labelSize = vb.w / 55;
 
   const viewBox = `${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`;
 
   return (
-    <div className="card map-wrap" ref={wrapRef}>
-      <svg ref={svgRef} className={`map-svg${dragging ? ' dragging' : ''}`}
+    <div className="card map-wrap" ref={wrapR}>
+      <svg ref={svgR} className={`map-svg${drag ? ' dragging' : ''}`}
         viewBox={viewBox} style={{ maxHeight: height }}
-        onMouseDown={onMouseDown}
-        tabIndex={0} aria-label="Carte des origines d'attaques">
+        onMouseDown={onMD} tabIndex={0} aria-label="Carte des origines d'attaques">
+
+        {/* Fond : dots de terre */}
         {land.map((d, i) => (
           <circle key={i} cx={d.x} cy={d.y} r={1.25} fill="var(--map-land)" />
         ))}
+
+        {/* Détail : codes pays — apparaissent à partir de ×2.5 zoom */}
+        {showLabels && countryLabels.map(({ iso, x, y }) => {
+          if (x < vb.x - 2 || x > vb.x + vb.w + 2 || y < vb.y - 2 || y > vb.y + vb.h + 2) return null;
+          return (
+            <text key={iso} x={x} y={y} fontSize={labelSize}
+              fill="var(--text-faint)" textAnchor="middle" dominantBaseline="middle"
+              style={{ pointerEvents: 'none', userSelect: 'none', fontFamily: 'var(--font-ui)' }}>
+              {iso}
+            </text>
+          );
+        })}
+
+        {/* Points d'attaque */}
         {points.map((p, i) => {
           const { x, y } = D.map.project(p.lat, p.lon);
           const cx = (x / 100) * VW, cy = (y / 100) * VH;
-          const r = 1.6 + (p.weight / maxW) * 5.2;
+          const r  = 1.6 + (p.weight / maxPt) * 5.2;
           return (
             <g key={i} className="atk"
-              onMouseMove={e => onPointEnter(e, p)}
+              onMouseMove={e => {
+                const b = wrapR.current.getBoundingClientRect();
+                setTip({ x: e.clientX - b.left, y: e.clientY - b.top, below: (e.clientY - b.top) < 70, p });
+              }}
               onMouseLeave={() => setTip(null)}>
-              <circle cx={cx} cy={cy} r={r * 2.1} fill="var(--honey)" opacity="0.12" />
-              <circle className="atk-core" cx={cx} cy={cy} r={r}
+              <circle cx={cx} cy={cy} r={r * 2.2} fill="var(--honey)" opacity="0.12" />
+              <circle cx={cx} cy={cy} r={r} className="atk-core"
                 fill="var(--honey)" stroke="var(--honey-deep)" strokeWidth="0.4" opacity="0.92" />
             </g>
           );
         })}
       </svg>
 
+      {/* Contrôles zoom */}
       <div className="map-controls">
-        <button className="map-btn" title="Zoom avant" onClick={zoomIn} aria-label="Zoom avant">+</button>
+        <button className="map-btn" title="Zoom avant" onClick={zIn} aria-label="Zoom avant">+</button>
         <div className="map-zoom-track" title={`Zoom ×${zoomFactor.toFixed(1)}`}>
           <div className="map-zoom-fill" style={{ height: `${zoomPct}%` }} />
         </div>
-        <button className="map-btn" title="Zoom arrière" onClick={zoomOut} aria-label="Zoom arrière">−</button>
-        <button className="map-btn" title="Vue monde entier" onClick={resetZoom} style={{ fontSize: 11 }} aria-label="Réinitialiser">⌂</button>
+        <button className="map-btn" title="Zoom arrière" onClick={zOut} aria-label="Zoom arrière">−</button>
+        <button className="map-btn" title="Vue monde entier" onClick={zRst} style={{ fontSize: 11 }} aria-label="Réinitialiser">⌂</button>
       </div>
 
       {tip && (
@@ -534,10 +564,10 @@ function WorldMap({ points, height = 360 }) {
 
       <div className="map-legend">
         <span className="lg-dot">
-          <span style={{ width:8, height:8, borderRadius:'50%', background:'var(--map-land)', display:'inline-block' }} /> Terres
+          <span style={{ width:8,height:8,borderRadius:'50%',background:'var(--map-land)',display:'inline-block' }} /> Terres
         </span>
         <span className="lg-dot">
-          <span style={{ width:10, height:10, borderRadius:'50%', background:'var(--honey)', display:'inline-block' }} /> IP attaquante (taille ∝ connexions)
+          <span style={{ width:10,height:10,borderRadius:'50%',background:'var(--honey)',display:'inline-block' }} /> IP attaquante (taille ∝ connexions)
         </span>
         <span style={{ marginLeft:'auto', color:'var(--text-faint)', fontSize: 11 }}>
           Molette / pincer : zoom &nbsp;·&nbsp; Glisser : pan
