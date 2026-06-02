@@ -152,10 +152,12 @@ def _record_metrics(event: dict) -> None:
 
     # Command metrics
     if event_type == "command":
+        command_obj = event.get("command") or {}
+        parser_action = command_obj.get("parser_action", "unknown") if isinstance(command_obj, dict) else "unknown"
         m.commands_total.labels(
             service=service,
             attack_category=category,
-            parser_action=labels["parser_action"],
+            parser_action=parser_action,
         ).inc()
         timing = event.get("timing") or {}
         delay = timing.get("since_previous_event_ms")
