@@ -261,7 +261,7 @@ def main():
     llm.add_argument("--provider",    default=None, help="LLM provider: ollama, openai_compatible, openai, anthropic, bedrock")
     llm.add_argument("--base-url",    default=None, help="LLM base URL (for openai_compatible / ollama)")
     llm.add_argument("--api-key-env", default=None, help="Env var name holding the API key (default: LLM_API_KEY)")
-    llm.add_argument("--max-tokens",  type=int, default=600, help="Max tokens for LLM response (default: 600)")
+    llm.add_argument("--max-tokens",  type=int, default=None, help="Max tokens for LLM response (default: env LLM_MAX_TOKENS or 600)")
 
     args = parser.parse_args()
 
