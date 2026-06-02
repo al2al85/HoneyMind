@@ -117,14 +117,16 @@ function buildIpDetails(ipAddr, allIpsMap, geoMap, campaign) {
   const ipInfo  = allIpsMap[ipAddr] || {};
   const geo     = geoMap[ipAddr]   || {};
   const code    = geo.country_code || '';
-  const centroid = D.centroids[code] || { lat: 0, lon: 0 };
-  const name    = geo.country || (D.centroids[code] || {}).name || 'Inconnu';
+  const centroid = D.centroids[code] || null;
+  const name    = geo.country || (centroid && centroid.name) || 'Inconnu';
+  const lat = (geo.lat != null) ? geo.lat : (centroid ? centroid.lat + ipJitter(ipAddr, 0) : 0);
+  const lon = (geo.lon != null) ? geo.lon : (centroid ? centroid.lon + ipJitter(ipAddr, 1) : 0);
   return {
     ip:           ipAddr,
     country:      name,
     code:         code || '??',
-    lat:          centroid.lat + ipJitter(ipAddr, 0),
-    lon:          centroid.lon + ipJitter(ipAddr, 1),
+    lat,
+    lon,
     connections:  (campaign.ip_session_counts || {})[ipAddr] || 1,
     success:      0,
     commands:     (ipInfo.ioc_counts || {}).url || 0,
@@ -196,13 +198,16 @@ function computeMapPoints(ipsArr, geoMap) {
     const geo      = geoMap[ipInfo.ip] || {};
     const code     = geo.country_code  || '';
     const centroid = D.centroids[code] || null;
-    if (!centroid) return null;
+    // Use real GeoIP coords; fall back to country centroid + jitter
+    const lat = (geo.lat != null) ? geo.lat : (centroid ? centroid.lat + ipJitter(ipInfo.ip, 0) : null);
+    const lon = (geo.lon != null) ? geo.lon : (centroid ? centroid.lon + ipJitter(ipInfo.ip, 1) : null);
+    if (lat == null || lon == null) return null;
     return {
       ip:      ipInfo.ip,
-      lat:     centroid.lat + ipJitter(ipInfo.ip, 0),
-      lon:     centroid.lon + ipJitter(ipInfo.ip, 1),
+      lat,
+      lon,
       weight:  Object.values(ipInfo.ioc_counts || {}).reduce((a, b) => a + b, 0) || 1,
-      country: geo.country || centroid.name || code,
+      country: geo.country || (centroid && centroid.name) || code,
     };
   }).filter(Boolean);
 }
@@ -285,6 +290,8 @@ function DataProvider({ children }) {
             country_code: s.country_code || '',
             isp:          s.isp          || '',
             asn:          s.asn          || '',
+            lat:          s.lat ? parseFloat(s.lat) : null,
+            lon:          s.lon ? parseFloat(s.lon) : null,
           };
       }
 

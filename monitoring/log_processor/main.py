@@ -62,6 +62,8 @@ def _build_labels(event: dict) -> dict[str, str]:
     command = event.get("command") or {}
     parser_action = command.get("parser_action") if isinstance(command, dict) else ""
 
+    lat = geo.get("lat")
+    lon = geo.get("lon")
     return {
         "job": "honeymind",
         "event_type": str(event.get("event_type") or ""),
@@ -70,6 +72,8 @@ def _build_labels(event: dict) -> dict[str, str]:
         "client_ip": str((event.get("client") or {}).get("ip") or ""),
         "country": str(geo.get("country") or ""),
         "country_code": str(geo.get("country_code") or ""),
+        "lat": f"{round(lat, 2)}" if lat is not None else "",
+        "lon": f"{round(lon, 2)}" if lon is not None else "",
         "isp": str(geo.get("isp") or ""),
         "asn": str(geo.get("asn") or ""),
         "is_tor": str(geo.get("is_tor", False)).lower(),

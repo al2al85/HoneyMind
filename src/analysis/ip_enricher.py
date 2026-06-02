@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 _DEFAULT_CACHE = "/data/honeypot/logs/ip_cache.db"
-_API_URL = "http://ip-api.com/json/{}?fields=status,country,countryCode,regionName,city,timezone,isp,org,as,proxy,hosting,query"
+_API_URL = "http://ip-api.com/json/{}?fields=status,country,countryCode,regionName,city,lat,lon,timezone,isp,org,as,proxy,hosting,query"
 _TOR_LIST_URL = "https://check.torproject.org/torbulkexitlist"
 _CACHE_TTL_SECONDS = 86400 * 7  # 1 week
 
@@ -146,12 +146,16 @@ class IPEnricher:
         is_tor = ip in self._tor_exits
         anon_type, anon_level = _classify_anonymization(raw, is_tor)
 
+        lat = raw.get("lat")
+        lon = raw.get("lon")
         return {
             "ip": ip,
             "country": raw.get("country"),
             "country_code": raw.get("countryCode"),
             "city": raw.get("city"),
             "region": raw.get("regionName"),
+            "lat": float(lat) if lat is not None else None,
+            "lon": float(lon) if lon is not None else None,
             "timezone": raw.get("timezone"),
             "isp": raw.get("isp"),
             "org": raw.get("org"),
