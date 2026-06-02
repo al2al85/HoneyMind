@@ -32,7 +32,7 @@ def _extract_files(commands: list[str]) -> list[str]:
 
 def _extract_tools(commands: list[str]) -> list[str]:
     """Identify known attack tools used."""
-    from analysis.session_fingerprint import _KNOWN_TOOLS
+    from analysis.bot_human_analyzer import _KNOWN_TOOLS
     found = []
     for cmd in commands:
         for tool in _KNOWN_TOOLS:
