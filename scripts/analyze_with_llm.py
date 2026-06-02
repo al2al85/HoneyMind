@@ -68,7 +68,7 @@ Produis un rapport structuré couvrant :
 6. **Objectif probable** — avec niveau de confiance
 7. **Interaction honeypot** — a-t-il cru à l'environnement ? faux fichiers consultés ?
 8. **Score de sophistication** — 0-100, justification, niveau (très faible → très élevé)
-9. **Mapping MITRE ATT&CK** — uniquement un diagramme Mermaid"""
+9. **Mapping MITRE ATT&CK**"""
 
 _CAMPAIGN_PROMPT = """Analyse cette campagne d'attaque :
 
@@ -83,7 +83,7 @@ Produis un rapport structuré couvrant :
 6. **Objectif probable** — avec niveau de confiance
 7. **Interaction honeypot** — réactions aux leurres, signes de détection du honeypot
 8. **Score de sophistication** — 0-100, justification, niveau (très faible → très élevé)
-9. **Mapping MITRE ATT&CK** — uniquement un diagramme Mermaid"""
+9. **Mapping MITRE ATT&CK**"""
 
 _GLOBAL_PROMPT = """Vue agrégée des sessions honeypot :
 
