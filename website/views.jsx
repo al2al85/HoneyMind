@@ -204,6 +204,125 @@ function CampaignsView({ go, themeToggle }) {
 }
 
 /* ============ RAPPORT IA ============ */
+
+function downloadPdf(content, campaignId) {
+  const html = D.mdToHtml(content || '');
+  const date = new Date().toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric' });
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Rapport IA — ${campaignId}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+           max-width: 800px; margin: 48px auto; padding: 0 32px; color: #111; line-height: 1.65; font-size: 14px; }
+    header { display: flex; justify-content: space-between; align-items: center;
+             border-bottom: 2px solid #f59e0b; padding-bottom: 14px; margin-bottom: 32px; }
+    header h1 { margin: 0; font-size: 20px; }
+    header span { font-size: 12px; color: #666; }
+    h1 { font-size: 22px; margin: 28px 0 8px; }
+    h2 { font-size: 17px; color: #b45309; margin: 28px 0 6px; border-bottom: 1px solid #fde68a; padding-bottom: 4px; }
+    h3 { font-size: 14.5px; margin: 20px 0 4px; }
+    p  { margin: 8px 0; color: #333; }
+    ul, ol { margin: 8px 0; padding-left: 22px; color: #333; }
+    li { margin: 3px 0; }
+    code { background: #f5f5f5; padding: 2px 5px; border-radius: 4px; font-size: 12px; font-family: monospace; }
+    pre  { background: #f5f5f5; padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+    pre code { background: none; padding: 0; }
+    blockquote { border-left: 3px solid #f59e0b; margin: 10px 0; padding: 4px 14px; color: #666; font-style: italic; }
+    table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 13px; }
+    th { background: #fef3c7; padding: 8px 12px; border-bottom: 2px solid #fde68a; text-align: left; font-weight: 600; }
+    td { padding: 7px 12px; border-bottom: 1px solid #e5e5e5; }
+    hr { border: none; border-top: 1px solid #e5e5e5; margin: 20px 0; }
+    strong { color: #111; }
+    @media print { body { margin: 0; } @page { margin: 20mm 18mm; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Rapport d'analyse IA — ${campaignId}</h1>
+    <span>HoneyMind · ${date}</span>
+  </header>
+  ${html}
+  <script>window.onload = () => { window.print(); }<\/script>
+</body>
+</html>`);
+  win.document.close();
+}
+
+function downloadMd(content, campaignId) {
+  const blob = new Blob([content || ''], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rapport-${campaignId}-${new Date().toISOString().slice(0,10)}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function DownloadMenu({ content, campaignId }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  const bs = {
+    display:'inline-flex', alignItems:'center', gap:6,
+    background:'var(--surface-2)', border:'1px solid var(--border-soft)',
+    color:'var(--text-faint)', cursor:'pointer', fontSize:12, fontFamily:'inherit',
+  };
+
+  return (
+    <div ref={ref} style={{ position:'relative', display:'inline-flex' }}>
+      <button onClick={() => downloadPdf(content, campaignId)}
+        style={{ ...bs, padding:'4px 10px', borderRadius:'7px 0 0 7px', borderRight:'none' }}
+        title="Télécharger en PDF">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+        </svg>
+        PDF
+      </button>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ ...bs, padding:'4px 7px', borderRadius:'0 7px 7px 0' }}
+        title="Autres formats">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {open && (
+        <div style={{
+          position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:200,
+          background:'var(--surface)', border:'1px solid var(--border-soft)',
+          borderRadius:9, boxShadow:'0 8px 24px rgba(0,0,0,.18)', minWidth:160, overflow:'hidden',
+        }}>
+          {[
+            { label:'PDF', sub:'Ouvre la boîte d\'impression', action: () => { downloadPdf(content, campaignId); setOpen(false); } },
+            { label:'Markdown (.md)', sub:'Fichier texte brut', action: () => { downloadMd(content, campaignId); setOpen(false); } },
+          ].map(({ label, sub, action }) => (
+            <button key={label} onClick={action} style={{
+              display:'block', width:'100%', textAlign:'left', padding:'10px 14px',
+              background:'none', border:'none', cursor:'pointer', fontFamily:'inherit',
+              borderBottom:'1px solid var(--border-soft)',
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+              <div style={{ fontSize:13, color:'var(--text)', fontWeight:500 }}>{label}</div>
+              <div style={{ fontSize:11.5, color:'var(--text-faint)', marginTop:2 }}>{sub}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AiReport({ campaignId }) {
   // ALL hooks must be declared before any conditional return
   const { fetchReport, generateReport } = useHM();
@@ -325,20 +444,7 @@ function AiReport({ campaignId }) {
               </svg>
               Plein écran
             </button>
-            <button onClick={() => {
-              const blob = new Blob([report.content || ''], { type: 'text/markdown' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `rapport-${campaignId}-${new Date().toISOString().slice(0,10)}.md`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }} style={btnStyle} title="Télécharger le rapport">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-              </svg>
-              Télécharger
-            </button>
+            <DownloadMenu content={report.content} campaignId={campaignId} />
             <button onClick={onGenerate} style={btnStyle} title="Regénérer">
               <Icon name="refresh" style={{ width:12, height:12 }} /> Regénérer
             </button>
