@@ -146,8 +146,19 @@
     const closeTable = () => {
       if (inTable) { html += '</tbody></table></div>'; inTable = false; tableHead = null; }
     };
+    const splitCells = line => {
+      const s = line.replace(/^\s*\|/, '').replace(/\|\s*$/, '');
+      const cells = []; let cur = '', inCode = false;
+      for (let i = 0; i < s.length; i++) {
+        if (s[i] === '`') inCode = !inCode;
+        if (s[i] === '|' && !inCode) { cells.push(cur); cur = ''; }
+        else cur += s[i];
+      }
+      cells.push(cur);
+      return cells;
+    };
     const parseRow = (line, tag) => {
-      const cells = line.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|');
+      const cells = splitCells(line);
       return '<tr>' + cells.map(c => `<${tag}>${inline(c.trim())}</${tag}>`).join('') + '</tr>';
     };
 
