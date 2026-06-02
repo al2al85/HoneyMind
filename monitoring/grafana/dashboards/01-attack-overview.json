@@ -635,7 +635,7 @@
     },
     {
       "id": 30,
-      "type": "table",
+      "type": "bargauge",
       "title": "Top Attacker IPs",
       "gridPos": {
         "h": 10,
@@ -648,15 +648,14 @@
         "uid": "loki"
       },
       "options": {
-        "sortBy": [
-          {
-            "displayName": "Count",
-            "desc": true
-          }
-        ],
-        "footer": {
-          "show": false
-        }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color"
       },
       "transformations": [
         {
@@ -728,11 +727,26 @@
       ],
       "targets": [
         {
-          "expr": "{job=\"honeymind\", event_type=\"session_start\"}",
+          "expr": "topk(15, sum by (client_ip) (count_over_time({job=\"honeymind\", client_ip!=\"\"}[$__range])))",
           "queryType": "range",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "legendFormat": "{{client_ip}}"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "fillOpacity": 80
+          }
+        }
+      }
     },
     {
       "id": 31,
@@ -788,9 +802,11 @@
       "targets": [
         {
           "expr": "{job=\"honeymind\"} | json | line_format \"[{{.event_type}}] {{.service}} | {{.client_ip}} ({{.country}}) | {{.attack_category}} | {{.command_raw}}\"",
-          "refId": "A"
+          "refId": "A",
+          "maxLines": 100
         }
-      ]
+      ],
+      "timeFrom": "1h"
     }
   ]
 }

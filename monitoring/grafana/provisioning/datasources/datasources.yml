@@ -8,7 +8,7 @@ datasources:
     url: http://loki:3100
     isDefault: true
     jsonData:
-      maxLines: 10000
+      maxLines: 500
       derivedFields:
         - name: session_id
           matcherRegex: '"session_id":"([^"]+)"'
