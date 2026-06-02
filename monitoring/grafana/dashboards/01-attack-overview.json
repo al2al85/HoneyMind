@@ -635,7 +635,7 @@
     },
     {
       "id": 30,
-      "type": "bargauge",
+      "type": "table",
       "title": "Top Attacker IPs",
       "gridPos": {
         "h": 10,
@@ -648,14 +648,15 @@
         "uid": "loki"
       },
       "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "valueMode": "color"
+        "sortBy": [
+          {
+            "displayName": "Value",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false
+        }
       },
       "transformations": [
         {
@@ -727,7 +728,7 @@
       ],
       "targets": [
         {
-          "expr": "topk(15, sum by (client_ip) (count_over_time({job=\"honeymind\", client_ip!=\"\"}[$__range])))",
+          "expr": "topk(15, sum by (client_ip) (count_over_time({job=\"honeymind\", client_ip!=\"\"}[7d])))",
           "queryType": "instant",
           "refId": "A",
           "datasource": {
@@ -738,14 +739,21 @@
         }
       ],
       "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "fillOpacity": 80
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Sessions"
+              }
+            ]
           }
-        }
+        ]
       }
     },
     {
