@@ -85,7 +85,7 @@ def handle_mkdir(session: dict, path: str) -> str:
 
 
 def handle_download(session, url: str) -> str:
-    DOWNLOAD_DIR = os.getenv("HONEYPOT_DOWNLOAD_DIR", "/data/downloaded_files")
+    DOWNLOAD_DIR = os.getenv("HONEYPOT_DOWNLOAD_DIR", "/data/honeypot/downloads")
     fs = session["fs"]
     logging.info(f"[handle_download] session['fs'] type: {type(fs)}")
     if hasattr(fs, "fakefs"):  # e.g., FakeFSDataHandler

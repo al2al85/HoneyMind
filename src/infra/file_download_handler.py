@@ -10,7 +10,7 @@ class FileDownloadHandler:
     def __init__(self, fakefs_handler=None, log_callback=None, download_dir=None):
         if download_dir is None:
             download_dir = os.environ.get(
-                "HONEYPOT_DOWNLOAD_DIR", "/honeypot/downloads"
+                "HONEYPOT_DOWNLOAD_DIR", "/data/honeypot/downloads"
             )
         self.fakefs_handler = fakefs_handler
         self.log_callback = log_callback
@@ -70,7 +70,8 @@ class FileDownloadHandler:
             )
 
         except Exception as e:
-            return f"Download failed: {e}\n"
+            logging.warning(f"[FileDownloadHandler] Download failed, falling back: {e}")
+            return None
 
     def _extract_url(self, command):
         parts = command.split()

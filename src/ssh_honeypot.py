@@ -196,7 +196,10 @@ class SSHServerInterface(paramiko.ServerInterface):
                 logging.warning(f"Expected final ack null byte, got {final_ack!r}")
 
             # Step 6: Save the file
-            upload_dir = self.config.get("upload_dir", "./uploaded_files")
+            upload_dir = self.config.get(
+                "upload_dir",
+                os.environ.get("HONEYPOT_UPLOAD_DIR", "/data/honeypot/uploads"),
+            )
             os.makedirs(upload_dir, exist_ok=True)
             file_path = os.path.join(upload_dir, os.path.basename(filename))
             with open(file_path, "wb") as f:

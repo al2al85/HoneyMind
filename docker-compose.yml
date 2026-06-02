@@ -10,6 +10,11 @@ services:
     volumes:
       - ./honeypots:/data/honeypot
       - ./logs:/data/honeypot/logs
+      - ./downloads:/data/honeypot/downloads
+      - ./uploads:/data/honeypot/uploads
+    environment:
+      HONEYPOT_DOWNLOAD_DIR: /data/honeypot/downloads
+      HONEYPOT_UPLOAD_DIR: /data/honeypot/uploads
     env_file:
       - config/llm.env.list
     restart: unless-stopped
