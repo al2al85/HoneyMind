@@ -9,7 +9,7 @@
   "timezone": "browser",
   "refresh": "1m",
   "time": {
-    "from": "now-24h",
+    "from": "now-7d",
     "to": "now"
   },
   "schemaVersion": 39,
@@ -73,12 +73,30 @@
       "options": {
         "sortBy": [
           {
-            "displayName": "Count",
+            "displayName": "Occurrences",
             "desc": true
           }
-        ]
+        ],
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
       },
-      "transformations": [],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "command_raw": "Commande",
+              "Value #A": "Occurrences",
+              "Value": "Occurrences"
+            }
+          }
+        }
+      ],
       "targets": [
         {
           "refId": "A",
@@ -86,21 +104,46 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(30, sum by (command_raw) (count_over_time({job=\"honeymind\", event_type=\"command\"} | json | command_raw != \"\" [$__range])))",
+          "expr": "topk(30, sum by (command_raw) (count_over_time({job=\"honeymind\", event_type=\"command\"} | json | command_raw != \"\" [7d])))",
           "queryType": "instant"
         }
       ],
       "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
-              "options": "Value #A"
+              "options": "Occurrences"
             },
             "properties": [
               {
-                "id": "displayName",
-                "value": "Occurrences"
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Commande"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
               }
             ]
           }
@@ -152,7 +195,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(30, sum by (_file_accessed) (count_over_time({job=\"honeymind\", event_type=\"command\"} | json | _file_accessed != \"\" | _file_accessed != \"null\" [$__range])))",
+          "expr": "topk(30, sum by (_file_accessed) (count_over_time({job=\"honeymind\", event_type=\"command\"} | json | _file_accessed != \"\" | _file_accessed != \"null\" [7d])))",
           "queryType": "instant"
         }
       ],
@@ -378,7 +421,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(30, sum by (_auth_password) (count_over_time({job=\"honeymind\", event_type=\"auth_attempt\"} | json | _auth_password != \"\" | _auth_password != \"null\" [$__range])))",
+          "expr": "topk(30, sum by (_auth_password) (count_over_time({job=\"honeymind\", event_type=\"auth_attempt\"} | json | _auth_password != \"\" | _auth_password != \"null\" [7d])))",
           "queryType": "instant"
         }
       ],
