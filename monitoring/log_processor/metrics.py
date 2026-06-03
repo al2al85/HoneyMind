@@ -25,6 +25,12 @@ commands_total = Counter(
     ["service", "attack_category", "parser_action"],
 )
 
+top_commands_total = Counter(
+    "honeymind_top_commands_total",
+    "Commands issued by raw text (truncated to 120 chars) for Top-N dashboards",
+    ["command"],
+)
+
 llm_tokens_total = Counter(
     "honeymind_llm_tokens_total",
     "LLM tokens consumed",

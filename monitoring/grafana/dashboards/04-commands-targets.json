@@ -1,6 +1,6 @@
 {
   "uid": "commands-targets",
-  "title": "HoneyMind — Commands, Targets & Credentials",
+  "title": "HoneyMind \u2014 Commands, Targets & Credentials",
   "description": "What attackers run, what files they access, credentials they try",
   "tags": [
     "honeymind",
@@ -17,7 +17,7 @@
     {
       "id": 1,
       "type": "heatmap",
-      "title": "Command Activity Heatmap (hour × day)",
+      "title": "Command Activity Heatmap (hour \u00d7 day)",
       "gridPos": {
         "x": 12,
         "y": 20,
@@ -67,8 +67,8 @@
         "h": 10
       },
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "options": {
         "sortBy": [
@@ -83,11 +83,12 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
-          "expr": "topk(30, sum by (command_raw) (count_over_time({job=\"honeymind\", event_type=\"command\"} | json | command_raw != \"\" [7d])))",
-          "queryType": "instant"
+          "expr": "topk(30, sum by (command) (honeymind_top_commands_total))",
+          "instant": true,
+          "format": "table"
         }
       ],
       "fieldConfig": {
@@ -95,7 +96,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Value #A"
+              "options": "Value"
             },
             "properties": [
               {
@@ -280,7 +281,7 @@
     {
       "id": 20,
       "type": "logs",
-      "title": "Commands by Category — EXECUTION",
+      "title": "Commands by Category \u2014 EXECUTION",
       "gridPos": {
         "x": 0,
         "y": 28,
@@ -307,7 +308,7 @@
     {
       "id": 21,
       "type": "logs",
-      "title": "Commands by Category — PERSISTENCE",
+      "title": "Commands by Category \u2014 PERSISTENCE",
       "gridPos": {
         "x": 12,
         "y": 28,

@@ -163,6 +163,13 @@ def _record_metrics(event: dict) -> None:
             attack_category=category,
             parser_action=parser_action,
         ).inc()
+        raw_cmd = ""
+        if isinstance(command_obj, dict):
+            raw_cmd = command_obj.get("raw") or command_obj.get("normalized") or ""
+        elif isinstance(command_obj, str):
+            raw_cmd = command_obj
+        if raw_cmd:
+            m.top_commands_total.labels(command=raw_cmd[:120]).inc()
         timing = event.get("timing") or {}
         delay = timing.get("since_previous_event_ms")
         if delay is not None:
