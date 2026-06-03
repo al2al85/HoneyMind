@@ -43,8 +43,8 @@ function parseStixBundle(bundle) {
   for (const obj of bundle.objects) {
     if (obj.type !== 'indicator') continue;
     const type = obj.x_honeymind_ioc_type;
-    const match = (obj.pattern || '').match(/'([^']+)'/);
-    const val = match ? match[1] : null;
+    const matches = [...(obj.pattern || '').matchAll(/'([^']+)'/g)];
+    const val = matches.length ? matches[matches.length - 1][1] : null;
     if (!val) continue;
     if      (type === 'ipv4-addr'   && !result.ips.includes(val))     result.ips.push(val);
     else if (type === 'domain-name' && !result.domains.includes(val)) result.domains.push(val);
