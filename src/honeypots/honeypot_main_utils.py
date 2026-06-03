@@ -11,13 +11,6 @@ from infra.data_handler import DataHandler
 from infra.honeypot_wrapper import create_honeypot_by_folder, llm_config_from
 
 
-def _has_only_subdirectories(folder_path: str) -> bool:
-    for sub_folder in os.listdir(folder_path):
-        if not os.path.isdir(os.path.join(folder_path, sub_folder)):
-            return False
-    return True
-
-
 # Check if a folder is a honeypot folder by looking for config.json
 def _is_honeypot_folder(folder_path: str) -> bool:
     config_file = os.path.join(folder_path, "config.json")
@@ -46,23 +39,35 @@ def _load_config(folder_path: str) -> dict:
 
 
 def _scan_folders(root: str) -> List[Tuple[str, dict]]:
-    folders = []
-    if _has_only_subdirectories(root):
-        logging.info(
-            f"Found subdirectories in honeypot folder: {root}. Adding honeypots"
-        )
-        for sub in os.listdir(root):
-            p = os.path.join(root, sub)
-            if _is_honeypot_folder(p):
+    # Look for honeypot subdirectories (any sub-folder with a config.json).
+    # We intentionally ignore non-directory files at the root level so that
+    # extra files (.gitkeep, host.key, etc.) don't break startup.
+    sub_honeypots = []
+    try:
+        for entry in os.listdir(root):
+            p = os.path.join(root, entry)
+            if os.path.isdir(p) and _is_honeypot_folder(p):
                 try:
                     cfg = _load_config(p)
-                    folders.append((p, cfg))
+                    sub_honeypots.append((p, cfg))
                     logging.info(f"Found honeypot folder: {p}")
                 except Exception as ex:
                     logging.error(f"Error reading config from {p}: {ex}")
-    else:
-        folders.append((root, _load_config(root)))
-    return folders
+    except OSError as ex:
+        logging.error(f"Cannot list {root}: {ex}")
+
+    if sub_honeypots:
+        logging.info(f"Found {len(sub_honeypots)} honeypot folder(s) in {root}")
+        return sub_honeypots
+
+    # Fallback: root itself is the honeypot folder
+    if _is_honeypot_folder(root):
+        logging.info(f"Using root as honeypot folder: {root}")
+        return [(root, _load_config(root))]
+
+    raise FileNotFoundError(
+        f"No honeypot config.json found in {root} or its subdirectories"
+    )
 
 
 async def _start_components(root: str):
