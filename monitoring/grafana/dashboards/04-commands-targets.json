@@ -119,8 +119,8 @@
         "h": 10
       },
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "options": {
         "sortBy": [
@@ -135,7 +135,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Value #A"
+              "options": "Value"
             },
             "properties": [
               {
@@ -150,11 +150,12 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
-          "expr": "topk(30, sum by (_file_accessed) (count_over_time({job=\"honeymind\", event_type=\"command\"} | json | _file_accessed != \"\" | _file_accessed != \"null\" [7d])))",
-          "queryType": "instant"
+          "expr": "topk(30, sum by (file_path) (honeymind_files_accessed_total))",
+          "instant": true,
+          "format": "table"
         }
       ],
       "transformations": []
@@ -363,8 +364,8 @@
       "type": "table",
       "title": "Top Passwords Tried",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "gridPos": {
         "x": 16,
@@ -376,11 +377,12 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
+            "type": "prometheus",
+            "uid": "prometheus"
           },
-          "expr": "topk(30, sum by (_auth_password) (count_over_time({job=\"honeymind\", event_type=\"auth_attempt\"} | json | _auth_password != \"\" | _auth_password != \"null\" [7d])))",
-          "queryType": "instant"
+          "expr": "topk(30, sum by (password) (honeymind_top_passwords_total))",
+          "instant": true,
+          "format": "table"
         }
       ],
       "transformations": [],
@@ -397,7 +399,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Value #A"
+              "options": "Value"
             },
             "properties": [
               {

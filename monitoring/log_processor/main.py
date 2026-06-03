@@ -153,6 +153,9 @@ def _record_metrics(event: dict) -> None:
         username = (event.get("client") or {}).get("username") or ""
         success = str(auth.get("success", False)).lower()
         m.auth_attempts_total.labels(service=service, username=username[:30], success=success).inc()
+        password = auth.get("password") or event.get("_auth_password") or ""
+        if password and password not in ("null", ""):
+            m.top_passwords_total.labels(password=password[:120]).inc()
 
     # Command metrics
     if event_type == "command":

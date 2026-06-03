@@ -31,6 +31,12 @@ top_commands_total = Counter(
     ["command"],
 )
 
+top_passwords_total = Counter(
+    "honeymind_top_passwords_total",
+    "Auth passwords attempted (truncated to 120 chars) for Top-N dashboards",
+    ["password"],
+)
+
 llm_tokens_total = Counter(
     "honeymind_llm_tokens_total",
     "LLM tokens consumed",
