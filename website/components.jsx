@@ -94,6 +94,9 @@ table.tbl tbody tr.click { cursor: pointer; }
 table.tbl tbody tr.click:hover { background: color-mix(in oklch, var(--honey) 9%, transparent); }
 table.tbl tbody tr:last-child td { border-bottom: 0; }
 .cid { font-family: var(--font-mono); font-weight: 600; color: var(--honey-deep); }
+.camp-link { appearance: none; border: 0; background: transparent; padding: 0; cursor: pointer; }
+.camp-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+.camp-link:focus-visible { outline: 2px solid var(--honey); outline-offset: 2px; border-radius: 4px; }
 .ipcell { font-family: var(--font-mono); }
 
 /* Badges */
@@ -273,8 +276,8 @@ function Sidebar({ route, go }) {
   const items = [
     { id: 'dashboard', label: 'Dashboard',  ic: 'grid'   },
     { id: 'campaigns', label: 'Campagnes',  ic: 'layers' },
-    { id: 'iocs',      label: 'IOC',        ic: 'shield' },
     { id: 'commands',  label: 'Commandes',  ic: 'cmd'    },
+    { id: 'iocs',      label: 'IOC',        ic: 'shield' },
     { id: 'cost',      label: 'Coûts IA',   ic: 'pulse'  },
   ];
   const active = route.name === 'campaign' ? 'campaigns' : route.name;

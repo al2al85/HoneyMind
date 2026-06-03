@@ -934,11 +934,20 @@ function IocView({ themeToggle }) {
 
 /* ── IOC sub-tables ─────────────────────────────────────────────────────────── */
 
-function CampList({ ids }) {
+function CampList({ ids, onSelect }) {
   if (!ids.length) return <span style={{ color:'var(--text-faint)', fontSize:12 }}>—</span>;
   return (
     <span style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-      {ids.map(id => <span key={id} className="cid" style={{ fontSize:11.5 }}>{id}</span>)}
+      {ids.map(id => onSelect
+        ? <button key={id} type="button" className="cid camp-link" onClick={() => onSelect(id)}
+            title={`Ouvrir la campagne ${id}`}
+            style={{
+              fontSize:11.5, fontFamily:'var(--font-mono)', lineHeight:'inherit',
+            }}>
+            {id}
+          </button>
+        : <span key={id} className="cid" style={{ fontSize:11.5 }}>{id}</span>
+      )}
     </span>
   );
 }
@@ -1062,13 +1071,14 @@ function IocTableFile({ rows }) {
 /* ============ COMMANDS VIEW ============ */
 
 function exportCommandsCsv(commands) {
-  const cols = ['rank','command','count','share_percent'];
+  const cols = ['rank','command','campaign_ids','count','share_percent'];
   const rows = [cols.join(',')];
   const total = commands.reduce((s, c) => s + (c.count || 0), 0) || 1;
   commands.forEach((cmd, index) => {
     rows.push([
       cmd.rank || index + 1,
       cmd.command,
+      (cmd.campaign_ids || []).join(' '),
       cmd.count || 0,
       (((cmd.count || 0) / total) * 100).toFixed(2),
     ].map(_csvEsc).join(','));
@@ -1077,7 +1087,7 @@ function exportCommandsCsv(commands) {
     `honeymind-commands-${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
 }
 
-function CommandsView({ themeToggle }) {
+function CommandsView({ go, themeToggle }) {
   const [commands, setCommands] = React.useState([]);
   const [total, setTotal]       = React.useState(0);
   const [loading, setLoading]   = React.useState(true);
@@ -1090,7 +1100,11 @@ function CommandsView({ themeToggle }) {
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => {
         const rows = (d.commands || [])
-          .map(c => ({ command: c.command || '', count: c.count || 0 }))
+          .map(c => ({
+            command: c.command || '',
+            count: c.count || 0,
+            campaign_ids: Array.isArray(c.campaign_ids) ? c.campaign_ids : [],
+          }))
           .filter(c => c.command)
           .sort((a, b) => b.count - a.count || a.command.localeCompare(b.command))
           .map((cmd, index) => ({ ...cmd, rank: index + 1 }));
@@ -1106,7 +1120,10 @@ function CommandsView({ themeToggle }) {
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return commands;
-    return commands.filter(cmd => cmd.command.toLowerCase().includes(q));
+    return commands.filter(cmd =>
+      cmd.command.toLowerCase().includes(q) ||
+      (cmd.campaign_ids || []).some(id => id.toLowerCase().includes(q))
+    );
   }, [commands, search]);
 
   const top = commands[0];
@@ -1181,6 +1198,7 @@ function CommandsView({ themeToggle }) {
                   <tr>
                     <th className="num">Rang</th>
                     <th>Commande</th>
+                    <th>Campagnes</th>
                     <th className="num">Utilisations</th>
                     <th className="num">Part</th>
                     <th></th>
@@ -1196,6 +1214,12 @@ function CommandsView({ themeToggle }) {
                         </td>
                         <td style={{ fontFamily:'var(--font-mono)', fontSize:12.5, wordBreak:'break-all', color:'var(--text)' }}>
                           {cmd.command}
+                        </td>
+                        <td style={{ minWidth:120 }}>
+                          <CampList
+                            ids={cmd.campaign_ids || []}
+                            onSelect={id => go && go({ name:'campaign', id })}
+                          />
                         </td>
                         <td className="num">{nf(cmd.count)}</td>
                         <td className="num" style={{ minWidth:140 }}>

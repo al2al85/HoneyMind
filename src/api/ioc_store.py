@@ -16,7 +16,7 @@ WAL mode allows concurrent reads while the writer commits.
 import json
 import os
 import sqlite3
-from collections import Counter
+from collections import Counter, defaultdict
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -373,20 +373,70 @@ def _read_session_commands(row) -> list[str]:
     return [str(cmd).strip() for cmd in commands if str(cmd).strip()]
 
 
-def _top_command_counts(rows, limit: int = 25) -> list[dict]:
-    counts: Counter[str] = Counter()
+def _read_campaign_rows(conn) -> list[dict]:
+    rows = conn.execute(
+        "SELECT campaign_id, ips, time_start, time_end FROM campaigns"
+    ).fetchall()
+    campaigns = []
     for row in rows:
-        counts.update(_read_session_commands(row))
-    return [
-        {"command": command, "count": count}
-        for command, count in counts.most_common(limit)
-    ]
+        try:
+            ips = json.loads(row["ips"] or "[]")
+        except (json.JSONDecodeError, TypeError):
+            ips = []
+        campaigns.append({
+            "campaign_id": row["campaign_id"],
+            "ips": {str(ip) for ip in ips if str(ip).strip()},
+            "time_start": row["time_start"],
+            "time_end": row["time_end"],
+        })
+    return campaigns
+
+
+def _session_campaign_ids(row, campaigns: list[dict]) -> list[str]:
+    ip = row["ip"] if "ip" in row.keys() else None
+    if not ip:
+        return []
+
+    first_seen = row["first_seen"] if "first_seen" in row.keys() else None
+    last_seen = row["last_seen"] if "last_seen" in row.keys() else None
+    matched = []
+    for campaign in campaigns:
+        if ip not in campaign["ips"]:
+            continue
+        if campaign["time_start"] and last_seen and last_seen < campaign["time_start"]:
+            continue
+        if campaign["time_end"] and first_seen and first_seen > campaign["time_end"]:
+            continue
+        matched.append(campaign["campaign_id"])
+    return matched
+
+
+def _top_command_counts(rows, limit: int = 25, campaigns: Optional[list[dict]] = None) -> list[dict]:
+    counts: Counter[str] = Counter()
+    command_campaigns: defaultdict[str, set[str]] = defaultdict(set)
+    for row in rows:
+        commands = _read_session_commands(row)
+        counts.update(commands)
+        if campaigns is not None:
+            campaign_ids = _session_campaign_ids(row, campaigns)
+            for command in commands:
+                command_campaigns[command].update(campaign_ids)
+    result = []
+    for command, count in counts.most_common(limit):
+        item = {"command": command, "count": count}
+        if campaigns is not None:
+            item["campaign_ids"] = sorted(command_campaigns.get(command, set()))
+        result.append(item)
+    return result
 
 
 def query_commands(conn, limit: int = 25) -> dict:
     """Return commands observed across all tracked sessions."""
-    rows = conn.execute("SELECT commands FROM sessions").fetchall()
-    all_commands = _top_command_counts(rows, limit=10_000)
+    rows = conn.execute(
+        "SELECT ip, first_seen, last_seen, commands FROM sessions"
+    ).fetchall()
+    campaigns = _read_campaign_rows(conn)
+    all_commands = _top_command_counts(rows, limit=10_000, campaigns=campaigns)
     top_commands = all_commands[:limit]
     return {
         "commands": top_commands,

@@ -23,9 +23,42 @@ def test_query_commands_returns_observed_session_commands(tmp_path):
     result = query_commands(conn)
 
     assert result["total"] == 4
-    assert result["commands"][0] == {"command": "whoami", "count": 2}
-    assert {"command": "id", "count": 1} in result["commands"]
-    assert {"command": "uname -a", "count": 1} in result["commands"]
+    by_command = {row["command"]: row for row in result["commands"]}
+    assert by_command["whoami"]["count"] == 2
+    assert by_command["id"]["count"] == 1
+    assert by_command["uname -a"]["count"] == 1
+
+
+def test_query_commands_includes_related_campaign_ids(tmp_path):
+    conn = open_db(str(tmp_path / "iocs.db"))
+    now = "2026-06-01T10:10:00Z"
+
+    upsert_session(conn, "s1", "1.1.1.1", "2026-06-01T10:00:00Z", "2026-06-01T10:01:00Z",
+                   ["whoami", "id"], None, None, now)
+    upsert_session(conn, "s2", "2.2.2.2", "2026-06-01T11:00:00Z", "2026-06-01T11:01:00Z",
+                   ["whoami"], None, None, now)
+    replace_campaigns(conn, [
+        Campaign(
+            campaign_id="C001",
+            ips=["1.1.1.1"],
+            subnet=None,
+            asn=None,
+            time_start="2026-06-01T09:59:00Z",
+            time_end="2026-06-01T10:02:00Z",
+            session_count=1,
+            shared_commands=[],
+            verdict="coincidence",
+            confidence=0.30,
+        )
+    ], now)
+    conn.commit()
+
+    result = query_commands(conn)
+    by_command = {row["command"]: row for row in result["commands"]}
+
+    assert by_command["whoami"]["count"] == 2
+    assert by_command["whoami"]["campaign_ids"] == ["C001"]
+    assert by_command["id"]["campaign_ids"] == ["C001"]
 
 
 def test_query_campaigns_includes_observed_commands_even_when_not_shared(tmp_path):
