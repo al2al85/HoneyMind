@@ -1087,12 +1087,76 @@ function exportCommandsCsv(commands) {
     `honeymind-commands-${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
 }
 
+function CampaignCount({ ids }) {
+  const count = (ids || []).length;
+  if (!count) return <span style={{ color:'var(--text-faint)', fontSize:12 }}>—</span>;
+  return (
+    <span style={{ fontSize:12.5, color:'var(--text-dim)' }}>
+      {nf(count)} campagne{count !== 1 ? 's' : ''}
+    </span>
+  );
+}
+
+function CommandDetailsPanel({ command, total, go, onClose }) {
+  if (!command) return null;
+  const campaignIds = command.campaign_ids || [];
+  const denom = total || command.count || 1;
+  const share = ((command.count || 0) / denom) * 100;
+  return (
+    <aside className="card command-detail-panel" style={{
+      padding:18, position:'sticky', top:16, alignSelf:'start',
+      maxHeight:'calc(100vh - 110px)', overflow:'auto',
+    }}>
+      <div style={{ display:'flex', justifyContent:'space-between', gap:12, alignItems:'start', marginBottom:16 }}>
+        <div>
+          <div style={{ fontSize:12, color:'var(--text-faint)', textTransform:'uppercase', letterSpacing:'.05em' }}>
+            Détail commande
+          </div>
+          <div style={{ marginTop:8, fontFamily:'var(--font-mono)', fontSize:15, color:'var(--text)', wordBreak:'break-all' }}>
+            {command.command}
+          </div>
+        </div>
+        <button onClick={onClose} title="Fermer"
+          style={{ background:'transparent', border:0, color:'var(--text-faint)', cursor:'pointer', padding:4 }}>
+          <Icon name="close" style={{ width:18, height:18 }} />
+        </button>
+      </div>
+
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:18 }}>
+        <div style={{ padding:'10px 12px', border:'1px solid var(--border-soft)', borderRadius:8 }}>
+          <div style={{ fontSize:11.5, color:'var(--text-faint)' }}>Rang</div>
+          <div style={{ fontFamily:'var(--font-mono)', fontSize:18 }}>{command.rank}</div>
+        </div>
+        <div style={{ padding:'10px 12px', border:'1px solid var(--border-soft)', borderRadius:8 }}>
+          <div style={{ fontSize:11.5, color:'var(--text-faint)' }}>Utilisations</div>
+          <div style={{ fontFamily:'var(--font-mono)', fontSize:18 }}>{nf(command.count)}</div>
+        </div>
+        <div style={{ padding:'10px 12px', border:'1px solid var(--border-soft)', borderRadius:8 }}>
+          <div style={{ fontSize:11.5, color:'var(--text-faint)' }}>Part</div>
+          <div style={{ fontFamily:'var(--font-mono)', fontSize:18 }}>{share.toFixed(1)}%</div>
+        </div>
+        <div style={{ padding:'10px 12px', border:'1px solid var(--border-soft)', borderRadius:8 }}>
+          <div style={{ fontSize:11.5, color:'var(--text-faint)' }}>Campagnes</div>
+          <div style={{ fontFamily:'var(--font-mono)', fontSize:18 }}>{nf(campaignIds.length)}</div>
+        </div>
+      </div>
+
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:10 }}>
+        <h3 style={{ margin:0, fontSize:14 }}>Campagnes associées</h3>
+        <CopyBtn text={command.command} />
+      </div>
+      <CampList ids={campaignIds} onSelect={id => go && go({ name:'campaign', id })} />
+    </aside>
+  );
+}
+
 function CommandsView({ go, themeToggle }) {
   const [commands, setCommands] = React.useState([]);
   const [total, setTotal]       = React.useState(0);
   const [loading, setLoading]   = React.useState(true);
   const [error, setError]       = React.useState(null);
   const [search, setSearch]     = React.useState('');
+  const [selectedCommand, setSelectedCommand] = React.useState(null);
 
   const doLoad = React.useCallback(() => {
     setLoading(true); setError(null);
@@ -1129,6 +1193,12 @@ function CommandsView({ go, themeToggle }) {
   const top = commands[0];
   const shownTotal = filtered.reduce((s, c) => s + c.count, 0);
   const denom = total || commands.reduce((s, c) => s + c.count, 0) || 1;
+
+  React.useEffect(() => {
+    if (!selectedCommand) return;
+    const fresh = commands.find(cmd => cmd.command === selectedCommand.command);
+    setSelectedCommand(fresh || null);
+  }, [commands, selectedCommand]);
 
   if (loading) return <LoadingView themeToggle={themeToggle} />;
   if (error)   return <ErrorView message={error} onRetry={doLoad} themeToggle={themeToggle} />;
@@ -1192,52 +1262,61 @@ function CommandsView({ go, themeToggle }) {
           ? <div className="card" style={{ padding:32, textAlign:'center' }}>
               <p className="empty-note">Aucune commande{search ? ' correspondant à la recherche' : ''}.</p>
             </div>
-          : <div className="card tbl-wrap">
-              <table className="tbl">
-                <thead>
-                  <tr>
-                    <th className="num">Rang</th>
-                    <th>Commande</th>
-                    <th>Campagnes</th>
-                    <th className="num">Utilisations</th>
-                    <th className="num">Part</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(cmd => {
-                    const share = ((cmd.count || 0) / denom) * 100;
-                    return (
-                      <tr key={cmd.command}>
-                        <td className="num" style={{ color:'var(--text-faint)', fontFamily:'var(--font-mono)' }}>
-                          {cmd.rank}
-                        </td>
-                        <td style={{ fontFamily:'var(--font-mono)', fontSize:12.5, wordBreak:'break-all', color:'var(--text)' }}>
-                          {cmd.command}
-                        </td>
-                        <td style={{ minWidth:120 }}>
-                          <CampList
-                            ids={cmd.campaign_ids || []}
-                            onSelect={id => go && go({ name:'campaign', id })}
-                          />
-                        </td>
-                        <td className="num">{nf(cmd.count)}</td>
-                        <td className="num" style={{ minWidth:140 }}>
-                          <div style={{ display:'grid', gridTemplateColumns:'1fr 52px', alignItems:'center', gap:10 }}>
-                            <div className="bar-track" style={{ height:7 }}>
-                              <div className="bar-fill" style={{ width:`${Math.max(2, share)}%`, background:'var(--c-violet)' }} />
+          : <div className={`command-detail-layout${selectedCommand ? ' with-panel' : ''}`}>
+              <div className="card tbl-wrap">
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      <th className="num">Rang</th>
+                      <th>Commande</th>
+                      <th>Campagnes</th>
+                      <th className="num">Utilisations</th>
+                      <th className="num">Part</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(cmd => {
+                      const share = ((cmd.count || 0) / denom) * 100;
+                      const selected = selectedCommand?.command === cmd.command;
+                      return (
+                        <tr key={cmd.command} className="click" onClick={() => setSelectedCommand(cmd)}
+                          style={selected ? { background:'color-mix(in oklch, var(--honey) 10%, transparent)' } : null}>
+                          <td className="num" style={{ color:'var(--text-faint)', fontFamily:'var(--font-mono)' }}>
+                            {cmd.rank}
+                          </td>
+                          <td style={{ fontFamily:'var(--font-mono)', fontSize:12.5, wordBreak:'break-all', color:'var(--text)' }}>
+                            {cmd.command}
+                          </td>
+                          <td style={{ minWidth:105 }}>
+                            <CampaignCount ids={cmd.campaign_ids || []} />
+                          </td>
+                          <td className="num">{nf(cmd.count)}</td>
+                          <td className="num" style={{ minWidth:140 }}>
+                            <div style={{ display:'grid', gridTemplateColumns:'1fr 52px', alignItems:'center', gap:10 }}>
+                              <div className="bar-track" style={{ height:7 }}>
+                                <div className="bar-fill" style={{ width:`${Math.max(2, share)}%`, background:'var(--c-violet)' }} />
+                              </div>
+                              <span style={{ fontFamily:'var(--font-mono)', color:'var(--text-faint)', fontSize:12 }}>
+                                {share.toFixed(1)}%
+                              </span>
                             </div>
-                            <span style={{ fontFamily:'var(--font-mono)', color:'var(--text-faint)', fontSize:12 }}>
-                              {share.toFixed(1)}%
-                            </span>
-                          </div>
-                        </td>
-                        <td><CopyBtn text={cmd.command} /></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td onClick={e => e.stopPropagation()}><CopyBtn text={cmd.command} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {selectedCommand &&
+                <CommandDetailsPanel
+                  command={selectedCommand}
+                  total={denom}
+                  go={go}
+                  onClose={() => setSelectedCommand(null)}
+                />
+              }
             </div>
         }
       </div>

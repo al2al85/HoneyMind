@@ -98,6 +98,12 @@ table.tbl tbody tr:last-child td { border-bottom: 0; }
 .camp-link:hover { text-decoration: underline; text-underline-offset: 2px; }
 .camp-link:focus-visible { outline: 2px solid var(--honey); outline-offset: 2px; border-radius: 4px; }
 .ipcell { font-family: var(--font-mono); }
+.command-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.command-detail-layout.with-panel { grid-template-columns: minmax(0, 1fr) minmax(320px, 380px); }
+@media (max-width: 1100px) {
+  .command-detail-layout.with-panel { grid-template-columns: minmax(0, 1fr); }
+  .command-detail-panel { position: static !important; max-height: none !important; }
+}
 
 /* Badges */
 .badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;

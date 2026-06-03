@@ -143,6 +143,7 @@ def detect_campaigns(
             asn_groups[m["asn"]].append(sid)
 
     campaigns = []
+    campaign_sids: dict[str, set[str]] = {}
     seen = set()
     campaign_idx = 1
 
@@ -178,6 +179,81 @@ def detect_campaigns(
             confidence=confidence,
         )
 
+    def _append_campaign(campaign: Campaign, group: list[str]) -> None:
+        campaigns.append(campaign)
+        campaign_sids[campaign.campaign_id] = set(group)
+
+    def _signal_markers(items: list[str]) -> list[str]:
+        markers = []
+        for item in items:
+            if item.startswith("[") and item not in markers:
+                markers.append(item)
+        return markers[:5]
+
+    def _rebuild_campaign(base: Campaign, sids: set[str], signals: list[str]) -> Campaign:
+        ips = sorted({meta[s]["ip"] for s in sids})
+        subnets = {meta[s]["subnet24"] for s in sids if meta[s]["subnet24"]}
+        asns = {meta[s]["asn"] for s in sids if meta[s]["asn"]}
+        all_commands = [meta[s]["commands"] for s in sids]
+        shared = set.intersection(*all_commands) if all_commands else set()
+        shared_list = signals + [cmd for cmd in sorted(shared - {""}) if cmd not in signals]
+
+        times_start = [meta[s]["time_start"] for s in sids if meta[s]["time_start"]]
+        times_end = [meta[s]["time_end"] for s in sids if meta[s]["time_end"]]
+
+        if len(ips) >= 3 and shared:
+            verdict, confidence = "coordinated", 0.85
+        elif signals or (len(ips) >= 2 and shared):
+            verdict, confidence = "same_tool", max(base.confidence, 0.65)
+        else:
+            verdict, confidence = "coincidence", max(base.confidence, 0.30)
+
+        base.ips = ips
+        base.subnet = next(iter(subnets)) if len(subnets) == 1 else None
+        base.asn = next(iter(asns)) if len(asns) == 1 else None
+        base.time_start = min(times_start) if times_start else None
+        base.time_end = max(times_end) if times_end else None
+        base.session_count = len(sids)
+        base.shared_commands = shared_list[:10]
+        base.verdict = verdict
+        base.confidence = confidence
+        return base
+
+    def _should_merge(left: set[str], right: set[str]) -> bool:
+        if not left or not right:
+            return False
+        overlap = len(left & right)
+        if not overlap:
+            return False
+        return overlap / min(len(left), len(right)) >= 0.60
+
+    def _consolidate_campaigns(items: list[Campaign]) -> list[Campaign]:
+        consolidated: list[Campaign] = []
+        consolidated_sids: list[set[str]] = []
+
+        for campaign in sorted(items, key=lambda c: (-c.confidence, -c.session_count)):
+            sids = set(campaign_sids[campaign.campaign_id])
+            target_idx = next(
+                (idx for idx, existing in enumerate(consolidated_sids) if _should_merge(sids, existing)),
+                None,
+            )
+            if target_idx is None:
+                consolidated.append(campaign)
+                consolidated_sids.append(sids)
+                continue
+
+            existing = consolidated[target_idx]
+            merged_sids = consolidated_sids[target_idx] | sids
+            signals = _signal_markers(existing.shared_commands + campaign.shared_commands)
+            existing.confidence = max(existing.confidence, campaign.confidence)
+            consolidated[target_idx] = _rebuild_campaign(existing, merged_sids, signals)
+            consolidated_sids[target_idx] = merged_sids
+
+        consolidated = sorted(consolidated, key=lambda c: (-c.confidence, -c.session_count, c.time_start or ""))
+        for idx, campaign in enumerate(consolidated, start=1):
+            campaign.campaign_id = f"C{idx:03d}"
+        return consolidated
+
     # Subnet-based clustering (strongest signal)
     for subnet, sids in subnet_groups.items():
         if len(sids) >= 2:
@@ -185,7 +261,7 @@ def detect_campaigns(
             if key not in seen:
                 seen.add(key)
                 asn = meta[sids[0]]["asn"]
-                campaigns.append(_make_campaign(sids, subnet, asn))
+                _append_campaign(_make_campaign(sids, subnet, asn), sids)
 
     # HASSH-based clustering (même outil, IPs différentes = campagne distribuée)
     for hassh, sids in hassh_groups.items():
@@ -198,7 +274,7 @@ def detect_campaigns(
                 client_name = meta[sids[0]].get("client_name") or "unknown"
                 c.shared_commands = [f"[HASSH:{hassh[:8]}] {client_name}"] + c.shared_commands
                 c.verdict = "same_tool"
-                campaigns.append(c)
+                _append_campaign(c, sids)
 
     # Sequence hash clustering (même script, IPs quelconques)
     for seq, sids in seq_groups.items():
@@ -210,7 +286,7 @@ def detect_campaigns(
                 tool = meta[sids[0]].get("tool_match") or f"seq:{seq[:8]}"
                 c.shared_commands = [f"[SEQ:{seq[:8]}] {tool}"] + c.shared_commands
                 c.verdict = "same_tool"
-                campaigns.append(c)
+                _append_campaign(c, sids)
 
     # User-Agent clustering (même scanner HTTP)
     for ua_tool, sids in ua_groups.items():
@@ -221,7 +297,7 @@ def detect_campaigns(
                 c = _make_campaign(sids, None, meta[sids[0]]["asn"])
                 c.shared_commands = [f"[UA] {ua_tool}"] + c.shared_commands
                 c.verdict = "same_tool"
-                campaigns.append(c)
+                _append_campaign(c, sids)
 
     # ASN-based clustering (broader signal)
     for asn, sids in asn_groups.items():
@@ -229,9 +305,9 @@ def detect_campaigns(
             key = frozenset(sids)
             if key not in seen:
                 seen.add(key)
-                campaigns.append(_make_campaign(sids, None, asn))
+                _append_campaign(_make_campaign(sids, None, asn), sids)
 
-    return sorted(campaigns, key=lambda c: -c.confidence)
+    return _consolidate_campaigns(campaigns)
 
 
 _VERDICT_ICONS = {
