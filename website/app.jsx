@@ -168,14 +168,14 @@ function transformCampaigns(apiCampaigns, allIpsArr, geoMap) {
   });
 }
 
-function computeStats(campaigns, ipsArr, commandTotal = 0) {
+function computeStats(campaigns, ipsArr, commandTotal = 0, iocStats = {}) {
   return {
     totalAttacks:     campaigns.reduce((s, c) => s + c.connectionAttempts, 0),
     uniqueIps:        ipsArr.length,
     activeCampaigns:  campaigns.filter(c => c.status === 'active').length,
     totalCampaigns:   campaigns.length,
     totalCommands:    commandTotal || campaigns.reduce((s, c) => s + c.commandsRun, 0),
-    filesTransferred: ipsArr.reduce((s, ip) => s + ((ip.ioc_counts || {}).file || 0), 0),
+    filesTransferred: iocStats.file || ipsArr.reduce((s, ip) => s + ((ip.ioc_counts || {}).file || 0), 0),
   };
 }
 
@@ -258,11 +258,12 @@ function DataProvider({ children }) {
     setState(s => ({ ...s, loading: true, error: null }));
     try {
       // Sources primaires (IOC API via proxy nginx)
-      const [campaignsRes, ipsRes, commandsRes, activityRes] = await Promise.all([
+      const [campaignsRes, ipsRes, commandsRes, activityRes, iocStatsRes] = await Promise.all([
         fetchJson('/api/v1/iocs/campaigns'),
         fetchJson('/api/v1/iocs/ips'),
         fetchJson('/api/v1/iocs/commands?limit=25'),
         fetchJson('/api/v1/iocs/activity?days=30'),
+        fetchSafe('/api/v1/iocs/stats', {}),
       ]);
 
       // Sources Loki (optionnelles — dégradées en silence si absentes)
@@ -308,7 +309,7 @@ function DataProvider({ children }) {
           campaigns,
           ips:          rawIps,
           geoMap,
-          stats:        computeStats(campaigns, rawIps, commandTotal),
+          stats:        computeStats(campaigns, rawIps, commandTotal, iocStatsRes),
           topCountries: computeTopCountries(rawIps, geoMap),
           topCommands:  computeTopCommands(rawCommands, rawCampaigns),
           timeseries:   transformLocalActivity(activityRes),

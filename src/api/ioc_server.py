@@ -120,6 +120,14 @@ def get_campaigns():
     return jsonify({"campaigns": camps, "total": len(camps)})
 
 
+@app.get("/api/v1/iocs/stats")
+def get_stats():
+    rows = _db().execute(
+        "SELECT ioc_type, COUNT(*) AS cnt FROM iocs GROUP BY ioc_type"
+    ).fetchall()
+    return jsonify({r["ioc_type"]: r["cnt"] for r in rows})
+
+
 @app.get("/api/v1/iocs/commands")
 def get_commands():
     try:
