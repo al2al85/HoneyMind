@@ -64,8 +64,8 @@ from api.stix_builder import build_bundle
 logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
-# campaign_id → thread (to avoid duplicate generation)
-_generating: dict[str, threading.Thread] = {}
+# campaign_id → (thread, process) — process is None until subprocess starts
+_generating: dict[str, tuple[threading.Thread, "subprocess.Popen | None"]] = {}
 _generating_lock = threading.Lock()
 
 
@@ -274,35 +274,53 @@ def generate_campaign_report(campaign_id):
     cid = campaign_id.upper()
 
     with _generating_lock:
-        if cid in _generating:
-            return jsonify({"campaign_id": cid, "status": "generating"}), 202
+        already = cid in _generating
+    if already:
+        return jsonify({"campaign_id": cid, "status": "generating"}), 202
 
     db_path = app.config["DB_PATH"]
     log_dir = app.config.get("LOG_DIR", "/data/honeypot/logs")
     script = app.config.get("SCRIPT_PATH", "/scripts/analyze_with_llm.py")
 
     def run():
-        now = _now()
-        # Mark as generating
-        conn = open_db(db_path)
-        upsert_report(conn, cid, None, "generating", None, now)
-        conn.close()
-
+        proc = None
         try:
-            result = subprocess.run(
-                [sys.executable, script, log_dir, "--campaign", cid, "--quiet"],
-                capture_output=True, text=True, timeout=300,
-            )
             conn = open_db(db_path)
-            if result.returncode == 0 and result.stdout.strip():
-                upsert_report(conn, cid, result.stdout.strip(), "done", None, _now())
-            else:
-                err = result.stderr.strip() or f"exit code {result.returncode}"
-                upsert_report(conn, cid, None, "error", err[:500], _now())
+            upsert_report(conn, cid, None, "generating", None, _now())
             conn.close()
-        except subprocess.TimeoutExpired:
+
+            proc = subprocess.Popen(
+                [sys.executable, script, log_dir, "--campaign", cid, "--quiet"],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+            # Expose process so the cancel endpoint can kill it
+            with _generating_lock:
+                if cid in _generating:
+                    _generating[cid] = (_generating[cid][0], proc)
+
+            try:
+                stdout, stderr = proc.communicate(timeout=300)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate()
+                conn = open_db(db_path)
+                upsert_report(conn, cid, None, "error", "Timeout (300s dépassé)", _now())
+                conn.close()
+                return
+
             conn = open_db(db_path)
-            upsert_report(conn, cid, None, "error", "Timeout (300s dépassé)", _now())
+            # Check if cancelled while running
+            with _generating_lock:
+                still_running = cid in _generating
+            if not still_running:
+                conn.close()
+                return
+
+            if proc.returncode == 0 and stdout.strip():
+                upsert_report(conn, cid, stdout.strip(), "done", None, _now())
+            else:
+                err = stderr.strip() or f"exit code {proc.returncode}"
+                upsert_report(conn, cid, None, "error", err[:500], _now())
             conn.close()
         except Exception as exc:
             conn = open_db(db_path)
@@ -314,10 +332,38 @@ def generate_campaign_report(campaign_id):
 
     t = threading.Thread(target=run, daemon=True, name=f"report-{cid}")
     with _generating_lock:
-        _generating[cid] = t
+        _generating[cid] = (t, None)
     t.start()
 
     return jsonify({"campaign_id": cid, "status": "generating"}), 202
+
+
+@app.delete("/api/v1/reports/campaign/<campaign_id>/generate")
+def cancel_campaign_report(campaign_id):
+    cid = campaign_id.upper()
+    with _generating_lock:
+        entry = _generating.pop(cid, None)
+
+    if not entry:
+        return jsonify({"campaign_id": cid, "status": "not_found"}), 404
+
+    _thread, proc = entry
+    if proc is not None:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+    conn = open_db(app.config["DB_PATH"])
+    upsert_report(conn, cid, None, "not_found", None, _now())
+    conn.close()
+    # Delete the row so the UI shows "Non généré"
+    conn = open_db(app.config["DB_PATH"])
+    conn.execute("DELETE FROM reports WHERE campaign_id=?", (cid,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"campaign_id": cid, "status": "cancelled"})
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

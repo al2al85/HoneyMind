@@ -372,7 +372,7 @@ function DownloadMenu({ content, campaignId }) {
 
 function AiReport({ campaignId }) {
   // ALL hooks must be declared before any conditional return
-  const { fetchReport, generateReport } = useHM();
+  const { fetchReport, generateReport, cancelReport } = useHM();
   const [report, setReport]       = React.useState(null);
   const [polling, setPolling]     = React.useState(false);
   const [fullscreen, setFullscreen] = React.useState(false);
@@ -439,6 +439,12 @@ function AiReport({ campaignId }) {
     </div>
   );
 
+  const onCancel = async () => {
+    setPolling(false);
+    try { await cancelReport(campaignId); } catch (_) {}
+    setReport({ status: 'not_found' });
+  };
+
   if (report.status === 'generating') return (
     <div className="card ai-card">
       {bar(<span className="ai-pending"><span className="dot-live" style={{ background:'var(--c-amber)' }}></span>Analyse en cours…</span>)}
@@ -447,6 +453,13 @@ function AiReport({ campaignId }) {
         <p style={{ color:'var(--text-faint)', fontSize:13, margin:0, textAlign:'center', maxWidth:300 }}>
           Le modèle analyse les sessions de la campagne.<br/>Cela peut prendre 30 à 60 secondes.
         </p>
+        <button onClick={onCancel} style={{
+          display:'inline-flex', alignItems:'center', gap:7, padding:'7px 16px',
+          background:'var(--surface-2)', border:'1px solid var(--border-soft)',
+          color:'var(--text-dim)', borderRadius:8, cursor:'pointer', fontSize:13,
+        }}>
+          <Icon name="x" style={{ width:13, height:13 }} /> Annuler
+        </button>
       </div>
     </div>
   );

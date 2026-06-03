@@ -352,8 +352,16 @@ function DataProvider({ children }) {
     return await r.json();
   }
 
+  async function cancelReport(campaignId) {
+    const r = await fetch(`/api/v1/reports/campaign/${encodeURIComponent(campaignId)}/generate`, {
+      method: 'DELETE',
+    });
+    if (!r.ok && r.status !== 404) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  }
+
   return (
-    <window.HMContext.Provider value={{ ...state, reload: load, fetchCampaignIOCs, fetchReport, generateReport }}>
+    <window.HMContext.Provider value={{ ...state, reload: load, fetchCampaignIOCs, fetchReport, generateReport, cancelReport }}>
       {children}
     </window.HMContext.Provider>
   );
