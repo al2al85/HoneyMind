@@ -126,7 +126,7 @@ def get_commands():
         limit = int(request.args.get("limit", 25))
     except (TypeError, ValueError):
         limit = 25
-    result = query_commands(_db(), limit=max(1, min(limit, 100)))
+    result = query_commands(_db(), limit=max(1, min(limit, 1000)))
     return jsonify(result)
 
 

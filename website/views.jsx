@@ -1059,6 +1059,168 @@ function IocTableFile({ rows }) {
   );
 }
 
+/* ============ COMMANDS VIEW ============ */
+
+function exportCommandsCsv(commands) {
+  const cols = ['rank','command','count','share_percent'];
+  const rows = [cols.join(',')];
+  const total = commands.reduce((s, c) => s + (c.count || 0), 0) || 1;
+  commands.forEach((cmd, index) => {
+    rows.push([
+      cmd.rank || index + 1,
+      cmd.command,
+      cmd.count || 0,
+      (((cmd.count || 0) / total) * 100).toFixed(2),
+    ].map(_csvEsc).join(','));
+  });
+  _dlBlob(rows.join('\r\n'),
+    `honeymind-commands-${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
+}
+
+function CommandsView({ themeToggle }) {
+  const [commands, setCommands] = React.useState([]);
+  const [total, setTotal]       = React.useState(0);
+  const [loading, setLoading]   = React.useState(true);
+  const [error, setError]       = React.useState(null);
+  const [search, setSearch]     = React.useState('');
+
+  const doLoad = React.useCallback(() => {
+    setLoading(true); setError(null);
+    fetch('/api/v1/iocs/commands?limit=1000')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(d => {
+        const rows = (d.commands || [])
+          .map(c => ({ command: c.command || '', count: c.count || 0 }))
+          .filter(c => c.command)
+          .sort((a, b) => b.count - a.count || a.command.localeCompare(b.command))
+          .map((cmd, index) => ({ ...cmd, rank: index + 1 }));
+        setCommands(rows);
+        setTotal(d.total || rows.reduce((s, c) => s + c.count, 0));
+        setLoading(false);
+      })
+      .catch(e => { setError(e.message); setLoading(false); });
+  }, []);
+
+  useEffect(() => { doLoad(); }, [doLoad]);
+
+  const filtered = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return commands;
+    return commands.filter(cmd => cmd.command.toLowerCase().includes(q));
+  }, [commands, search]);
+
+  const top = commands[0];
+  const shownTotal = filtered.reduce((s, c) => s + c.count, 0);
+  const denom = total || commands.reduce((s, c) => s + c.count, 0) || 1;
+
+  if (loading) return <LoadingView themeToggle={themeToggle} />;
+  if (error)   return <ErrorView message={error} onRetry={doLoad} themeToggle={themeToggle} />;
+
+  return (
+    <div className="main">
+      <PageHead crumb="HoneyMind · Analyse" title="Commandes"
+        right={
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <ExportBtn onClick={() => exportCommandsCsv(filtered)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+              </svg>
+              CSV
+            </ExportBtn>
+            <button onClick={doLoad} title="Actualiser"
+              style={{ background:'var(--surface-2)', border:'1px solid var(--border-soft)', color:'var(--text-dim)',
+                width:32, height:32, borderRadius:8, display:'grid', placeItems:'center', cursor:'pointer' }}>
+              <Icon name="refresh" style={{ width:15, height:15 }} />
+            </button>
+            {themeToggle}
+          </div>
+        }
+      />
+      <div className="content">
+        <div className="stat-grid" style={{ marginBottom:24 }}>
+          <div className="card stat">
+            <div className="lbl"><Icon name="cmd" className="nav-ic" style={{ color:'var(--c-violet)' }} />Commandes totales</div>
+            <div className="val">{nf(total)}</div>
+            <div className="sub">exécutions observées</div>
+          </div>
+          <div className="card stat">
+            <div className="lbl"><Icon name="layers" className="nav-ic" style={{ color:'var(--c-teal)' }} />Commandes distinctes</div>
+            <div className="val">{nf(commands.length)}</div>
+            <div className="sub">signatures uniques</div>
+          </div>
+          <div className="card stat">
+            <div className="lbl"><Icon name="pulse" className="nav-ic" style={{ color:'var(--c-honey)' }} />Plus fréquente</div>
+            <div className="val" style={{ fontSize: top ? 20 : 30, fontFamily:'var(--font-mono)', wordBreak:'break-all' }}>
+              {top ? top.command : '—'}
+            </div>
+            <div className="sub">{top ? `${nf(top.count)} exécution${top.count !== 1 ? 's' : ''}` : 'aucune commande'}</div>
+          </div>
+        </div>
+
+        <div style={{ display:'flex', gap:10, alignItems:'center', marginBottom:16, flexWrap:'wrap' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher une commande…"
+            style={{
+              padding:'7px 13px', borderRadius:8, border:'1px solid var(--border-soft)',
+              background:'var(--surface-2)', color:'var(--text)', font:'inherit', fontSize:13,
+              outline:'none', minWidth:260, flex:'1 1 340px', maxWidth:520,
+            }}
+          />
+          <span style={{ fontSize:12.5, color:'var(--text-faint)' }}>
+            {filtered.length} commande{filtered.length !== 1 ? 's' : ''} · {nf(shownTotal)} exécution{shownTotal !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        {filtered.length === 0
+          ? <div className="card" style={{ padding:32, textAlign:'center' }}>
+              <p className="empty-note">Aucune commande{search ? ' correspondant à la recherche' : ''}.</p>
+            </div>
+          : <div className="card tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th className="num">Rang</th>
+                    <th>Commande</th>
+                    <th className="num">Utilisations</th>
+                    <th className="num">Part</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(cmd => {
+                    const share = ((cmd.count || 0) / denom) * 100;
+                    return (
+                      <tr key={cmd.command}>
+                        <td className="num" style={{ color:'var(--text-faint)', fontFamily:'var(--font-mono)' }}>
+                          {cmd.rank}
+                        </td>
+                        <td style={{ fontFamily:'var(--font-mono)', fontSize:12.5, wordBreak:'break-all', color:'var(--text)' }}>
+                          {cmd.command}
+                        </td>
+                        <td className="num">{nf(cmd.count)}</td>
+                        <td className="num" style={{ minWidth:140 }}>
+                          <div style={{ display:'grid', gridTemplateColumns:'1fr 52px', alignItems:'center', gap:10 }}>
+                            <div className="bar-track" style={{ height:7 }}>
+                              <div className="bar-fill" style={{ width:`${Math.max(2, share)}%`, background:'var(--c-violet)' }} />
+                            </div>
+                            <span style={{ fontFamily:'var(--font-mono)', color:'var(--text-faint)', fontSize:12 }}>
+                              {share.toFixed(1)}%
+                            </span>
+                          </div>
+                        </td>
+                        <td><CopyBtn text={cmd.command} /></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+        }
+      </div>
+    </div>
+  );
+}
+
 /* ============ COST VIEW ============ */
 
 const fmt6 = n => (n ?? 0).toLocaleString('fr-FR', { minimumFractionDigits:2, maximumFractionDigits:6 });
@@ -1197,4 +1359,4 @@ function CostView({ themeToggle }) {
   );
 }
 
-Object.assign(window, { DashboardView, CampaignsView, CampaignDetailView, IocView, CostView });
+Object.assign(window, { DashboardView, CampaignsView, CampaignDetailView, IocView, CommandsView, CostView });
