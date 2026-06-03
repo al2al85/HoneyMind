@@ -1,5 +1,11 @@
 # Redis Honeypot
 
+## HoneyMind Status
+
+This document is kept as a legacy note from the upstream ThalesGroup dd-honeypot codebase. Redis support is not part of the current supported HoneyMind deployment path.
+
+HoneyMind currently focuses on the SSH honeypot, local JSONL logs, the web analysis dashboard, and optional Grafana monitoring. Treat the Redis handler and examples below as experimental until they are revalidated and documented as a first-class HoneyMind feature.
+
 The Redis honeypot emulates a realistic Redis server. It captures commands, maintains in-memory state, and responds to common administrative and keyspace commands. It supports the Redis Serialization Protocol (RESP) and integrates with a dataset or LLM for fallback responses.
 
 ## Features

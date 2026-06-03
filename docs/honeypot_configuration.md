@@ -1,10 +1,18 @@
 # Honeypot Configuration Guide
 
-This guide explains how to configure individual honeypots in the HoneyMind honeypot system. Each honeypot is defined using a JSON configuration file located under the `honeypots/` directory.
+This guide explains how to configure individual honeypots in the HoneyMind system. Each honeypot is defined using a JSON configuration file located under the `honeypots/` directory.
 
 HoneyMind is based on the original [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot) project and preserves the original license and attribution.
 
 ---
+
+## Current Support Status
+
+HoneyMind currently supports SSH as the primary, maintained honeypot protocol. The SSH implementation includes realistic shell behavior, deterministic Linux reconnaissance responses, fake filesystem support, dataset-first lookup, LLM fallback, session tracking, password attempt handling, and canonical JSON logs.
+
+The repository still contains inherited handlers and tests for HTTP, MySQL, PostgreSQL, Redis, Telnet, generic TCP, and dispatcher routing from the upstream dd-honeypot project. These are legacy/experimental in HoneyMind. They may be useful for future development, but they should not be presented as production-ready HoneyMind features yet.
+
+The web dashboard and Grafana stack are monitoring and analysis tools. They are not honeypot services.
 
 ## Directory Structure
 
@@ -23,12 +31,11 @@ honeypots/
 │   ├── config.json
 │   ├── data.jsonl
 │   └── fs_alpine.jsonl.gz
-├── mysql
+├── ubuntu/
 │   ├── config.json
 │   └── data.jsonl
-├── php_my_admin
-│   ├── config.json
-│   └── data.jsonl
+├── legacy-experiments/
+│   └── ...
 ```
 
 ---
@@ -41,7 +48,7 @@ Each honeypot config must include the following fields:
 
 | Field           | Description                                     |
 | --------------- | ----------------------------------------------- |
-| `type`          | Protocol type: `ssh`, `http`, `telnet`, `mysql` |
+| `type`          | Protocol type. Use `ssh` for supported HoneyMind deployments. |
 | `port`          | Port to listen on                               |
 | `model_id`      | LLM model used for fallback generation          |
 | `data_file`     | Path to JSONL file with request/response pairs  |
@@ -54,10 +61,10 @@ Each honeypot config must include the following fields:
 | Field             | Description                                                |
 | ----------------- | ---------------------------------------------------------- |
 | `name`            | Display name of the honeypot                               |
-| `prompt_template` | Shell prompt format (for SSH/Telnet CLI simulation)        |
-| `shell-prompt`    | Fixed prompt string (used by some CLI honeypots)           |
-| `fs_file`         | JSON file defining virtual file system for CLI honeypots   |
-| `dialect`         | SQL dialect (e.g., `mysql`, `postgresql`) for DB honeypots |
+| `prompt_template` | Shell prompt format for SSH simulation                     |
+| `shell-prompt`    | Legacy fixed prompt string used by some inherited handlers |
+| `fs_file`         | Compressed JSONL.GZ fake filesystem for SSH honeypots      |
+| `dialect`         | Legacy SQL dialect field for inherited DB handlers         |
 | `llm_provider`    | LLM provider: `ollama`, `openai_compatible`, `openai`, `anthropic`, or `bedrock` |
 | `llm_base_url`    | Base URL for HTTP-based LLM providers                     |
 | `llm_api_key`     | Direct API key or Bearer token value; prefer `llm_api_key_env` for secrets |
@@ -224,14 +231,14 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 ```json
 {
-  "type": "http",
-  "name": "phpMyAdmin",
-  "port": 8080,
+  "type": "ssh",
+  "name": "Ubuntu Server",
+  "port": 2222,
   "data_file": "data.jsonl",
   "llm_provider": "openai",
   "llm_api_key_env": "OPENAI_API_KEY",
   "model_id": "gpt-4o-mini",
-  "system_prompt": "You are a phpMyAdmin server. Respond realistically to HTTP requests.",
+  "system_prompt": "You are an Ubuntu server shell. Respond only with realistic terminal output.",
   "local_logging_enabled": true,
   "local_log_dir": "/data/honeypot/logs"
 }
@@ -285,13 +292,14 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 ```json
 {
-  "type": "http",
-  "port": 8080,
+  "type": "ssh",
+  "name": "Ubuntu Server",
+  "port": 2222,
   "data_file": "data.jsonl",
   "llm_provider": "openai_compatible",
   "llm_base_url": "http://localhost:8000/v1",
   "model_id": "meta-llama/Llama-3.1-8B-Instruct",
-  "system_prompt": "You are a realistic HTTP server.",
+  "system_prompt": "You are an Ubuntu server shell. Respond only with realistic terminal output.",
   "local_logging_enabled": true,
   "local_log_dir": "/data/honeypot/logs"
 }
@@ -336,21 +344,11 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
 
 ---
 
-### MySQL Honeypot
+### Legacy/Experimental MySQL Handler
 
-```json
-{
-  "type": "mysql",
-  "port": 13306,
-  "dialect": "mysql",
-  "model_id": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-  "data_file": "honeypots/mysql/data.jsonl",
-  "system_prompt": [
-    "You are a MySQL server.",
-    "Return only JSON array of objects."
-  ]
-}
-```
+The upstream project included non-SSH protocol handlers, including MySQL. HoneyMind has not promoted those handlers to the supported product surface yet. Keep any MySQL, HTTP, Redis, Telnet, PostgreSQL, TCP, or dispatcher experiments in a clearly labeled development folder and validate them before exposing them publicly.
+
+For normal HoneyMind deployments, use SSH configs like the examples above.
 
 ---
 
@@ -374,7 +372,7 @@ The normalizer is conservative. It preserves quoted whitespace, escaped whitespa
    ```
 4. **(Optional) Add File System**
 
-For CLI honeypots (like SSH/Telnet), add an `fs_file` entry that points to a compressed fake file system file (with `.jsonl.gz` extension).
+For SSH honeypots, add an `fs_file` entry that points to a compressed fake file system file (with `.jsonl.gz` extension).
 
 These files simulate command behavior by emulating a Linux filesystem. HoneyMind loads the JSONL.GZ file into SQLite and enriches it with a coherent synthetic SSH profile by default, including `/etc`, `/proc`, `/var/www/html`, `/srv/app`, logs, backups, cron scripts, and fake sensitive-looking files.
 

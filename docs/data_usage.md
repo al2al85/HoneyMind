@@ -4,6 +4,8 @@ HoneyMind writes structured JSONL logs locally by default. Use these local files
 
 HoneyMind is based on [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot). New SSH logs use the canonical HoneyMind schema. Legacy dd-honeypot-shaped examples are kept below only for optional AWS/Athena compatibility.
 
+The HoneyMind web dashboard and optional Grafana stack both start from the same local logs. The dashboard uses `ioc-writer` and `ioc-api` to derive sessions, IOC, campaigns, commands, activity, reports, and LLM usage summaries. See [Dashboard and Monitoring](monitoring.md).
+
 ## Local JSONL Analysis
 
 Local logs are usually mounted from the container at:
@@ -36,17 +38,29 @@ Filter by client IP:
 jq 'select(.client.ip == "127.0.0.1")' logs/*.jsonl
 ```
 
-Extract commands, SQL queries, and HTTP paths:
+Extract SSH commands:
 
 ```sh
 jq -r 'select(.event_type == "command") | .command.raw' logs/*.jsonl
 ```
 
-Count top commands or requests:
+Count top SSH commands:
 
 ```sh
 jq -r 'select(.event_type == "command") | .command.raw' logs/*.jsonl \
   | sort | uniq -c | sort -nr | head
+```
+
+List commands with their parser source:
+
+```sh
+jq -r 'select(.event_type == "command") | [.command.parser_action, .command.raw] | @tsv' logs/*.jsonl
+```
+
+Inspect LLM fallback responses:
+
+```sh
+jq 'select(.event_type == "llm_response")' logs/*.jsonl
 ```
 
 Remote LLM providers receive honeypot interaction data when LLM fallback is used. Review privacy, legal, and operational requirements before sending logs or attacker traffic to third-party APIs.
@@ -92,7 +106,9 @@ SELECT *
  LIMIT 10;
 ```
 
-Example query for MySQL honeypot activity:
+Legacy example query for MySQL-shaped activity:
+
+The following query is kept for inherited dd-honeypot/Athena compatibility. MySQL is not currently the supported HoneyMind deployment path.
 
 ```sql
 SELECT MIN(time) AS time,

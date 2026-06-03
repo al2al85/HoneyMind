@@ -1,3 +1,10 @@
+"""Legacy/experimental HTTP data handler.
+
+The supported HoneyMind honeypot path is SSH. This handler supports inherited
+HTTP experiments from ThalesGroup dd-honeypot and should be revalidated before
+being documented as a first-class HoneyMind feature.
+"""
+
 from typing import List
 
 from infra.data_handler import DataHandler

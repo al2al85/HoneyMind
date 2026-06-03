@@ -4,7 +4,7 @@
 
 HoneyMind is a local-first, cloud-optional, LLM-powered honeypot and attack analytics platform. It uses dynamic honeypot interactions to collect attacker behavior and make the resulting logs easier to analyze afterward.
 
-HoneyMind emulates realistic behavior across SSH, HTTP/HTTPS, MySQL, PostgreSQL, Redis, Telnet, and generic TCP protocols. It combines recorded payloads with LLM-based response generation to closely mimic real application behavior.
+The current HoneyMind product focuses on a realistic SSH honeypot, local JSONL logging, Grafana-based operational monitoring, and a dedicated web dashboard for attack analysis. The repository still contains protocol handlers inherited from the original dd-honeypot project, but those non-SSH handlers are not the supported HoneyMind path yet.
 
 When an attacker’s request matches the dataset, the recorded response is returned directly. When no match is found, an LLM generates a realistic response that is logged for review and future inclusion in the dataset. This continuous enrichment process keeps the system effective against emerging threats.
 
@@ -20,26 +20,27 @@ The current license remains unchanged; see [LICENSE.md](LICENSE.md).
 
 ---
 
-## Supported Protocols
+## Current Support Status
 
-| Protocol   | Example Targets           | Key Capabilities                                                  |
-|------------|---------------------------|-------------------------------------------------------------------|
-| SSH        | Alpine Linux, Busybox     | Shell emulation, fake filesystem, file download simulation        |
-| HTTP/HTTPS | Boa Server, phpMyAdmin    | All HTTP methods, session cookies, dispatcher routing             |
-| MySQL      | MySQL 5.7 / 8.0           | Handshake, authentication, SQL query processing                   |
-| PostgreSQL | PostgreSQL                | Startup messages, authentication, queries, prepared statements    |
-| Redis      | Redis                     | RESP protocol, multi-database (SELECT), SET/GET/DEL/KEYS/AUTH     |
-| Telnet     | D-Link routers            | Banner, login prompts, session timeout                            |
-| TCP        | Generic services          | Action-based query/response on any TCP port                       |
+| Component | Status | Notes |
+|-----------|--------|-------|
+| SSH honeypot | Supported | Main HoneyMind honeypot surface. Includes shell simulation, fake filesystem, deterministic recon commands, LLM fallback, session tracking, file download handling, and canonical JSON logs. |
+| Local JSONL logging | Supported | Default logging path. Logs are readable directly from the host through a mounted folder. |
+| Web dashboard | Supported | Internal analysis UI for sessions, IOC, commands, campaigns, activity, map view, reports, and LLM usage. This is not a honeypot service. |
+| Grafana monitoring | Supported | Optional local monitoring stack using Loki, Prometheus, Grafana, and the log processor. |
+| AWS Bedrock and AWS log export | Optional integration | Kept for users who explicitly configure Bedrock or AWS logging. AWS is not required. |
+| HTTP, MySQL, PostgreSQL, Redis, Telnet, generic TCP | Legacy/experimental | Code inherited from ThalesGroup dd-honeypot remains in the repository, but these protocols are not the current supported HoneyMind deployment path and may be incomplete or stale. |
 
 ---
 
 ## Features
 
-* Emulates 7 protocols with realistic request/response behavior
+* Realistic SSH honeypot behavior with deterministic Linux reconnaissance responses and LLM fallback for unknown commands
 * LLM fallback for unknown requests via local Ollama, OpenAI-compatible APIs, OpenAI, Anthropic, or optional AWS Bedrock, with rate limiting per visitor
 * Dataset-first design: JSONL files with dynamic placeholders (`${user}`, `${host}`, etc.)
-* Dispatcher mode: routes connections to multiple backend honeypots on a single port ([docs](docs/dispatcher.md))
+* Attack analysis dashboard: sessions, campaigns, IOC, commands, activity, source map, LLM cost, and campaign reports
+* Grafana monitoring stack for local operational visibility through Loki and Prometheus
+* Dispatcher mode from the upstream project remains documented as experimental/legacy ([docs](docs/dispatcher.md))
 * Fake filesystem: compressed JSONL definitions loaded into SQLite, enriched with a HoneyMind Linux profile for shell commands and common file reconnaissance
 * Chained data handlers: file downloads → fake filesystem → dataset lookup → LLM fallback
 * Conservative input normalization for lookup/cache deduplication while preserving raw forensic logs
@@ -53,33 +54,38 @@ The current license remains unchanged; see [LICENSE.md](LICENSE.md).
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                   Dispatcher                        │
-│         (optional single-port routing)              │
-└──────────┬──────────┬──────────┬────────────────────┘
-           │          │          │
-     ┌─────▼───┐ ┌───▼────┐ ┌──▼──────┐
-     │   SSH   │ │  HTTP  │ │  MySQL  │  ...
-     │ Handler │ │ Handler│ │ Handler │
-     └────┬────┘ └───┬────┘ └────┬────┘
-          │          │           │
-     ┌────▼──────────▼───────────▼────┐
-     │      Data Handler Chain        │
-     │  FileDownload → FakeFS →       │
-     │  Dataset Lookup → LLM Fallback │
-     └────────────┬───────────────────┘
-                  │
-     ┌────────────▼───────────────────┐
-     │   Dataset (JSONL / SQLite)     │
-     │   + Configurable LLM Engine    │
-     └────────────────────────────────┘
+│                   SSH Honeypot                      │
+│  Shell emulation, auth tracking, session state      │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
+│                Data Handler Chain                   │
+│  Hardcoded commands → File downloads → FakeFS →     │
+│  Dataset lookup → Dynamic cache → LLM fallback      │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
+│             Local JSONL + Usage SQLite              │
+│  Canonical events, sessions, commands, LLM costs    │
+└──────────────┬──────────────────────────┬───────────┘
+               │                          │
+┌──────────────▼─────────────┐  ┌────────▼────────────┐
+│ IOC writer + IOC API       │  │ Monitoring stack    │
+│ Campaigns, IOC, reports    │  │ Loki/Prometheus     │
+└──────────────┬─────────────┘  └────────┬────────────┘
+               │                         │
+        ┌──────▼────────┐         ┌──────▼──────┐
+        │ Web dashboard │         │ Grafana     │
+        └───────────────┘         └─────────────┘
 ```
 
-* **Protocol Handlers**: Implement protocol-specific logic (SSH via Paramiko, HTTP via Flask, MySQL via mysql-mimic, PostgreSQL native protocol, Redis RESP, Telnet via telnetlib3)
+* **SSH Honeypot**: Implements the supported HoneyMind honeypot surface using Paramiko, realistic shell behavior, canonical logging, password attempt tracking, and session state
 * **Data Handler Chain**: Processes requests through a configurable pipeline — file downloads, fake filesystem, dataset lookup, and LLM fallback
 * **Dataset & Lookup Engine**: Maps incoming requests to recorded payloads in JSONL files backed by SQLite
 * **LLM Engine**: Generates realistic responses for unknown requests using local Ollama, OpenAI-compatible APIs, OpenAI, Anthropic, or optional AWS Bedrock with configurable system prompts and per-visitor rate limiting
-* **Dispatcher**: Routes connections to different honeypots based on traffic inspection or LLM-assisted classification, with sticky session support
-* **Logging**: Tracks all interactions with session IDs, client IPs, and honeypot metadata in structured JSON format
+* **IOC Pipeline**: Reads local logs, extracts IOC, tracks sessions, detects campaigns, and powers the web dashboard
+* **Monitoring**: Provides an optional Grafana/Loki/Prometheus stack for local operational visibility
+* **Logging**: Tracks all SSH interactions with session IDs, client IPs, timing, commands, parser source, and honeypot metadata in structured JSON format
 
 ---
 
@@ -92,7 +98,7 @@ The dataset powers HoneyMind’s response generation. Each JSONL file contains r
 * Optional placeholders like `${user}` or `${host}` for dynamic substitution
 * Context-aware fields (e.g., current working directory, database state)
 
-Datasets can be layered — for example, a general MySQL dataset combined with a version-specific dataset for MySQL 5.7 behavior.
+Datasets can be layered. For SSH, a base Linux command dataset can be combined with a profile-specific fake filesystem and deterministic hardcoded responses for common reconnaissance commands.
 
 **Known requests** are matched and returned directly. **Unknown requests** are handled by the LLM and logged separately for review and future inclusion.
 
@@ -103,8 +109,8 @@ Normalization is intentionally conservative: it strips leading/trailing whitespa
 ### Example
 
 ```json
-{"request": "SELECT version()", "response": "5.7.33-0ubuntu0.16.04.1"}
-{"request": "DROP TABLE users;", "response": "Error: DROP command denied to user ‘${user}’@’${host}’ for table ‘users’"}
+{"request": "whoami", "response": "root"}
+{"request": "uname -a", "response": "Linux vps-b4c7a33e 5.15.0-91-generic #101-Ubuntu SMP x86_64 GNU/Linux"}
 ```
 
 For more details on dataset formats, see [data usage](docs/data_usage.md) and [SQLite data handling](docs/sqlite_data_handling.md).
@@ -141,7 +147,7 @@ Each honeypot is defined by a `config.json` in its own directory. The main field
 
 | Field              | Description                                           |
 |--------------------|-------------------------------------------------------|
-| `type`             | Protocol type: `ssh`, `http`, `mysql`, `postgresql`, `redis`, `telnet`, `tcp` |
+| `type`             | Protocol type. Use `ssh` for the supported HoneyMind honeypot. Other inherited types are experimental/legacy. |
 | `port`             | Port to listen on                                     |
 | `data_file`        | Path to JSONL dataset (e.g., `data.jsonl`)            |
 | `model_id`         | LLM model ID for fallback generation |
@@ -161,9 +167,9 @@ Each honeypot is defined by a `config.json` in its own directory. The main field
 | `local_logging_enabled` | Enable local JSONL logs, defaults to `true`      |
 | `local_log_dir`    | Directory for JSONL logs, defaults to `/data/honeypot/logs` |
 | `name`             | Display name for logging                              |
-| `prompt_template`  | Shell prompt format with `${{username}}`, `${{cwd}}` placeholders (SSH/Telnet) |
+| `prompt_template`  | Shell prompt format with `${{username}}`, `${{cwd}}` placeholders (SSH) |
 | `fs_file`          | Path to compressed fake filesystem (e.g., `fs_alpine.jsonl.gz`) |
-| `is_dispatcher`    | Enable dispatcher mode (HTTP)                         |
+| `is_dispatcher`    | Legacy/experimental dispatcher mode inherited from upstream |
 
 ### Example: local SSH honeypot with Ollama
 
@@ -190,28 +196,111 @@ For the full configuration schema, see [honeypot configuration](docs/honeypot_co
 
 ---
 
-## Installation
+## Installation and Usage
 
 HoneyMind is packaged as a Docker image for quick and reproducible deployment.
 
-### Pull and run locally
+### 1. Build the Image
 
 ```sh
 docker build -t honeymind:latest .
 ```
 
+### 2. Prepare a Local SSH Honeypot
+
+Create a honeypot folder with a `config.json` and a `data.jsonl` file:
+
+```sh
+mkdir -p honeypots/ubuntu-ssh logs downloads uploads config
+touch honeypots/ubuntu-ssh/data.jsonl
+touch config/llm.env.list
+```
+
+Example `honeypots/ubuntu-ssh/config.json`:
+
+```json
+{
+  "type": "ssh",
+  "name": "Ubuntu Server",
+  "port": 2222,
+  "data_file": "data.jsonl",
+  "prompt_template": "${username}@vps-b4c7a33e:${cwd}$ ",
+  "llm_provider": "ollama",
+  "llm_base_url": "http://host.docker.internal:11434",
+  "model_id": "llama3.1:8b",
+  "system_prompt": "You are an Ubuntu server shell. Respond only with realistic terminal output.",
+  "local_logging_enabled": true,
+  "local_log_dir": "/data/honeypot/logs"
+}
+```
+
+If you use a hosted LLM provider, keep tokens in `config/llm.env.list` and reference them with `llm_api_key_env`. Do not commit this file.
+
+### 3. Run the SSH Honeypot
+
 ```sh
 docker run --rm -it \
   --name honeymind \
   -p 2222:2222 \
-  -p 8080:80 \
   -v $(pwd)/honeypots:/data/honeypot \
   -v $(pwd)/logs:/data/honeypot/logs \
+  -v $(pwd)/downloads:/data/honeypot/downloads \
+  -v $(pwd)/uploads:/data/honeypot/uploads \
   --env-file config/llm.env.list \
   honeymind:latest
 ```
 
 The container starts honeypot services based on the configurations found in `/data/honeypot`. Each subdirectory should contain a `config.json` defining one honeypot instance. Attack logs are written to `/data/honeypot/logs` inside the container, which the example mounts to `./logs` on the host.
+
+### 4. Test the Honeypot
+
+From another terminal:
+
+```sh
+ssh -p 2222 root@127.0.0.1
+```
+
+HoneyMind intentionally accepts attacker-like credentials according to the configured password policy. Once connected, common reconnaissance commands such as `whoami`, `id`, `uname -a`, `cat /etc/os-release`, `cat /etc/passwd`, `ip a`, `ps aux`, and `cat /proc/cpuinfo` return deterministic Linux-like responses before any LLM fallback is used.
+
+### 5. Read Local Logs
+
+Logs are JSONL files mounted directly on the host:
+
+```sh
+tail -f logs/dd-honeypot-$(date +%F).jsonl
+python scripts/read_local_logs.py logs
+```
+
+### 6. Run the Dashboard and Monitoring Stack
+
+The HoneyMind web dashboard is an internal analysis UI, not a honeypot. It uses local logs plus `ioc-writer` and `ioc-api` to display sessions, IOC, campaigns, commands, activity, source maps, reports, and LLM usage.
+
+Start the local stack:
+
+```sh
+docker network create honeymind-monitoring 2>/dev/null || true
+docker compose up -d
+```
+
+Dashboard:
+
+```text
+http://localhost:44806
+```
+
+Grafana is optional and runs from the `monitoring/` compose file:
+
+```sh
+docker compose -f monitoring/docker-compose.yml up -d
+```
+
+Grafana:
+
+```text
+http://localhost:3000
+```
+
+For details, see [Dashboard and Monitoring](docs/monitoring.md).
 
 ### AWS EC2 deployment
 
@@ -302,14 +391,14 @@ OpenAI API:
 
 ```json
 {
-  "type": "http",
-  "name": "phpMyAdmin",
-  "port": 8080,
+  "type": "ssh",
+  "name": "Ubuntu Server",
+  "port": 2222,
   "data_file": "data.jsonl",
   "llm_provider": "openai",
   "llm_api_key_env": "OPENAI_API_KEY",
   "model_id": "gpt-4o-mini",
-  "system_prompt": "You are a phpMyAdmin server. Respond realistically to HTTP requests.",
+  "system_prompt": "You are an Ubuntu server shell. Respond only with realistic terminal output.",
   "local_logging_enabled": true,
   "local_log_dir": "/data/honeypot/logs"
 }
@@ -336,14 +425,15 @@ Remote vLLM or self-hosted OpenAI-compatible API:
 
 ```json
 {
-  "type": "http",
-  "port": 8080,
+  "type": "ssh",
+  "name": "Ubuntu Server",
+  "port": 2222,
   "data_file": "data.jsonl",
   "llm_provider": "openai_compatible",
   "llm_base_url": "https://llm.example.com/v1",
   "llm_api_key_env": "SELF_HOSTED_LLM_API_KEY",
   "model_id": "meta-llama/Llama-3.1-8B-Instruct",
-  "system_prompt": "You are a realistic HTTP server.",
+  "system_prompt": "You are an Ubuntu server shell. Respond only with realistic terminal output.",
   "local_logging_enabled": true,
   "local_log_dir": "/data/honeypot/logs"
 }
@@ -459,13 +549,14 @@ Logs are always emitted locally by the honeypot process. Sending them to AWS Clo
 | Topic | Link |
 |-------|------|
 | Honeypot configuration schema | [docs/honeypot_configuration.md](docs/honeypot_configuration.md) |
-| Dispatcher (multi-honeypot routing) | [docs/dispatcher.md](docs/dispatcher.md) |
+| Dashboard and monitoring | [docs/monitoring.md](docs/monitoring.md) |
+| Dispatcher (legacy/experimental multi-honeypot routing) | [docs/dispatcher.md](docs/dispatcher.md) |
 | Project structure | [docs/project_structure.md](docs/project_structure.md) |
 | Fake filesystem guide | [docs/fakefs_json_guide.md](docs/fakefs_json_guide.md) |
 | Dataset usage | [docs/data_usage.md](docs/data_usage.md) |
 | SQLite data handling | [docs/sqlite_data_handling.md](docs/sqlite_data_handling.md) |
-| Redis honeypot | [docs/redis_honeypot.md](docs/redis_honeypot.md) |
-| Logging & Fluent Bit | [docs/logging-readme.md](docs/logging-readme.md) |
+| Redis honeypot legacy notes | [docs/redis_honeypot.md](docs/redis_honeypot.md) |
+| Logging and optional Fluent Bit | [docs/logging-readme.md](docs/logging-readme.md) |
 | Multi-IP networking | [docs/networking-readme.md](docs/networking-readme.md) |
 
 ---

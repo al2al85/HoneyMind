@@ -1,5 +1,11 @@
 # Dispatcher for Protocol-Aware Honeypot Routing
 
+## HoneyMind Status
+
+Dispatcher routing is inherited from the original ThalesGroup dd-honeypot project. It remains in the HoneyMind repository for reference and future development, but it is not part of the current supported HoneyMind deployment path.
+
+Today, HoneyMind focuses on the SSH honeypot, local JSONL logs, the web analysis dashboard, and optional Grafana monitoring. Treat dispatcher examples below as legacy/experimental notes unless you are actively developing this feature.
+
 ## Overview
 
 The Dispatcher is a lightweight, protocol-aware front controller that sits in front of multiple honeypots and intelligently routes incoming connections to the appropriate backend honeypot based on early inspection of the attacker’s traffic. This enables exposing only one port per protocol (e.g., one for HTTP, one for SSH, one for MySQL) while internally emulating a variety of services.

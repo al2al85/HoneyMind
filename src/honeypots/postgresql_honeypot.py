@@ -1,3 +1,11 @@
+"""Legacy/experimental PostgreSQL honeypot handler.
+
+HoneyMind currently supports SSH as its maintained honeypot protocol. This
+PostgreSQL handler is inherited from ThalesGroup dd-honeypot and remains in the
+repository for reference and future development. Revalidate behavior, logging,
+and docs before presenting it as a supported HoneyMind feature.
+"""
+
 import json
 import logging
 import os

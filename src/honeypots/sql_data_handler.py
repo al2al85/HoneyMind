@@ -1,3 +1,10 @@
+"""Legacy/experimental SQL data handler.
+
+The supported HoneyMind honeypot path is SSH. This SQL helper supports inherited
+database-protocol experiments from ThalesGroup dd-honeypot and should be
+revalidated before being documented as a first-class HoneyMind feature.
+"""
+
 import json
 from typing import Optional
 

@@ -4,6 +4,8 @@ HoneyMind emits structured JSON events for honeypot activity. Local JSONL loggin
 
 HoneyMind is based on [ThalesGroup dd-honeypot](https://github.com/ThalesGroup/dd-honeypot). New SSH events use HoneyMind's canonical schema; older dd-honeypot-shaped logs can be converted with `scripts/convert_logs_to_canonical.py`.
 
+Local logs are consumed by the HoneyMind dashboard, the IOC writer/API, and the optional Grafana monitoring stack. See [Dashboard and Monitoring](monitoring.md) for the full local analysis pipeline.
+
 ## Local JSONL Logging
 
 SSH activity is emitted as canonical JSONL events. Each event includes `schema_version`, UTC `timestamp`, `event_id`, `session_id`, monotonic session-local `seq`, `event_type`, `service`, `honeypot`, `client`, and `timing`.
@@ -106,6 +108,17 @@ python scripts/read_local_logs.py logs
 ```
 
 Stdout logging remains enabled for Docker users, so `docker logs honeymind` still works.
+
+## Dashboard and Grafana Consumers
+
+The local log files are the source for two different analysis surfaces:
+
+| Consumer | Purpose |
+| -------- | ------- |
+| `ioc-writer` and `ioc-api` | Build `iocs.db`, extract IOC, track sessions, detect campaigns, and serve the HoneyMind web dashboard. |
+| `monitoring/log_processor` | Sends structured events to Loki and exposes Prometheus metrics for Grafana dashboards. |
+
+The HoneyMind web dashboard is an internal investigation UI. Grafana is an operational monitoring stack. Neither service is a honeypot, and neither is required for the SSH honeypot to accept connections.
 
 ## Normalized Input Fields
 
