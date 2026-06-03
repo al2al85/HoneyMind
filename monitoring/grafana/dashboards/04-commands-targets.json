@@ -67,8 +67,8 @@
         "h": 10
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "options": {
         "sortBy": [
@@ -83,12 +83,11 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
+            "type": "loki",
+            "uid": "loki"
           },
-          "expr": "topk(30, sum by (command) (honeymind_top_commands_total))",
-          "instant": true,
-          "format": "table"
+          "expr": "topk(30, sum by (command_raw) (count_over_time({job=\"honeymind\", event_type=\"command\"} | json | command_raw != \"\" [$__range])))",
+          "queryType": "instant"
         }
       ],
       "fieldConfig": {
@@ -96,7 +95,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Value"
+              "options": "Value #A"
             },
             "properties": [
               {
@@ -119,8 +118,8 @@
         "h": 10
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "options": {
         "sortBy": [
@@ -135,7 +134,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Value"
+              "options": "Value #A"
             },
             "properties": [
               {
@@ -150,12 +149,11 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
+            "type": "loki",
+            "uid": "loki"
           },
-          "expr": "topk(30, sum by (file_path) (honeymind_files_accessed_total))",
-          "instant": true,
-          "format": "table"
+          "expr": "topk(30, sum by (_file_accessed) (count_over_time({job=\"honeymind\", event_type=\"command\"} | json | _file_accessed != \"\" | _file_accessed != \"null\" [$__range])))",
+          "queryType": "instant"
         }
       ],
       "transformations": []
@@ -364,8 +362,8 @@
       "type": "table",
       "title": "Top Passwords Tried",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "gridPos": {
         "x": 16,
@@ -377,12 +375,11 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
+            "type": "loki",
+            "uid": "loki"
           },
-          "expr": "topk(30, sum by (password) (honeymind_top_passwords_total))",
-          "instant": true,
-          "format": "table"
+          "expr": "topk(30, sum by (_auth_password) (count_over_time({job=\"honeymind\", event_type=\"auth_attempt\"} | json | _auth_password != \"\" | _auth_password != \"null\" [$__range])))",
+          "queryType": "instant"
         }
       ],
       "transformations": [],
@@ -399,7 +396,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Value"
+              "options": "Value #A"
             },
             "properties": [
               {
