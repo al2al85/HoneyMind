@@ -66,6 +66,13 @@ _UPLOADED_FILE_EXTENSIONS = {
     ".bat", ".ps1", ".jar", ".so", ".bin",
 }
 
+# Common web/data extensions that are NOT suspicious uploads
+_WEB_EXTENSIONS = {
+    ".html", ".htm", ".css", ".js", ".json", ".xml", ".txt",
+    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+    ".zip", ".tar", ".gz", ".woff", ".woff2",
+}
+
 
 def detect_tools(command: str) -> list[str]:
     found = []
@@ -93,14 +100,25 @@ def detect_anonymization(command: str) -> list[str]:
 
 
 def detect_uploaded_file(command: str) -> Optional[str]:
-    """Return filename if a script/binary upload is detected."""
-    # wget/curl to download then execute
+    """Return filename if a script/binary download is detected via wget/curl."""
     download_match = re.search(
         r"(?:wget|curl)\s+.*?(?:https?://\S+/(\S+)|(\S+\.\w+))",
         command, re.I
     )
     if download_match:
         filename = (download_match.group(1) or download_match.group(2) or "").lower()
-        if any(filename.endswith(ext) for ext in _UPLOADED_FILE_EXTENSIONS):
+        if not filename:
+            return None
+        ext = re.search(r'(\.[a-z0-9]+)$', filename)
+        if ext:
+            # Known malicious extension → always report
+            if ext.group(1) in _UPLOADED_FILE_EXTENSIONS:
+                return filename
+            # Common web/data extension → ignore (just a webpage or asset)
+            if ext.group(1) in _WEB_EXTENSIONS:
+                return None
+            # Unknown extension → report anyway (e.g. .cgi, .out, .x86)
             return filename
+        # No extension → likely a bare ELF binary (e.g. wget http://x.x/bot)
+        return filename
     return None

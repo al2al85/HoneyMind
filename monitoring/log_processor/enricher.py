@@ -127,6 +127,10 @@ def enrich(event: dict) -> dict:
         anonymization = detect_anonymization(command)
         uploaded_file = detect_uploaded_file(command)
         obfuscated = detect_obfuscation(command)
+    # SCP upload events carry the filename in details, not in the command string
+    details = e.get("details") or {}
+    if details.get("event") == "scp_upload" and details.get("filename"):
+        uploaded_file = details["filename"]
     e["_tools"] = tools_found
     e["_anonymization"] = anonymization
     e["_uploaded_file"] = uploaded_file
