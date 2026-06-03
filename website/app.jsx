@@ -159,7 +159,7 @@ function transformCampaigns(apiCampaigns, allIpsArr, geoMap) {
       commandsRun:          c.command_count || (c.observed_commands || []).reduce((s, item) => s + (item.count || 0), 0) || (c.shared_commands || []).length,
       observedCommands:     c.observed_commands || [],
       sharedCommands:       c.shared_commands || [],
-      filesTransferred:     (c.ioc_counts || {})['file'] || 0,
+      filesTransferred:     (c.ioc_counts || {})['file'] || (c.ips || []).reduce((s, ip) => s + (((allIpsMap[ip] || {}).ioc_counts || {}).file || 0), 0),
       severity:             campaignSeverity(c),
       confidence:           c.confidence || 0,
       ips:                  ipDetails,
@@ -175,7 +175,7 @@ function computeStats(campaigns, ipsArr, commandTotal = 0) {
     activeCampaigns:  campaigns.filter(c => c.status === 'active').length,
     totalCampaigns:   campaigns.length,
     totalCommands:    commandTotal || campaigns.reduce((s, c) => s + c.commandsRun, 0),
-    filesTransferred: campaigns.reduce((s, c) => s + c.filesTransferred, 0),
+    filesTransferred: ipsArr.reduce((s, ip) => s + ((ip.ioc_counts || {}).file || 0), 0),
   };
 }
 
