@@ -1,6 +1,6 @@
 {
   "uid": "attack-overview",
-  "title": "HoneyMind — Attack Overview",
+  "title": "HoneyMind \u2014 Attack Overview",
   "description": "Global view: attack categories, timelines, top IPs, protocols",
   "tags": [
     "honeymind",
@@ -758,7 +758,7 @@
     },
     {
       "id": 31,
-      "type": "barchart",
+      "type": "table",
       "title": "Top Commands",
       "gridPos": {
         "h": 10,
@@ -771,20 +771,84 @@
         "uid": "loki"
       },
       "options": {
-        "orientation": "horizontal",
-        "xTickLabelRotation": 0,
-        "legend": {
-          "displayMode": "hidden"
-        }
+        "sortBy": [
+          {
+            "displayName": "Occurrences",
+            "desc": true
+          }
+        ],
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
       },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "command_raw": "Commande",
+              "Value #A": "Occurrences",
+              "Value": "Occurrences"
+            }
+          }
+        }
+      ],
       "targets": [
         {
-          "expr": "topk(15, sum by (command_raw) (count_over_time({job=\"honeymind\", event_type=\"command\"} | json | __error__=\"\" [$__range])))",
-          "legendFormat": "{{command_raw}}",
           "refId": "A",
-          "queryType": "range"
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(30, sum by (command_raw) (count_over_time({job=\"honeymind\", event_type=\"command\"} | json | command_raw != \"\" [7d])))",
+          "queryType": "instant"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "left",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Occurrences"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Commande"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          }
+        ]
+      }
     },
     {
       "id": 40,
