@@ -42,35 +42,32 @@ def build_data_handler(config: dict, log_callback=None):
     fs_file = config.get("fs_file")
     llm_config = llm_config_from(config)
 
-    if fs_file and config.get("type") == "ssh":
-        fakefs_handler = FakeFSDataHandler(
-            data_file=data_file,
-            fs_file=fs_file,
-            config=config,
-        )
-        llm_handler = DataHandler(
-            data_file=data_file,
-            system_prompt=system_prompt,
-            model_id=model_id,
-            **llm_config,
-        )
-        file_download_handler = FileDownloadHandler(
-            fakefs_handler=fakefs_handler, log_callback=log_callback
-        )
+    llm_handler = DataHandler(
+        data_file=data_file,
+        system_prompt=system_prompt,
+        model_id=model_id,
+        **llm_config,
+    )
 
-        chained_handler = ChainedDataHandler(
-            [file_download_handler, fakefs_handler, llm_handler]
-        )
+    if config.get("type") == "ssh":
+        if fs_file:
+            fakefs_handler = FakeFSDataHandler(
+                data_file=data_file,
+                fs_file=fs_file,
+                config=config,
+            )
+            file_download_handler = FileDownloadHandler(
+                fakefs_handler=fakefs_handler, log_callback=log_callback
+            )
+            return ChainedDataHandler(
+                [file_download_handler, fakefs_handler, llm_handler]
+            )
+        else:
+            # No fakefs — still intercept wget/curl to save downloads to disk
+            file_download_handler = FileDownloadHandler(log_callback=log_callback)
+            return ChainedDataHandler([file_download_handler, llm_handler])
 
-        return chained_handler
-
-    else:
-        return DataHandler(
-            data_file=data_file,
-            system_prompt=system_prompt,
-            model_id=model_id,
-            **llm_config,
-        )
+    return llm_handler
 
 
 def create_honeypot(config: dict) -> BaseHoneypot:

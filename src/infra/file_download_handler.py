@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 import os
 import requests
@@ -17,8 +18,9 @@ class FileDownloadHandler:
         self.download_dir = download_dir
 
     def connect(self, auth_info: dict) -> HoneypotSession:
-        # Delegate session creation to FakeFS (or create your own if needed)
-        return self.fakefs_handler.connect(auth_info)
+        if self.fakefs_handler is not None:
+            return self.fakefs_handler.connect(auth_info)
+        return {}
 
     def query(self, command, session, **kwargs):
         if not (command.startswith("wget ") or command.startswith("curl ")):
@@ -26,7 +28,7 @@ class FileDownloadHandler:
 
         url = self._extract_url(command)
         if not url:
-            return "Invalid URL\n"
+            return None
 
         filename = os.path.basename(urlparse(url).path) or "index.html"
         try:
@@ -34,15 +36,13 @@ class FileDownloadHandler:
             content_bytes = resp.content
             content_str = resp.text
 
-            # Save to FakeFS
+            # Save to FakeFS if available
             fs = session.get("fs")
             if fs and hasattr(fs, "create_file"):
                 fs.create_file(f"/tmp/{filename}", content_str)
 
-            # Save to disk
             self._save_to_host(filename, content_bytes)
 
-            # Log
             if self.log_callback:
                 self.log_callback(
                     session,
@@ -56,12 +56,12 @@ class FileDownloadHandler:
                 )
 
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            fake_file_size = len(content_bytes)  # size in bytes
-
+            fake_file_size = len(content_bytes)
+            host = url.split("/")[2]
             return (
                 f"--{now}--  {url}\n"
-                f"Resolving {url.split('/')[2]}... done.\r\n"
-                f"Connecting to {url.split('/')[2]}|192.0.2.1|:80... connected.\r\n"
+                f"Resolving {host}... done.\r\n"
+                f"Connecting to {host}|192.0.2.1|:80... connected.\r\n"
                 f"HTTP request sent, awaiting response... 200 OK\r\n"
                 f"Length: {fake_file_size} [text/plain]\r\n"
                 f"Saving to: ‘{filename}’\r\n\n"
@@ -70,8 +70,10 @@ class FileDownloadHandler:
             )
 
         except Exception as e:
-            logging.warning(f"[FileDownloadHandler] Download failed, falling back: {e}")
-            return None
+            logging.warning("[FileDownloadHandler] Download failed (%s), saving placeholder", e)
+            # Always persist a placeholder so ioc_writer can track the download event
+            self._save_to_host(filename, f"# captured from {url}\n".encode())
+            return None  # Fall through to FakeFSDataHandler / LLM
 
     def _extract_url(self, command):
         parts = command.split()

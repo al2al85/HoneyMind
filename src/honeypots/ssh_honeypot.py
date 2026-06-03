@@ -451,9 +451,26 @@ class SSHServerInterface(paramiko.ServerInterface):
                 pass
 
 
+class _LoggingSFTPHandle(SFTPHandle):
+    """SFTPHandle that fires a log callback once the client closes the file."""
+
+    def __init__(self, flags, log_cb):
+        super().__init__(flags)
+        self._log_cb = log_cb
+
+    def close(self):
+        result = super().close()
+        try:
+            self._log_cb()
+        except Exception as exc:
+            logging.warning("Failed to log SFTP upload: %s", exc)
+        return result
+
+
 class HoneypotSFTPServerInterface(SFTPServerInterface):
     def __init__(self, server, honeypot=None, config=None):
         super().__init__(server)
+        self._ssh_server = server  # SSHServerInterface — carries .session
         self.honeypot = honeypot
         self.config = config or {}
         upload_dir = self.config.get(
@@ -461,6 +478,28 @@ class HoneypotSFTPServerInterface(SFTPServerInterface):
         )
         self.upload_dir = Path(upload_dir)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+
+    def _log_upload(self, local_path: Path) -> None:
+        server = self._ssh_server
+        if server is None or getattr(server, "session", None) is None:
+            return
+        filename = local_path.name
+        try:
+            event = build_event(
+                session=server.session,
+                event_type="command",
+                service="ssh",
+                config=self.config,
+                port=getattr(self.honeypot, "port", None),
+                client=client_identity(session=server.session),
+                command=build_command_payload(
+                    f"scp -t {local_path}", parser_action="scp_upload"
+                ),
+                details={"event": "scp_upload", "filename": filename},
+            )
+            write_and_print_event(event, self.config)
+        except Exception as exc:
+            logging.warning("Failed to log SFTP upload event: %s", exc)
 
     def _remote_path(self, path: str) -> Path:
         if not path or path == "/":
@@ -513,7 +552,11 @@ class HoneypotSFTPServerInterface(SFTPServerInterface):
         except OSError as exc:
             return paramiko.SFTPServer.convert_errno(exc.errno)
 
-        handle = SFTPHandle(flags)
+        is_write = bool(flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND))
+        if is_write:
+            handle = _LoggingSFTPHandle(flags, lambda: self._log_upload(local_path))
+        else:
+            handle = SFTPHandle(flags)
         handle.writefile = file_obj
         if flags & os.O_RDWR:
             handle.readfile = file_obj
